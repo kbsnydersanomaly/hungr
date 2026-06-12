@@ -60,6 +60,8 @@ pnpm db:seed
 
 **Authentication → URL Configuration**
 
+These values must match `NEXT_PUBLIC_APP_URL` exactly — otherwise verification, password-reset and OAuth links redirect to the wrong domain (often `localhost:3000`).
+
 | Setting | Value |
 |---------|--------|
 | Site URL | `https://your-domain.com` (or `https://your-app.vercel.app` until custom domain is ready) |
@@ -67,6 +69,8 @@ pnpm db:seed
 | | `https://your-domain.com/**` |
 | | `https://your-app.vercel.app/**` |
 | | `http://localhost:3000/**` (keep for local dev) |
+
+> **Local dev:** `supabase/config.toml` now uses `env(NEXT_PUBLIC_APP_URL)` for `site_url` and `additional_redirect_urls`. Restart `supabase start` after changing `NEXT_PUBLIC_APP_URL` in `.env.local`.
 
 **Authentication → Providers → Email**
 
