@@ -1,0 +1,353 @@
+"use server";
+
+import { ValidationError, safeAction, NotFoundError } from "@/lib/errors";
+import { requireSuperAdmin } from "@/lib/auth/role";
+import type { Database, Json } from "@/lib/database.types";
+
+type PlanInsert = Database["public"]["Tables"]["plans"]["Insert"];
+type PlanUpdate = Database["public"]["Tables"]["plans"]["Update"];
+type SubscriptionUpdate = Database["public"]["Tables"]["subscriptions"]["Update"];
+
+function parsePlanForm(formData: FormData): Omit<PlanInsert, "slug"> & { slug?: string } {
+  let features: Json = {};
+  try {
+    features = JSON.parse(String(formData.get("features") ?? "{}")) as Json;
+  } catch {
+    features = {};
+  }
+
+  return {
+    slug: String(formData.get("slug") ?? "").trim() || undefined,
+    name: String(formData.get("name") ?? "").trim(),
+    description: String(formData.get("description") ?? "").trim() || null,
+    pricing_model: String(formData.get("pricing_model") ?? "") as PlanInsert["pricing_model"],
+    base_price_cents: parseInt(String(formData.get("base_price_cents") ?? "0"), 10),
+    additional_discount_pct: parseFloat(String(formData.get("additional_discount_pct") ?? "0")),
+    included_restaurants: parseInt(String(formData.get("included_restaurants") ?? ""), 10) || null,
+    max_restaurants: parseInt(String(formData.get("max_restaurants") ?? ""), 10) || null,
+    features,
+    contact_only: String(formData.get("contact_only")) === "on",
+    is_public: String(formData.get("is_public")) !== "off",
+    active: String(formData.get("active")) !== "off",
+    sort_order: parseInt(String(formData.get("sort_order") ?? "0"), 10),
+  };
+}
+
+export async function listOrganizations(search?: string) {
+  const { supabase } = await requireSuperAdmin();
+
+  let query = supabase
+    .from("organizations")
+    .select("*, profiles!organizations_owner_id_fkey(email, display_name)")
+    .order("created_at", { ascending: false });
+
+  if (search) {
+    query = query.ilike("name", `%${search}%`);
+  }
+
+  const { data, error } = await query.limit(100);
+
+  if (error) {
+    console.error("listOrganizations error:", error);
+    throw new ValidationError("Failed to load organizations.");
+  }
+
+  return data ?? [];
+}
+
+export async function getOrganizationMetrics(orgId: string) {
+  const { supabase } = await requireSuperAdmin();
+
+  const [
+    { count: restaurantCount },
+    { count: memberCount },
+    { count: subscriptionCount },
+    { data: transactions },
+  ] = await Promise.all([
+    supabase
+      .from("restaurants")
+      .select("*", { count: "exact", head: true })
+      .eq("org_id", orgId),
+    supabase
+      .from("organization_members")
+      .select("*", { count: "exact", head: true })
+      .eq("org_id", orgId),
+    supabase
+      .from("subscriptions")
+      .select("*", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("status", "active"),
+    supabase
+      .from("transactions")
+      .select("amount_gross_cents")
+      .eq("org_id", orgId)
+      .eq("payment_status", "COMPLETE"),
+  ]);
+
+  const lifetimeSpend =
+    transactions?.reduce((sum, t) => sum + (t.amount_gross_cents ?? 0), 0) ?? 0;
+
+  return {
+    restaurantCount: restaurantCount ?? 0,
+    memberCount: memberCount ?? 0,
+    subscriptionCount: subscriptionCount ?? 0,
+    lifetimeSpend,
+  };
+}
+
+export async function listPlans() {
+  const { supabase } = await requireSuperAdmin();
+  const { data, error } = await supabase
+    .from("plans")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    console.error("listPlans error:", error);
+    throw new ValidationError("Failed to load plans.");
+  }
+
+  return data ?? [];
+}
+
+export async function createPlan(formData: FormData) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+    const fields = parsePlanForm(formData);
+
+    if (!fields.slug) throw new ValidationError("Slug is required.");
+    if (!fields.name) throw new ValidationError("Name is required.");
+    if (!fields.pricing_model) throw new ValidationError("Pricing model is required.");
+
+    const { error } = await supabase.from("plans").insert(fields as PlanInsert);
+
+    if (error) {
+      console.error("createPlan error:", error);
+      throw new ValidationError("Failed to create plan.");
+    }
+
+    return { created: true };
+  });
+}
+
+export async function updatePlan(planId: string, formData: FormData) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+    const fields = parsePlanForm(formData);
+
+    if (!fields.name) throw new ValidationError("Name is required.");
+
+    // Slug is immutable on update — drop it.
+    const { slug, ...rest } = fields;
+    void slug;
+    const updates: PlanUpdate = {
+      ...rest,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("plans").update(updates).eq("id", planId);
+
+    if (error) {
+      console.error("updatePlan error:", error);
+      throw new ValidationError("Failed to update plan.");
+    }
+
+    return { updated: true };
+  });
+}
+
+// ── Users ────────────────────────────────────────────────────────────────
+
+export async function listUsers(search?: string, limit = 100) {
+  const { supabase } = await requireSuperAdmin();
+
+  let query = supabase
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (search) {
+    query = query.or(`email.ilike.%${search}%,display_name.ilike.%${search}%`);
+  }
+
+  const { data, error } = await query.limit(limit);
+
+  if (error) {
+    console.error("listUsers error:", error);
+    throw new ValidationError("Failed to load users.");
+  }
+
+  return data ?? [];
+}
+
+// ── Subscriptions ────────────────────────────────────────────────────────
+
+export async function listSubscriptions(search?: string, limit = 100) {
+  const { supabase } = await requireSuperAdmin();
+
+  let query = supabase
+    .from("subscriptions")
+    .select("*, plans(*), organizations(name, slug)")
+    .order("created_at", { ascending: false });
+
+  if (search) {
+    query = query.or(
+      `organizations.name.ilike.%${search}%,organizations.slug.ilike.%${search}%`
+    );
+  }
+
+  const { data, error } = await query.limit(limit);
+
+  if (error) {
+    console.error("listSubscriptions error:", error);
+    throw new ValidationError("Failed to load subscriptions.");
+  }
+
+  return data ?? [];
+}
+
+// ── Subscription overrides ───────────────────────────────────────────────
+
+function applyStatusTimestamps(
+  updates: SubscriptionUpdate,
+  status: SubscriptionUpdate["status"]
+): SubscriptionUpdate {
+  if (status === "cancelled") {
+    updates.cancelled_at = new Date().toISOString();
+  } else if (status === "paused") {
+    updates.paused_at = new Date().toISOString();
+  } else if (status === "active") {
+    updates.paused_at = null;
+    updates.cancelled_at = null;
+  }
+  return updates;
+}
+
+export async function updateSubscriptionStatus(
+  subscriptionId: string,
+  status: "active" | "paused" | "cancelled" | "failed"
+) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const updates = applyStatusTimestamps(
+      { status, updated_at: new Date().toISOString() },
+      status
+    );
+
+    const { error } = await supabase
+      .from("subscriptions")
+      .update(updates)
+      .eq("id", subscriptionId);
+
+    if (error) {
+      console.error("updateSubscriptionStatus error:", error);
+      throw new ValidationError("Failed to update subscription.");
+    }
+
+    return { updated: true };
+  });
+}
+
+export async function getSubscription(subscriptionId: string) {
+  const { supabase } = await requireSuperAdmin();
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("*, plans(*), organizations(name, slug, owner_id)")
+    .eq("id", subscriptionId)
+    .single();
+
+  if (error) {
+    console.error("getSubscription error:", error);
+    throw new NotFoundError("Subscription not found.");
+  }
+
+  return data;
+}
+
+export async function updateSubscription(subscriptionId: string, formData: FormData) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const status = String(formData.get("status") ?? "").trim() as
+      | "active"
+      | "paused"
+      | "cancelled"
+      | "failed"
+      | "pending";
+
+    if (!status) throw new ValidationError("Status is required.");
+
+    const updates = applyStatusTimestamps(
+      {
+        status,
+        amount_cents: parseInt(String(formData.get("amount_cents") ?? "0"), 10),
+        billing_period: String(formData.get("billing_period") ?? "monthly").trim(),
+        next_billing_date: String(formData.get("next_billing_date") ?? "").trim() || null,
+        payfast_token: String(formData.get("payfast_token") ?? "").trim() || null,
+        payfast_subscription_id:
+          String(formData.get("payfast_subscription_id") ?? "").trim() || null,
+        current_period_end: String(formData.get("current_period_end") ?? "").trim() || null,
+        updated_at: new Date().toISOString(),
+      },
+      status
+    );
+
+    const { error } = await supabase
+      .from("subscriptions")
+      .update(updates)
+      .eq("id", subscriptionId);
+
+    if (error) {
+      console.error("updateSubscription error:", error);
+      throw new ValidationError("Failed to update subscription.");
+    }
+
+    return { updated: true };
+  });
+}
+
+export async function listTransactionsForSubscription(subscriptionId: string, limit = 50) {
+  const { supabase } = await requireSuperAdmin();
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("subscription_id", subscriptionId)
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("listTransactionsForSubscription error:", error);
+    throw new ValidationError("Failed to load transactions.");
+  }
+
+  return data ?? [];
+}
+
+// ── Transactions ─────────────────────────────────────────────────────────
+
+export async function listTransactions(search?: string, limit = 100) {
+  const { supabase } = await requireSuperAdmin();
+
+  let query = supabase
+    .from("transactions")
+    .select("*, organizations(name, slug), restaurants(name)")
+    .order("occurred_at", { ascending: false });
+
+  if (search) {
+    query = query.or(
+      `payfast_payment_id.ilike.%${search}%,m_payment_id.ilike.%${search}%`
+    );
+  }
+
+  const { data, error } = await query.limit(limit);
+
+  if (error) {
+    console.error("listTransactions error:", error);
+    throw new ValidationError("Failed to load transactions.");
+  }
+
+  return data ?? [];
+}
