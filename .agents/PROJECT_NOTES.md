@@ -92,7 +92,7 @@ pnpm e2e                # Playwright
 - Optional: `supabase functions deploy rollup_analytics`
 - Create first super admin: `UPDATE profiles SET is_super_admin = true WHERE email = '...'`
 - Vercel import, set env vars, register PayFast ITN URL `/api/webhooks/payfast`
-- Cron: `/api/cron/grace-period` every 6h via `vercel.json`, expects `Authorization: Bearer $CRON_SECRET`
+- Cron: `/api/cron/grace-period` daily at 02:00 UTC via `vercel.json` (Hobby-compatible), expects `Authorization: Bearer $CRON_SECRET`
 
 ## Key env vars
 - `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`

@@ -224,10 +224,12 @@ Test: sign up (confirmation), forgot password, team invite — each should arriv
 `vercel.json` schedules:
 
 ```json
-{ "path": "/api/cron/grace-period", "schedule": "0 */6 * * *" }
+{ "path": "/api/cron/grace-period", "schedule": "0 2 * * *" }
 ```
 
-Vercel sends `Authorization: Bearer <CRON_SECRET>` automatically on Pro plans. Ensure `CRON_SECRET` in Vercel matches what the route expects.
+Runs once daily at 02:00 UTC — compatible with Vercel **Hobby** (daily cron limit). A 7-day grace period does not need sub-daily checks; use `0 */6 * * *` only on **Pro** if you want faster enforcement.
+
+Vercel sends `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` is set in project env. Ensure it matches what the route expects.
 
 **Manual test after deploy:**
 
@@ -284,7 +286,8 @@ vercel --prod
 | Images 404 on public menu | Buckets missing → re-run `supabase db push`; check `menu-media` is public |
 | PayFast webhook 400 | Passphrase mismatch; ITN URL must be HTTPS production URL |
 | Emails not sent | `MAIL_PROVIDER` still `console`; verify domain with Resend/Brevo |
-| Cron 401 | `CRON_SECRET` not set in Vercel or cron only on Pro plan |
+| Cron 401 | `CRON_SECRET` not set in Vercel env vars |
+| Cron deploy error (Hobby) | Schedule must run at most once per day (e.g. `0 2 * * *`, not `0 */6 * * *`) |
 | Checkout return doesn’t activate sub | Check `NEXT_PUBLIC_APP_URL` matches browser URL; inspect `subscriptions` for pending row |
 
 ---

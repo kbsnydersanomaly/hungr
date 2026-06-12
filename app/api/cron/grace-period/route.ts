@@ -5,7 +5,7 @@ import { env } from "@/lib/env";
 
 /**
  * Grace period cron job.
- * Runs periodically to unpublish restaurants whose subscriptions
+ * Runs once daily to unpublish restaurants whose subscriptions
  * have been in "failed" status for more than 7 days.
  *
  * Expected to be called by Vercel Cron with a secret token.
