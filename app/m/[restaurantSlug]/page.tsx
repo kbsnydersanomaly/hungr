@@ -49,6 +49,7 @@ export default async function DefaultMenuPage({
       specials={specials}
       menus={menus}
       logoUrl={branding?.logo_url}
+      bannerImageUrls={branding?.banner_image_urls}
     />
   );
 }

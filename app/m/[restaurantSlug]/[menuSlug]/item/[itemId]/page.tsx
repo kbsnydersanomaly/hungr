@@ -4,11 +4,13 @@ import { loadRestaurantBySlug } from "@/lib/data/restaurants";
 import Image from "next/image";
 import { loadApprovedReviewsForItem, loadReviewStatsForItem } from "@/lib/data/reviews";
 import { loadCombosForItem, loadRecommendedItems } from "@/lib/data/item-detail-actions";
+import { loadActiveSpecialsForRestaurant } from "@/lib/data/specials";
 import { loadBranding } from "@/lib/data/branding";
 import { Header } from "@/components/menu/Header";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ImageCarousel } from "@/components/menu/ImageCarousel";
 import { RecommendedCard } from "@/components/menu/RecommendedCard";
+import { getItemDiscount } from "@/lib/specials/discounts";
 import { Star, Sparkles } from "lucide-react";
 
 type Variant = { name?: string; price_cents?: number };
@@ -48,13 +50,16 @@ export default async function ItemDetailPage({
         ? [rawItem.image_url]
         : [];
 
-  const [reviews, stats, combos, recommended, branding] = await Promise.all([
+  const [reviews, stats, combos, recommended, branding, specials] = await Promise.all([
     loadApprovedReviewsForItem(itemId),
     loadReviewStatsForItem(itemId),
     loadCombosForItem(itemId),
     loadRecommendedItems(menu.id, itemId, 4),
     loadBranding(restaurant.id),
+    loadActiveSpecialsForRestaurant(restaurant.id),
   ]);
+
+  const itemDiscount = getItemDiscount(rawItem, specials, { menuId: menu.id });
 
   return (
     <div className="flex flex-col flex-1">
@@ -70,9 +75,25 @@ export default async function ItemDetailPage({
 
         <div>
           <h1 className="text-2xl font-bold font-heading">{item.name}</h1>
-          <p className="text-lg font-medium text-primary mt-1">
-            R {(item.price_cents / 100).toFixed(2)}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            {itemDiscount.discount_label ? (
+              <>
+                <p className="text-sm text-muted-foreground line-through">
+                  R {(itemDiscount.original_price_cents / 100).toFixed(2)}
+                </p>
+                <p className="text-lg font-medium text-primary">
+                  R {(itemDiscount.discounted_price_cents / 100).toFixed(2)}
+                </p>
+                <span className="inline-flex items-center rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                  {itemDiscount.discount_label}
+                </span>
+              </>
+            ) : (
+              <p className="text-lg font-medium text-primary">
+                R {(item.price_cents / 100).toFixed(2)}
+              </p>
+            )}
+          </div>
         </div>
 
         {item.description && (

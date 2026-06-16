@@ -36,3 +36,35 @@ export async function loadRestaurantsForOrg(orgId: string) {
   if (error) throw error;
   return data ?? [];
 }
+
+export async function loadRestaurantsForUser(userId: string, orgId: string) {
+  const supabase = await createServerClient();
+
+  const [{ data: orgRestaurants }, { data: memberRestaurants }] = await Promise.all([
+    supabase
+      .from("restaurants")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("restaurant_members")
+      .select("restaurants(*)")
+      .eq("user_id", userId)
+      .eq("restaurants.org_id", orgId)
+      .order("joined_at", { ascending: false }),
+  ]);
+
+  const fromOrg = orgRestaurants ?? [];
+  const fromMemberships = (memberRestaurants ?? [])
+    .map((m) => m.restaurants)
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  const seen = new Set<string>();
+  const merged: typeof fromOrg = [];
+  for (const r of [...fromOrg, ...fromMemberships]) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    merged.push(r);
+  }
+  return merged;
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getActiveOrg } from "@/lib/auth/active-org";
-import { loadRestaurantsForOrg } from "@/lib/data/restaurants";
+import { getSession } from "@/lib/auth/session";
+import { loadRestaurantsForUser } from "@/lib/data/restaurants";
 import { getTotalMenuViewsForRestaurant } from "@/lib/data/analytics-actions";
 import { createServerClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
@@ -9,9 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { UtensilsCrossed, TrendingUp, Users, Star, Plus, CheckCircle2, Circle } from "lucide-react";
 
 export default async function DashboardPage() {
-  const org = await getActiveOrg();
+  const [org, session] = await Promise.all([getActiveOrg(), getSession()]);
   const orgId = org?.orgId;
-  const restaurants = orgId ? await loadRestaurantsForOrg(orgId) : [];
+  const userId = session?.user.id;
+  const restaurants = orgId && userId ? await loadRestaurantsForUser(userId, orgId) : [];
 
   if (restaurants.length === 0) {
     return (

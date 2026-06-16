@@ -12,6 +12,9 @@ interface MenuItemsGridProps {
     image_urls: string[];
     labels: string[];
     category_id: string;
+    original_price_cents?: number;
+    discounted_price_cents?: number;
+    discount_label?: string | null;
   }>;
   restaurantSlug: string;
   menuSlug: string;

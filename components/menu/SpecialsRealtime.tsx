@@ -23,6 +23,18 @@ export function SpecialsRealtime({ restaurantId }: { restaurantId: string }) {
           router.refresh();
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "branding",
+          filter: `restaurant_id=eq.${restaurantId}`,
+        },
+        () => {
+          router.refresh();
+        }
+      )
       .subscribe();
 
     return () => {

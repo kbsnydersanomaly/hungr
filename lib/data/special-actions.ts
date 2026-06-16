@@ -5,6 +5,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { NotFoundError, ValidationError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { safeJsonParse } from "@/lib/utils/safeJsonParse";
+import { trackMediaUsage, untrackMediaUsage } from "./media-actions";
 import type { Database } from "@/lib/database.types";
 
 type SpecialKind = "item_discount" | "category_discount" | "combo";
@@ -33,6 +34,7 @@ function parseSpecialForm(formData: FormData): Omit<SpecialInsert, "restaurant_i
     priority: parseInt(String(formData.get("priority") ?? "0"), 10) || 0,
     active: String(formData.get("active") ?? "") === "on",
     image_url: String(formData.get("image_url") ?? "").trim() || null,
+    media_id: String(formData.get("media_id") ?? "").trim() || null,
   };
 }
 
@@ -84,6 +86,14 @@ export async function createSpecial(restaurantId: string, formData: FormData) {
       throw new ValidationError("Failed to create special.");
     }
 
+    if (fields.media_id) {
+      try {
+        await trackMediaUsage(fields.media_id, "specials", created.id);
+      } catch (err) {
+        console.error("trackMediaUsage error:", err);
+      }
+    }
+
     revalidatePath(`/restaurants/${restaurantId}/specials`);
     return { created: true, id: created.id };
   });
@@ -97,6 +107,12 @@ export async function updateSpecial(specialId: string, formData: FormData) {
     const fields = parseSpecialForm(formData);
     if (!fields.title) throw new ValidationError("Title is required.");
 
+    const { data: existing } = await supabase
+      .from("specials")
+      .select("media_id")
+      .eq("id", specialId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from("specials")
       .update({ ...fields, updated_at: new Date().toISOString() })
@@ -105,6 +121,21 @@ export async function updateSpecial(specialId: string, formData: FormData) {
     if (error) {
       console.error("updateSpecial error:", error);
       throw new ValidationError("Failed to update special.");
+    }
+
+    if (existing?.media_id && existing.media_id !== fields.media_id) {
+      try {
+        await untrackMediaUsage(existing.media_id, "specials", specialId);
+      } catch (err) {
+        console.error("untrackMediaUsage error:", err);
+      }
+    }
+    if (fields.media_id && fields.media_id !== existing?.media_id) {
+      try {
+        await trackMediaUsage(fields.media_id, "specials", specialId);
+      } catch (err) {
+        console.error("trackMediaUsage error:", err);
+      }
     }
 
     revalidatePath(`/restaurants/${restaurantId}/specials`);
@@ -117,11 +148,25 @@ export async function deleteSpecial(specialId: string) {
     const restaurantId = await loadSpecialRestaurantId(specialId);
     const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
 
+    const { data: existing } = await supabase
+      .from("specials")
+      .select("media_id")
+      .eq("id", specialId)
+      .maybeSingle();
+
     const { error } = await supabase.from("specials").delete().eq("id", specialId);
 
     if (error) {
       console.error("deleteSpecial error:", error);
       throw new ValidationError("Failed to delete special.");
+    }
+
+    if (existing?.media_id) {
+      try {
+        await untrackMediaUsage(existing.media_id, "specials", specialId);
+      } catch (err) {
+        console.error("untrackMediaUsage error:", err);
+      }
     }
 
     revalidatePath(`/restaurants/${restaurantId}/specials`);

@@ -15,6 +15,9 @@ interface ItemCardProps {
     image_url: string | null;
     image_urls: string[];
     labels: string[];
+    original_price_cents?: number;
+    discounted_price_cents?: number;
+    discount_label?: string | null;
   };
   restaurantSlug: string;
   menuSlug: string;
@@ -50,15 +53,34 @@ export function ItemCard({ item, restaurantSlug, menuSlug, menuId, compact }: It
       <div className={cn("space-y-1", !compact && "p-3")}>
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-semibold leading-tight">{item.name}</h3>
-          <span className="shrink-0 text-sm font-medium text-primary">
-            {formatZar(item.price_cents)}
-          </span>
+          <div className="shrink-0 text-right">
+            {item.discount_label && item.discounted_price_cents !== undefined && (
+              <>
+                <span className="block text-xs text-muted-foreground line-through">
+                  {formatZar(item.original_price_cents ?? item.price_cents)}
+                </span>
+                <span className="block text-sm font-medium text-primary">
+                  {formatZar(item.discounted_price_cents)}
+                </span>
+              </>
+            )}
+            {!item.discount_label && (
+              <span className="block text-sm font-medium text-primary">
+                {formatZar(item.price_cents)}
+              </span>
+            )}
+          </div>
         </div>
         {item.description && (
           <p className="line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
         )}
-        {item.labels.length > 0 && (
+        {(item.labels.length > 0 || item.discount_label) && (
           <div className="flex flex-wrap gap-1 pt-1">
+            {item.discount_label && (
+              <span className="inline-flex items-center rounded-full bg-destructive px-2 py-0.5 text-[10px] font-medium text-destructive-foreground">
+                {item.discount_label}
+              </span>
+            )}
             {item.labels.map((label) => (
               <span
                 key={label}

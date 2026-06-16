@@ -5,9 +5,16 @@ import { Header } from "./Header";
 import { SearchBar } from "./SearchBar";
 import { CategoryFilter } from "./CategoryFilter";
 import { SpecialsSlider } from "./SpecialsSlider";
+import { MenuBanner } from "./MenuBanner";
 import { MenuItemsGrid } from "./MenuItemsGrid";
 import { MenuSwitcher } from "./MenuSwitcher";
 import { trackEvent } from "@/lib/analytics/track";
+import { isSpecialActiveNow } from "@/lib/specials/filter";
+import {
+  getItemDiscount,
+  findCategoryDiscount,
+  formatDiscountLabel,
+} from "@/lib/specials/discounts";
 
 interface MenuViewProps {
   restaurant: {
@@ -42,12 +49,24 @@ interface MenuViewProps {
     discount_type: string | null;
     combo_price_cents: number | null;
     kind: string;
+    active: boolean;
+    menu_id: string | null;
+    date_from: string | null;
+    date_to: string | null;
+    time_from: string | null;
+    time_to: string | null;
+    selected_days: string[] | null;
+    special_targets: Array<{
+      item_id: string | null;
+      category_id: string | null;
+    }> | null;
   }>;
   menus?: Array<{ id: string; name: string; slug: string; is_default?: boolean | null }>;
   logoUrl?: string | null;
+  bannerImageUrls?: string[];
 }
 
-export function MenuView({ restaurant, menu, categories, items, specials, menus = [], logoUrl }: MenuViewProps) {
+export function MenuView({ restaurant, menu, categories, items, specials, menus = [], logoUrl, bannerImageUrls = [] }: MenuViewProps) {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,8 +101,35 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
     }
   };
 
+  const activeSpecials = useMemo(
+    () => specials.filter((s) => isSpecialActiveNow(s, { menuId: menu.id })),
+    [specials, menu.id]
+  );
+
+  const bannerSpecials = useMemo(
+    () =>
+      activeSpecials
+        .filter((s) => s.image_url)
+        .map((s) => ({ ...s, image_url: s.image_url as string })),
+    [activeSpecials]
+  );
+
+  const sliderSpecials = useMemo(
+    () => activeSpecials.filter((s) => !s.image_url),
+    [activeSpecials]
+  );
+
+  const itemsWithDiscounts = useMemo(
+    () =>
+      items.map((item) => {
+        const discount = getItemDiscount(item, activeSpecials, { menuId: menu.id });
+        return { ...item, ...discount };
+      }),
+    [items, activeSpecials, menu.id]
+  );
+
   const filteredItems = useMemo(() => {
-    let result = items;
+    let result = itemsWithDiscounts;
 
     if (activeCategory) {
       result = result.filter((item) => item.category_id === activeCategory);
@@ -99,7 +145,16 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
     }
 
     return result;
-  }, [items, activeCategory, search]);
+  }, [itemsWithDiscounts, activeCategory, search]);
+
+  const categoriesWithDiscounts = useMemo(
+    () =>
+      categories.map((category) => {
+        const discount = findCategoryDiscount(category.id, activeSpecials, { menuId: menu.id });
+        return { ...category, discount_label: discount ? formatDiscountLabel(discount) : null };
+      }),
+    [categories, activeSpecials, menu.id]
+  );
 
   return (
     <div className="flex flex-col flex-1">
@@ -118,17 +173,21 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
         />
       </Header>
 
+      {bannerSpecials.length > 0 || bannerImageUrls.length > 0 ? (
+        <MenuBanner bannerImageUrls={bannerImageUrls} specials={bannerSpecials} />
+      ) : null}
+
       <SearchBar value={search} onChange={setSearch} />
 
-      {categories.length > 0 && (
+      {categoriesWithDiscounts.length > 0 && (
         <CategoryFilter
-          categories={categories}
+          categories={categoriesWithDiscounts}
           activeId={activeCategory}
           onSelect={handleCategorySelect}
         />
       )}
 
-      {specials.length > 0 && <SpecialsSlider specials={specials} />}
+      {sliderSpecials.length > 0 && <SpecialsSlider specials={sliderSpecials} />}
 
       <div className="flex-1 px-4 py-4">
         {filteredItems.length > 0 ? (

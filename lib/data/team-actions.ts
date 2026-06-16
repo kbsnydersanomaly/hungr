@@ -18,8 +18,11 @@ export async function inviteMember(formData: FormData) {
 
     const { user, supabase } = await requireOrgAccess(parsed.orgId, "admin");
 
-    if (parsed.restaurantId && parsed.role !== "owner" && parsed.role !== "admin") {
+    if (parsed.restaurantId) {
       await requireRestaurantAccess(parsed.restaurantId, "manager");
+      if (parsed.role === "owner" || parsed.role === "admin") {
+        throw new ValidationError("Restaurant invitations only support manager or staff roles.");
+      }
     }
 
     if (parsed.role === "owner") {

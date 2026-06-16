@@ -39,6 +39,7 @@ interface Special {
   priority: number;
   active: boolean;
   image_url: string | null;
+  media_id: string | null;
   menu_id: string | null;
 }
 
@@ -99,6 +100,7 @@ export function SpecialEditor({
   const [priority, setPriority] = useState(special?.priority ?? 0);
   const [active, setActive] = useState(special?.active ?? true);
   const [imageUrl, setImageUrl] = useState(special?.image_url ?? "");
+  const [imageMediaId, setImageMediaId] = useState<string | null>(special?.media_id ?? null);
   const [menuId, setMenuId] = useState(special?.menu_id ?? "");
   const [targets, setTargets] = useState<
     { item_id?: string; category_id?: string; combo_item_ids?: string[] }[]
@@ -134,6 +136,7 @@ export function SpecialEditor({
       setPriority(special?.priority ?? 0);
       setActive(special?.active ?? true);
       setImageUrl(special?.image_url ?? "");
+      setImageMediaId(special?.media_id ?? null);
       setMenuId(special?.menu_id ?? "");
       setTargets([]);
     }
@@ -171,6 +174,7 @@ export function SpecialEditor({
     formData.set("priority", String(priority));
     formData.set("active", active ? "on" : "");
     formData.set("image_url", imageUrl);
+    formData.set("media_id", imageMediaId ?? "");
     formData.set("menu_id", menuId);
 
     try {
@@ -303,7 +307,10 @@ export function SpecialEditor({
             <MediaPicker
               restaurantId={restaurantId}
               value={imageUrl}
-              onChange={(url) => setImageUrl(url ?? "")}
+              onChange={(url, mediaId) => {
+                setImageUrl(url ?? "");
+                setImageMediaId(mediaId ?? null);
+              }}
             />
           </div>
 

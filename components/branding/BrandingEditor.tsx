@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MediaPicker } from "@/components/dashboard/MediaPicker";
+import { MultiImagePicker } from "@/components/dashboard/MultiImagePicker";
 import { brandingToCssVars, brandingFontFamilies } from "@/lib/theme/cssVars";
 import { GOOGLE_FONT_OPTIONS } from "@/lib/theme/fonts";
 import {
@@ -31,6 +32,7 @@ interface BrandingData {
   background_color?: string | null;
   logo_media_id?: string | null;
   logo_url?: string | null;
+  banner_image_urls?: string[];
   primary_button?: BrandingJsonField;
   secondary_button?: BrandingJsonField;
   main_heading?: BrandingJsonField;
@@ -317,6 +319,21 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
             }
           />
           {NAV_COLOR_ROLES.map(renderColorRow)}
+        </div>
+
+        {/* Homepage banner */}
+        <div className="space-y-3">
+          <Label className="text-xs font-semibold uppercase tracking-wider">
+            Homepage banner
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Optional hero images shown at the top of the public menu. Active specials with images are also added automatically.
+          </p>
+          <MultiImagePicker
+            restaurantId={restaurantId}
+            value={draftState.banner_image_urls ?? []}
+            onChange={(urls) => update({ banner_image_urls: urls })}
+          />
         </div>
 
         {/* Colors */}

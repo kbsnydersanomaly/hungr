@@ -246,6 +246,7 @@ export type Database = {
         Row: {
           accent_color: string | null
           background_color: string | null
+          banner_image_urls: string[]
           body: Json | null
           logo_media_id: string | null
           logo_url: string | null
@@ -263,6 +264,7 @@ export type Database = {
         Insert: {
           accent_color?: string | null
           background_color?: string | null
+          banner_image_urls?: string[]
           body?: Json | null
           logo_media_id?: string | null
           logo_url?: string | null
@@ -280,6 +282,7 @@ export type Database = {
         Update: {
           accent_color?: string | null
           background_color?: string | null
+          banner_image_urls?: string[]
           body?: Json | null
           logo_media_id?: string | null
           logo_url?: string | null
@@ -315,6 +318,7 @@ export type Database = {
         Row: {
           accent_color: string | null
           background_color: string | null
+          banner_image_urls: string[]
           body: Json | null
           logo_media_id: string | null
           logo_url: string | null
@@ -332,6 +336,7 @@ export type Database = {
         Insert: {
           accent_color?: string | null
           background_color?: string | null
+          banner_image_urls?: string[]
           body?: Json | null
           logo_media_id?: string | null
           logo_url?: string | null
@@ -349,6 +354,7 @@ export type Database = {
         Update: {
           accent_color?: string | null
           background_color?: string | null
+          banner_image_urls?: string[]
           body?: Json | null
           logo_media_id?: string | null
           logo_url?: string | null

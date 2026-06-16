@@ -27,6 +27,7 @@ interface Special {
   priority: number;
   active: boolean;
   image_url: string | null;
+  media_id: string | null;
   menu_id: string | null;
 }
 
