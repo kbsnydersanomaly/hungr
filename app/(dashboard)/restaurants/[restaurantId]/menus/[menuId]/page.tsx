@@ -6,15 +6,18 @@ import {
   loadCategoriesForMenu,
   loadMenuItemsForMenu,
 } from "@/lib/data/menus";
-import { updateMenuStatus, upsertCategory } from "@/lib/data/menu-actions";
+import { updateMenuStatus } from "@/lib/data/menu-actions";
 import { loadRestaurantById } from "@/lib/data/restaurants";
 import { PageHeader } from "@/components/PageHeader";
+import { ServerActionForm } from "@/components/forms/ServerActionForm";
+import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { AddCategoryForm } from "@/components/menu/AddCategoryForm";
 import { MenuWorkspace } from "@/components/menu/MenuWorkspace";
-import { ArrowLeft, ExternalLink, Plus, Eye, EyeOff } from "lucide-react";
+import { BulkUploadModal } from "@/components/menu/BulkUploadModal";
+import { ArrowLeft, ExternalLink, Eye, EyeOff } from "lucide-react";
 
 export default async function MenuWorkspacePage({
   params,
@@ -68,30 +71,36 @@ export default async function MenuWorkspacePage({
         <Badge variant={isPublished ? "default" : "secondary"}>{menu.status}</Badge>
         <span className="text-sm text-muted-foreground">/{menu.slug}</span>
 
-        {isPublished && (
-          <Button variant="link" size="sm" className="ml-auto" asChild>
-            <a href={publicUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="h-3.5 w-3.5 mr-1" />
-              Preview
-            </a>
-          </Button>
-        )}
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <BulkUploadModal menuId={menuId} restaurantId={restaurantId} />
 
-        <form action={updateMenuStatus.bind(null, menuId, menu.status === "published" ? "draft" : "published")}>
-          <Button type="submit" size="sm" variant={isPublished ? "outline" : "default"}>
-            {isPublished ? (
-              <>
-                <EyeOff className="h-4 w-4 mr-2" />
-                Unpublish
-              </>
-            ) : (
-              <>
-                <Eye className="h-4 w-4 mr-2" />
-                Publish
-              </>
+          {isPublished && (
+            <Button variant="link" size="sm" asChild>
+              <a href={publicUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                Preview
+              </a>
+            </Button>
+          )}
+
+          <ServerActionForm action={updateMenuStatus.bind(null, menuId, menu.status === "published" ? "draft" : "published")}>
+            {() => (
+              <SubmitButton type="submit" size="sm" variant={isPublished ? "outline" : "default"}>
+                {isPublished ? (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Unpublish
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Publish
+                  </>
+                )}
+              </SubmitButton>
             )}
-          </Button>
-        </form>
+          </ServerActionForm>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -108,12 +117,7 @@ export default async function MenuWorkspacePage({
               <CardTitle className="text-sm font-medium">Add category</CardTitle>
             </CardHeader>
             <CardContent>
-              <form action={upsertCategory.bind(null, menuId)} className="flex gap-2">
-                <Input name="name" placeholder="Category name" required className="flex-1" />
-                <Button type="submit" size="icon">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </form>
+              <AddCategoryForm menuId={menuId} />
             </CardContent>
           </Card>
 

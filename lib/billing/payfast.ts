@@ -283,15 +283,16 @@ export function nextBillingDate(sub: {
 
 // ── PayFast API (pause / cancel / resume) ────────────────────────────────
 
+export const PAYFAST_API_BASE = env.PAYFAST_SANDBOX
+  ? "https://sandbox.payfast.co.za"
+  : "https://api.payfast.co.za";
+
 export async function payfastApi(
   path: string,
   method: "PUT" | "GET" | "POST" = "PUT",
   body?: unknown
 ) {
   const ts = new Date().toISOString();
-  const base = env.PAYFAST_SANDBOX
-    ? "https://sandbox.payfast.co.za"
-    : "https://www.payfast.co.za";
 
   const headers: Record<string, string> = {
     "merchant-id": env.PAYFAST_MERCHANT_ID,
@@ -310,7 +311,7 @@ export async function payfastApi(
     env.PAYFAST_PASSPHRASE
   );
 
-  const res = await fetch(`${base}${path}`, {
+  const res = await fetch(`${PAYFAST_API_BASE}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -324,8 +325,11 @@ export async function payfastApi(
   return res.json();
 }
 
-export async function pauseSubscription(token: string) {
-  return payfastApi(`/subscriptions/${token}/pause`, "PUT");
+export async function pauseSubscription(token: string, cycles = 1) {
+  return payfastApi(`/subscriptions/${token}/pause`, "PUT", {
+    token,
+    cycles,
+  });
 }
 
 export async function cancelSubscription(token: string) {
@@ -333,5 +337,5 @@ export async function cancelSubscription(token: string) {
 }
 
 export async function unpauseSubscription(token: string) {
-  return payfastApi(`/subscriptions/${token}/unpause`, "PUT");
+  return payfastApi(`/subscriptions/${token}/unpause`, "PUT", { token });
 }

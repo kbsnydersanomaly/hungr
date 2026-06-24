@@ -13,7 +13,8 @@ import { formatZar } from "@/lib/utils/money";
 import { SubscriptionActions } from "@/components/dashboard/SubscriptionActions";
 import { PaymentStatusBanner } from "@/components/dashboard/PaymentStatusBanner";
 import { upgradeToProPlan } from "@/lib/data/plan-change-actions";
-import { Button } from "@/components/ui/button";
+import { ServerActionForm } from "@/components/forms/ServerActionForm";
+import { SubmitButton } from "@/components/forms/SubmitButton";
 import {
   Building2,
   UtensilsCrossed,
@@ -54,6 +55,8 @@ function SubscriptionRow({
                 ? "default"
                 : subscription.status === "paused"
                 ? "secondary"
+                : subscription.status === "cancelled"
+                ? "destructive"
                 : "outline"
             }
           >
@@ -101,6 +104,7 @@ export default async function OrgBillingPage({
   const filters = parseTransactionFilters(sp);
 
   const isOwner = activeOrg.role === "owner";
+  const canManage = isOwner || activeOrg.role === "admin";
 
   let summary;
   try {
@@ -170,29 +174,31 @@ export default async function OrgBillingPage({
 
           {/* Upgrade CTA */}
           {isOwner && !orgSubscription && restaurantSubscriptions.length > 0 && (
-            <form
+            <ServerActionForm
               action={async () => {
                 "use server";
-                await upgradeToProPlan(activeOrg.orgId);
+                return upgradeToProPlan(activeOrg.orgId);
               }}
               className="pt-2"
             >
-              <div className="rounded-lg border border-dashed p-4 bg-muted/30">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Upgrade to Pro</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Flat fee for up to 10 restaurants. Cancel your per-restaurant
-                      subscriptions and simplify billing.
-                    </p>
+              {() => (
+                <div className="rounded-lg border border-dashed p-4 bg-muted/30">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Upgrade to Pro</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Flat fee for up to 10 restaurants. Cancel your per-restaurant
+                        subscriptions and simplify billing.
+                      </p>
+                    </div>
+                    <SubmitButton type="submit" size="sm">
+                      <ArrowUpRight className="h-4 w-4 mr-2" />
+                      Upgrade
+                    </SubmitButton>
                   </div>
-                  <Button type="submit" size="sm">
-                    <ArrowUpRight className="h-4 w-4 mr-2" />
-                    Upgrade
-                  </Button>
                 </div>
-              </div>
-            </form>
+              )}
+            </ServerActionForm>
           )}
         </CardContent>
       </Card>
@@ -212,7 +218,7 @@ export default async function OrgBillingPage({
                 subscription={orgSubscription}
                 icon={<Building2 className="h-4 w-4 text-muted-foreground" />}
                 label={rel<PlanRef>(orgSubscription.plans)?.name ?? "Org plan"}
-                showActions={isOwner}
+                showActions={canManage}
               />
             )}
 
@@ -222,7 +228,7 @@ export default async function OrgBillingPage({
                 subscription={sub}
                 icon={<UtensilsCrossed className="h-4 w-4 text-muted-foreground" />}
                 label="Restaurant subscription"
-                showActions={isOwner}
+                showActions={canManage}
               />
             ))}
           </CardContent>

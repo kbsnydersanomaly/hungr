@@ -5,8 +5,8 @@ import { createServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { safeAction, ValidationError } from "@/lib/errors";
 
-export async function updateProfile(formData: FormData): Promise<void> {
-  await safeAction(async () => {
+export async function updateProfile(formData: FormData) {
+  return safeAction(async () => {
     const { user } = await requireSession();
     const displayName = formData.get("display_name")?.toString().trim();
     const firstName = formData.get("first_name")?.toString().trim() ?? "";

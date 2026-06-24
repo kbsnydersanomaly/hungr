@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { SpecialEditor } from "./SpecialEditor";
-import { Pencil, Trash2, Sparkles, ImageIcon } from "lucide-react";
+import { Pencil, Trash2, Sparkles, ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Special {
@@ -169,7 +169,11 @@ export function SpecialsList({
                   onClick={() => handleDelete(special)}
                   disabled={deletingId === special.id}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  {deletingId === special.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
                 </Button>
               </div>
             </div>

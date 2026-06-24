@@ -1,5 +1,7 @@
 import { listSubscriptions, updateSubscriptionStatus } from "@/lib/data/admin-actions";
 import { PageHeader } from "@/components/PageHeader";
+import { ServerActionForm } from "@/components/forms/ServerActionForm";
+import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,28 +96,34 @@ export default async function AdminSubscriptionsPage({
                         </Link>
                       </Button>
                       {sub.status !== "active" && (
-                        <form
+                        <ServerActionForm
                           action={async () => {
                             "use server";
-                            await updateSubscriptionStatus(sub.id, "active");
+                            return updateSubscriptionStatus(sub.id, "active");
                           }}
+                          successMessage="Subscription marked active."
                         >
-                          <Button type="submit" size="sm" variant="outline">
-                            Force active
-                          </Button>
-                        </form>
+                          {() => (
+                            <SubmitButton type="submit" size="sm" variant="outline">
+                              Force active
+                            </SubmitButton>
+                          )}
+                        </ServerActionForm>
                       )}
                       {sub.status === "active" && (
-                        <form
+                        <ServerActionForm
                           action={async () => {
                             "use server";
-                            await updateSubscriptionStatus(sub.id, "paused");
+                            return updateSubscriptionStatus(sub.id, "paused");
                           }}
+                          successMessage="Subscription paused."
                         >
-                          <Button type="submit" size="sm" variant="outline">
-                            Force pause
-                          </Button>
-                        </form>
+                          {() => (
+                            <SubmitButton type="submit" size="sm" variant="outline">
+                              Force pause
+                            </SubmitButton>
+                          )}
+                        </ServerActionForm>
                       )}
                     </div>
                   </div>

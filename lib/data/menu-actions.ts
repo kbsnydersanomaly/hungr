@@ -13,6 +13,13 @@ import { safeJsonParse } from "@/lib/utils/safeJsonParse";
 import { generateAndStoreMenuQr } from "@/lib/qr/generate";
 import { loadMenuById } from "@/lib/data/menus";
 import { writeAudit } from "@/lib/utils/audit";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  validateRows,
+  type BulkUploadPayload,
+  type BulkUploadSummary,
+  type ParsedRow,
+} from "@/lib/menu/bulk-upload";
 
 export async function createMenu(restaurantId: string, formData: FormData) {
   return safeAction(async () => {
@@ -65,8 +72,8 @@ export async function createMenu(restaurantId: string, formData: FormData) {
   });
 }
 
-export async function upsertCategory(menuId: string, formData: FormData): Promise<void> {
-  await safeAction(async () => {
+export async function upsertCategory(menuId: string, formData: FormData) {
+  return safeAction(async () => {
     const menu = await loadMenuById(menuId);
     const { supabase } = await requireRestaurantAccess(menu.restaurant_id, "manager");
 
@@ -249,8 +256,8 @@ export async function reorderItems(menuId: string, categoryId: string, orderedId
   });
 }
 
-export async function updateMenuStatus(menuId: string, status: "draft" | "published" | "archived"): Promise<void> {
-  await safeAction(async () => {
+export async function updateMenuStatus(menuId: string, status: "draft" | "published" | "archived") {
+  return safeAction(async () => {
     const menu = await loadMenuById(menuId);
     const { supabase } = await requireRestaurantAccess(menu.restaurant_id, "manager");
 
@@ -311,5 +318,216 @@ export async function regenerateQr(menuId: string) {
     revalidatePath(`/m/${restaurantSlug}`);
     if (menu.slug) revalidatePath(`/m/${restaurantSlug}/${menu.slug}`);
     return { qrUrl };
+  });
+}
+
+export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload) {
+  return safeAction(async () => {
+    const menu = await loadMenuById(menuId);
+    const { supabase } = await requireRestaurantAccess(menu.restaurant_id, "manager");
+
+    const mode = payload.mode;
+    // Re-validate server-side — never trust the client's parsed rows.
+    const { valid, errors } = validateRows(payload.rows ?? []);
+
+    const summary: BulkUploadSummary = {
+      added: 0,
+      updated: 0,
+      skipped: 0,
+      failed: errors.length,
+      categoriesCreated: 0,
+      errors,
+    };
+
+    if (valid.length === 0) return summary;
+
+    // Build a case-insensitive category name -> id map for this menu.
+    const { data: existingCategories, error: catLoadError } = await supabase
+      .from("categories")
+      .select("id, name")
+      .eq("menu_id", menuId);
+    if (catLoadError) throw new ValidationError("Failed to load categories.");
+
+    const categoryMap = new Map<string, string>();
+    for (const cat of existingCategories ?? []) {
+      categoryMap.set(cat.name.trim().toLowerCase(), cat.id);
+    }
+
+    // Auto-create any categories referenced in the file that don't exist yet.
+    const missing = new Map<string, string>(); // lowercased -> original casing
+    for (const row of valid) {
+      const key = row.category.toLowerCase();
+      if (!categoryMap.has(key) && !missing.has(key)) missing.set(key, row.category);
+    }
+    if (missing.size > 0) {
+      const { data: created, error: createError } = await supabase
+        .from("categories")
+        .insert([...missing.values()].map((name) => ({ menu_id: menuId, name })))
+        .select("id, name");
+      if (createError) throw new ValidationError("Failed to create categories.");
+      for (const cat of created ?? []) {
+        categoryMap.set(cat.name.trim().toLowerCase(), cat.id);
+      }
+      summary.categoriesCreated = created?.length ?? 0;
+    }
+
+    const toItemRow = (row: ParsedRow, categoryId: string) => ({
+      menu_id: menuId,
+      category_id: categoryId,
+      name: row.name,
+      description: row.description,
+      price_cents: row.price_cents,
+      image_url: row.image_url,
+      image_urls: row.image_url ? [row.image_url] : [],
+      allergens: row.allergens,
+      labels: row.labels,
+    });
+
+    const resolved = valid.map((row) => ({
+      row,
+      categoryId: categoryMap.get(row.category.toLowerCase())!,
+    }));
+
+    if (mode === "replace") {
+      const { error: deleteError } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("menu_id", menuId);
+      if (deleteError) throw new ValidationError("Failed to clear existing items.");
+
+      const inserts = resolved.map(({ row, categoryId }) => toItemRow(row, categoryId));
+      const { error: insertError } = await supabase.from("menu_items").insert(inserts);
+      if (insertError) throw new ValidationError("Failed to insert items.");
+      summary.added = inserts.length;
+    } else {
+      // add / modify: match existing items by name within their category.
+      const { data: existingItems, error: itemLoadError } = await supabase
+        .from("menu_items")
+        .select("id, name, category_id")
+        .eq("menu_id", menuId);
+      if (itemLoadError) throw new ValidationError("Failed to load existing items.");
+
+      const itemKey = (categoryId: string, name: string) =>
+        `${categoryId}::${name.trim().toLowerCase()}`;
+      const itemMap = new Map<string, string>();
+      for (const item of existingItems ?? []) {
+        itemMap.set(itemKey(item.category_id, item.name), item.id);
+      }
+
+      const inserts: ReturnType<typeof toItemRow>[] = [];
+      const updates: { id: string; data: ReturnType<typeof toItemRow> }[] = [];
+
+      for (const { row, categoryId } of resolved) {
+        const existingId = itemMap.get(itemKey(categoryId, row.name));
+        if (mode === "add") {
+          if (existingId) {
+            summary.skipped++;
+            continue;
+          }
+          inserts.push(toItemRow(row, categoryId));
+        } else {
+          if (!existingId) {
+            summary.skipped++;
+            continue;
+          }
+          updates.push({ id: existingId, data: toItemRow(row, categoryId) });
+        }
+      }
+
+      if (inserts.length > 0) {
+        const { error: insertError } = await supabase.from("menu_items").insert(inserts);
+        if (insertError) throw new ValidationError("Failed to insert items.");
+        summary.added = inserts.length;
+      }
+      for (const { id, data } of updates) {
+        const { error: updateError } = await supabase
+          .from("menu_items")
+          .update(data)
+          .eq("id", id);
+        if (updateError) throw new ValidationError("Failed to update item.");
+        summary.updated++;
+      }
+    }
+
+    await writeAudit({
+      action: "item.bulk_upsert",
+      target_table: "menu_items",
+      target_id: menuId,
+      diff: {
+        mode,
+        added: summary.added,
+        updated: summary.updated,
+        skipped: summary.skipped,
+        categoriesCreated: summary.categoriesCreated,
+      },
+    });
+
+    revalidatePath(`/restaurants/${menu.restaurant_id}/menus/${menuId}`);
+    return summary;
+  });
+}
+
+export async function deleteMenu(menuId: string) {
+  return safeAction(async () => {
+    const menu = await loadMenuById(menuId);
+    const { supabase } = await requireRestaurantAccess(menu.restaurant_id, "manager");
+
+    if (menu.is_default) {
+      const { error: defaultError } = await supabase
+        .from("restaurants")
+        .update({ default_menu_id: null })
+        .eq("id", menu.restaurant_id)
+        .eq("default_menu_id", menu.id);
+
+      if (defaultError) {
+        console.error("deleteMenu clear default_menu_id error:", defaultError);
+        throw new ValidationError("Failed to clear default menu reference.");
+      }
+    }
+
+    try {
+      const adminClient = createAdminClient();
+      const qrPath = `${menu.restaurant_id}/${menu.id}.png`;
+      const { error: storageError } = await adminClient.storage
+        .from("menu-media")
+        .remove([qrPath]);
+
+      if (storageError) {
+        console.error("deleteMenu QR cleanup error:", storageError);
+      }
+    } catch (err) {
+      console.error("deleteMenu QR cleanup exception:", err);
+    }
+
+    const { error } = await supabase.from("menus").delete().eq("id", menuId);
+    if (error) {
+      console.error("deleteMenu error:", error);
+      throw new ValidationError("Failed to delete menu.");
+    }
+
+    await writeAudit({
+      action: "menu.delete",
+      target_table: "menus",
+      target_id: menuId,
+      diff: { name: menu.name, slug: menu.slug },
+    });
+
+    const { data: restaurant, error: restaurantError } = await supabase
+      .from("restaurants")
+      .select("slug")
+      .eq("id", menu.restaurant_id)
+      .maybeSingle();
+
+    if (restaurantError) {
+      console.error("deleteMenu load restaurant slug error:", restaurantError);
+    }
+
+    if (restaurant?.slug) {
+      revalidatePath(`/m/${restaurant.slug}`);
+      if (menu.slug) revalidatePath(`/m/${restaurant.slug}/${menu.slug}`);
+    }
+
+    revalidatePath(`/restaurants/${menu.restaurant_id}/menus`);
+    return { deleted: true };
   });
 }

@@ -24,15 +24,17 @@ interface ProvinceSelectProps {
   name?: string;
   defaultValue?: string;
   required?: boolean;
+  disabled?: boolean;
 }
 
 export function ProvinceSelect({
   name = "province",
   defaultValue,
   required,
+  disabled,
 }: ProvinceSelectProps) {
   return (
-    <Select name={name} defaultValue={defaultValue} required={required}>
+    <Select name={name} defaultValue={defaultValue} required={required} disabled={disabled}>
       <SelectTrigger className="w-full">
         <SelectValue placeholder="Select province" />
       </SelectTrigger>

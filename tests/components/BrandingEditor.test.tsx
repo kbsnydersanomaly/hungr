@@ -7,9 +7,13 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 vi.mock("@/lib/data/branding-actions", () => ({
-  saveDraftAction: vi.fn().mockResolvedValue(undefined),
-  publishAction: vi.fn().mockResolvedValue(undefined),
-  discardAction: vi.fn().mockResolvedValue(undefined),
+  saveDraftAction: vi.fn().mockResolvedValue({ ok: true }),
+  publishAction: vi.fn().mockResolvedValue({ ok: true }),
+  discardAction: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }));
 
 vi.mock("next/image", () => ({
@@ -28,7 +32,12 @@ vi.mock("next/image", () => ({
   },
 }));
 
-import { publishAction } from "@/lib/data/branding-actions";
+import {
+  saveDraftAction,
+  publishAction,
+  discardAction,
+} from "@/lib/data/branding-actions";
+import { toast } from "sonner";
 
 const baseProps = {
   restaurantId: "rest-1",
@@ -134,5 +143,118 @@ describe("BrandingEditor", () => {
     await waitFor(() => {
       expect(publishAction).toHaveBeenCalledWith("rest-1");
     });
+  });
+
+  it("marks a successful save as 'All changes saved'", async () => {
+    render(<BrandingEditor {...baseProps} />);
+    const hexInput = screen.getByDisplayValue("#FE1B54");
+    fireEvent.change(hexInput, { target: { value: "#00FF00" } });
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    await waitFor(() =>
+      expect(screen.getByText("All changes saved")).toBeInTheDocument()
+    );
+    expect(saveDraftAction).toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed save and keeps the draft dirty", async () => {
+    vi.mocked(saveDraftAction).mockResolvedValueOnce({
+      ok: false,
+      message: "DB exploded",
+    });
+    render(<BrandingEditor {...baseProps} />);
+    const hexInput = screen.getByDisplayValue("#FE1B54");
+    fireEvent.change(hexInput, { target: { value: "#00FF00" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("DB exploded")
+    );
+    // The status must not falsely claim the changes were saved.
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.queryByText("All changes saved")).not.toBeInTheDocument();
+  });
+
+  it("confirms before resetting and warns about an unpublished logo", async () => {
+    render(
+      <BrandingEditor
+        {...baseProps}
+        live={{ logo_url: null }}
+        draft={{ logo_url: "https://cdn.test/new-logo.png" }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
+
+    expect(
+      await screen.findByText("Reset branding changes?")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/logo you uploaded/i)).toBeInTheDocument();
+    // Nothing is discarded until the user confirms.
+    expect(discardAction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset changes" }));
+    await waitFor(() => expect(discardAction).toHaveBeenCalledWith("rest-1"));
+  });
+
+  it("does not warn about logo removal when no extra logo exists", async () => {
+    render(
+      <BrandingEditor
+        {...baseProps}
+        live={{ logo_url: null }}
+        draft={{ logo_url: null }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset to published" }));
+
+    expect(
+      await screen.findByText("Reset branding changes?")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/logo you uploaded/i)).not.toBeInTheDocument();
+  });
+
+  it("undo and redo are disabled until there is history", () => {
+    render(<BrandingEditor {...baseProps} />);
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  });
+
+  it("steps back and forward through edits with undo/redo", () => {
+    render(<BrandingEditor {...baseProps} />);
+
+    fireEvent.change(screen.getByDisplayValue("#FE1B54"), {
+      target: { value: "#00FF00" },
+    });
+    expect(screen.getByDisplayValue("#00FF00")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByDisplayValue("#FE1B54")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    expect(screen.getByDisplayValue("#00FF00")).toBeInTheDocument();
+  });
+
+  it("coalesces consecutive edits to the same field into one undo step", () => {
+    render(<BrandingEditor {...baseProps} />);
+
+    fireEvent.change(screen.getByDisplayValue("#FE1B54"), {
+      target: { value: "#00FF00" },
+    });
+    fireEvent.change(screen.getByDisplayValue("#00FF00"), {
+      target: { value: "#000000" },
+    });
+
+    // A single undo returns to the original value, not the intermediate one.
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByDisplayValue("#FE1B54")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
   });
 });

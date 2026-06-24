@@ -91,6 +91,14 @@ export async function acceptInviteAndSignUp(token: string, formData: FormData) {
     });
     if (acceptError) throw new ValidationError(acceptError.message);
 
+    // This account was created solely to accept the invite. The signup trigger
+    // points default_org_id at an auto-created personal org; override it so the
+    // invited org is where they land even without an active_org cookie.
+    await adminClient
+      .from("profiles")
+      .update({ default_org_id: inv.org_id })
+      .eq("id", signUpData.user.id);
+
     const supabase = await createServerClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,

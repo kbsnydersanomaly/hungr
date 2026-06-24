@@ -28,7 +28,9 @@ export default async function RestaurantBillingPage({
 
   // Billing is owner/admin only.
   const activeOrg = await getActiveOrg();
-  if (activeOrg?.role !== "owner" && activeOrg?.role !== "admin") {
+  const canManage =
+    activeOrg?.role === "owner" || activeOrg?.role === "admin";
+  if (!canManage) {
     redirect(`/restaurants/${restaurantId}`);
   }
 

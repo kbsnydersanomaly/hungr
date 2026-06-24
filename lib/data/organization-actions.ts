@@ -5,8 +5,8 @@ import { ValidationError, safeAction } from "@/lib/errors";
 import { requireOrgAccess } from "@/lib/auth/role";
 import { getActiveOrg } from "@/lib/auth/active-org";
 
-export async function updateOrganizationName(formData: FormData): Promise<void> {
-  await safeAction(async () => {
+export async function updateOrganizationName(formData: FormData) {
+  return safeAction(async () => {
     const name = String(formData.get("name") ?? "").trim();
 
     if (!name) throw new ValidationError("Organization name is required.");

@@ -12,6 +12,7 @@ import { NotificationBellServer } from "@/components/dashboard/NotificationBellS
 
 import { SidebarNavLink } from "@/components/dashboard/SidebarNavLink";
 import { ImpersonationBanner } from "@/components/dashboard/ImpersonationBanner";
+import { SubscriptionInvalidBanner } from "@/components/dashboard/SubscriptionInvalidBanner";
 import { getImpersonationState } from "@/lib/auth/impersonation";
 import {
   LayoutDashboard,
@@ -111,6 +112,22 @@ export default async function DashboardLayout({
       ? { id: restaurants[0].id, name: restaurants[0].name, slug: restaurants[0].slug }
       : null);
 
+  // Restaurant-only members (e.g. invited as a restaurant manager) carry org role
+  // 'staff' but should see manager-level nav for the restaurant they manage. Use the
+  // higher of their org role and their restaurant-specific role for the active one.
+  let effectiveRestaurantRole = orgRole;
+  if (effectiveRestaurant) {
+    const { data: rm } = await supabase
+      .from("restaurant_members")
+      .select("role")
+      .eq("restaurant_id", effectiveRestaurant.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (rm?.role && (ORG_ROLE_RANK[rm.role] ?? 0) > (ORG_ROLE_RANK[orgRole ?? ""] ?? 0)) {
+      effectiveRestaurantRole = rm.role;
+    }
+  }
+
   const impersonation = await getImpersonationState();
 
   return (
@@ -146,7 +163,7 @@ export default async function DashboardLayout({
 
           {effectiveRestaurant &&
             restaurantNavItems
-              .filter((item) => hasMinRole(orgRole, item.minRole))
+              .filter((item) => hasMinRole(effectiveRestaurantRole, item.minRole))
               .map((item) => {
                 const href = `/restaurants/${effectiveRestaurant.id}${item.href}`;
                 const Icon = item.icon;
@@ -185,6 +202,13 @@ export default async function DashboardLayout({
       </aside>
 
       <div className="flex flex-col min-h-screen">
+        {effectiveRestaurant && activeOrgId && hasMinRole(orgRole, "owner") && (
+          <SubscriptionInvalidBanner
+            restaurantId={effectiveRestaurant.id}
+            orgId={activeOrgId}
+            billingHref={`/restaurants/${effectiveRestaurant.id}/billing`}
+          />
+        )}
         <header className="border-b px-6 py-3 flex items-center justify-between bg-background/95 backdrop-blur sticky top-0 z-10">
           <RestaurantBreadcrumb
             restaurants={restaurants.map((r) => ({ id: r.id, name: r.name, slug: r.slug }))}

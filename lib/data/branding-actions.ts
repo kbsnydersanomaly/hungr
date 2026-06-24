@@ -4,6 +4,23 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { writeAudit } from "@/lib/utils/audit";
+import { BrandingColorSchema } from "@/lib/schemas/branding";
+
+const COLOR_FIELDS = [
+  "primary_color",
+  "secondary_color",
+  "accent_color",
+  "nav_bar_color",
+  "background_color",
+] as const;
+
+// Colors are typed character-by-character and autosaved mid-keystroke, so we
+// clean leniently: drop any field that doesn't validate (e.g. a half-typed
+// hex) rather than rejecting the whole save and breaking autosave.
+function cleanColor(value: unknown): string | null {
+  const parsed = BrandingColorSchema.safeParse(value ?? null);
+  return parsed.success ? (parsed.data ?? null) : null;
+}
 
 export async function saveDraftAction(
   restaurantId: string,
@@ -12,15 +29,15 @@ export async function saveDraftAction(
   return safeAction(async () => {
     const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
 
+    const colors = Object.fromEntries(
+      COLOR_FIELDS.map((field) => [field, cleanColor(draft[field])])
+    );
+
     const { error } = await supabase
       .from("branding_drafts")
       .upsert({
         restaurant_id: restaurantId,
-        primary_color: (draft.primary_color as string | null) ?? null,
-        secondary_color: (draft.secondary_color as string | null) ?? null,
-        accent_color: (draft.accent_color as string | null) ?? null,
-        nav_bar_color: (draft.nav_bar_color as string | null) ?? null,
-        background_color: (draft.background_color as string | null) ?? null,
+        ...colors,
         logo_media_id: (draft.logo_media_id as string | null) ?? null,
         logo_url: (draft.logo_url as string | null) ?? null,
         banner_image_urls: (draft.banner_image_urls as string[] | null) ?? [],
@@ -30,8 +47,7 @@ export async function saveDraftAction(
         sub_heading: (draft.sub_heading as Record<string, string> | null) ?? null,
         body: (draft.body as Record<string, string> | null) ?? null,
         updated_at: new Date().toISOString(),
-      })
-      .eq("restaurant_id", restaurantId);
+      });
 
     if (error) {
       console.error("saveDraftAction error:", error);

@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getSubscription, updateSubscription, listTransactionsForSubscription } from "@/lib/data/admin-actions";
 import { PageHeader } from "@/components/PageHeader";
+import { ServerActionForm } from "@/components/forms/ServerActionForm";
+import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,105 +94,117 @@ export default async function AdminSubscriptionDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form
+            <ServerActionForm
               action={async (formData: FormData) => {
                 "use server";
-                await updateSubscription(id, formData);
-                redirect(`/admin/subscriptions/${id}`);
+                const result = await updateSubscription(id, formData);
+                if (result.ok) redirect(`/admin/subscriptions/${id}`);
+                return result;
               }}
-              className="space-y-4"
+              successMessage="Subscription updated."
             >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <select
-                    id="status"
-                    name="status"
-                    defaultValue={sub.status}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="active">Active</option>
-                    <option value="paused">Paused</option>
-                    <option value="failed">Failed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
+              {({ isPending }) => (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="status">Status</Label>
+                      <select
+                        id="status"
+                        name="status"
+                        defaultValue={sub.status}
+                        disabled={isPending}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                        <option value="failed">Failed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="amount_cents">Amount (cents)</Label>
-                  <Input
-                    id="amount_cents"
-                    name="amount_cents"
-                    type="number"
-                    defaultValue={sub.amount_cents}
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="amount_cents">Amount (cents)</Label>
+                      <Input
+                        id="amount_cents"
+                        name="amount_cents"
+                        type="number"
+                        defaultValue={sub.amount_cents}
+                        disabled={isPending}
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="billing_period">Billing period</Label>
-                  <select
-                    id="billing_period"
-                    name="billing_period"
-                    defaultValue={sub.billing_period}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="billing_period">Billing period</Label>
+                      <select
+                        id="billing_period"
+                        name="billing_period"
+                        defaultValue={sub.billing_period}
+                        disabled={isPending}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="next_billing_date">Next billing date</Label>
-                  <Input
-                    id="next_billing_date"
-                    name="next_billing_date"
-                    type="date"
-                    defaultValue={
-                      sub.next_billing_date
-                        ? new Date(sub.next_billing_date).toISOString().split("T")[0]
-                        : ""
-                    }
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="next_billing_date">Next billing date</Label>
+                      <Input
+                        id="next_billing_date"
+                        name="next_billing_date"
+                        type="date"
+                        defaultValue={
+                          sub.next_billing_date
+                            ? new Date(sub.next_billing_date).toISOString().split("T")[0]
+                            : ""
+                        }
+                        disabled={isPending}
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="current_period_end">Current period end</Label>
-                  <Input
-                    id="current_period_end"
-                    name="current_period_end"
-                    type="date"
-                    defaultValue={
-                      sub.current_period_end
-                        ? new Date(sub.current_period_end).toISOString().split("T")[0]
-                        : ""
-                    }
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="current_period_end">Current period end</Label>
+                      <Input
+                        id="current_period_end"
+                        name="current_period_end"
+                        type="date"
+                        defaultValue={
+                          sub.current_period_end
+                            ? new Date(sub.current_period_end).toISOString().split("T")[0]
+                            : ""
+                        }
+                        disabled={isPending}
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="payfast_token">PayFast token</Label>
-                  <Input
-                    id="payfast_token"
-                    name="payfast_token"
-                    defaultValue={sub.payfast_token ?? ""}
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="payfast_token">PayFast token</Label>
+                      <Input
+                        id="payfast_token"
+                        name="payfast_token"
+                        defaultValue={sub.payfast_token ?? ""}
+                        disabled={isPending}
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="payfast_subscription_id">PayFast subscription ID</Label>
-                  <Input
-                    id="payfast_subscription_id"
-                    name="payfast_subscription_id"
-                    defaultValue={sub.payfast_subscription_id ?? ""}
-                  />
-                </div>
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="payfast_subscription_id">PayFast subscription ID</Label>
+                      <Input
+                        id="payfast_subscription_id"
+                        name="payfast_subscription_id"
+                        defaultValue={sub.payfast_subscription_id ?? ""}
+                        disabled={isPending}
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex justify-end pt-2">
-                <Button type="submit">Save changes</Button>
-              </div>
-            </form>
+                  <div className="flex justify-end pt-2">
+                    <SubmitButton>Save changes</SubmitButton>
+                  </div>
+                </div>
+              )}
+            </ServerActionForm>
           </CardContent>
         </Card>
 

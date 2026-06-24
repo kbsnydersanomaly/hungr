@@ -51,15 +51,17 @@ export async function inviteMember(formData: FormData) {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Match the lower(email) unique index so casing differences don't create dupes.
     const { data: existingInvite } = await supabase
       .from("invitations")
       .select("id")
-      .eq("email", parsed.email)
+      .ilike("email", parsed.email)
       .eq("org_id", parsed.orgId)
       .is("accepted_at", null)
       .is("revoked_at", null)
       .maybeSingle();
 
+    const resent = Boolean(existingInvite);
     if (existingInvite) {
       await supabase
         .from("invitations")
@@ -83,12 +85,21 @@ export async function inviteMember(formData: FormData) {
       .eq("id", parsed.orgId)
       .single();
 
-    await sendMail("invitation", parsed.email, {
-      invite_url: `${env.NEXT_PUBLIC_APP_URL}/accept-invite/${token}`,
-      org_name: org?.name ?? "your organization",
-      inviter_name: user.user_metadata?.display_name ?? user.email ?? "Someone",
-      role: parsed.role,
-    });
+    // The invite row is already saved; an email failure shouldn't lose it. Surface a
+    // clear, actionable message so the admin can use Resend instead.
+    try {
+      await sendMail("invitation", parsed.email, {
+        invite_url: `${env.NEXT_PUBLIC_APP_URL}/accept-invite/${token}`,
+        org_name: org?.name ?? "your organization",
+        inviter_name: user.user_metadata?.display_name ?? user.email ?? "Someone",
+        role: parsed.role,
+      });
+    } catch (err) {
+      console.error("invitation email failed:", err);
+      throw new ValidationError(
+        "Invite saved, but the email failed to send. Use Resend to try again."
+      );
+    }
 
     await writeAudit({
       action: "team.invite",
@@ -103,7 +114,7 @@ export async function inviteMember(formData: FormData) {
       revalidatePath(`/restaurants/${parsed.restaurantId}/team`);
     }
 
-    return { invited: true };
+    return { invited: true, resent };
   });
 }
 
@@ -139,6 +150,64 @@ export async function revokeInvitation(invitationId: string) {
     }
 
     return { revoked: true };
+  });
+}
+
+export async function resendInvitation(invitationId: string) {
+  return safeAction(async () => {
+    const supabase = await createServerClient();
+    const { data: inv } = await supabase
+      .from("invitations")
+      .select("email, org_id, restaurant_id, role, accepted_at")
+      .eq("id", invitationId)
+      .single();
+
+    if (!inv) throw new ValidationError("Invitation not found.");
+    if (inv.accepted_at) throw new ValidationError("This invitation has already been accepted.");
+
+    const { user } = await requireOrgAccess(inv.org_id, "admin");
+
+    // Fresh token + expiry, and un-revoke if it had been revoked.
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    await supabase
+      .from("invitations")
+      .update({ token, expires_at: expiresAt, revoked_at: null })
+      .eq("id", invitationId);
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", inv.org_id)
+      .single();
+
+    try {
+      await sendMail("invitation", inv.email, {
+        invite_url: `${env.NEXT_PUBLIC_APP_URL}/accept-invite/${token}`,
+        org_name: org?.name ?? "your organization",
+        inviter_name: user.user_metadata?.display_name ?? user.email ?? "Someone",
+        role: inv.role,
+      });
+    } catch (err) {
+      console.error("invitation email failed:", err);
+      throw new ValidationError("Failed to send the invitation email. Please try again.");
+    }
+
+    await writeAudit({
+      action: "team.invite.resend",
+      org_id: inv.org_id,
+      restaurant_id: inv.restaurant_id ?? undefined,
+      target_table: "invitations",
+      target_id: invitationId,
+    });
+
+    revalidatePath("/settings/team");
+    if (inv.restaurant_id) {
+      revalidatePath(`/restaurants/${inv.restaurant_id}/team`);
+    }
+
+    return { resent: true };
   });
 }
 

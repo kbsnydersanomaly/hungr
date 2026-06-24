@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { revokeInvitation } from "@/lib/data/team-actions";
+import { revokeInvitation, resendInvitation } from "@/lib/data/team-actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,16 +13,27 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import type { InviteStatus } from "@/lib/team/invite-status";
 
-export function InvitationActions({ invitationId }: { invitationId: string }) {
-  const [loading, setLoading] = useState(false);
+export function InvitationActions({
+  invitationId,
+  status,
+}: {
+  invitationId: string;
+  status: InviteStatus;
+}) {
+  const [revoking, setRevoking] = useState(false);
+  const [resending, setResending] = useState(false);
   const [showRevoke, setShowRevoke] = useState(false);
   const router = useRouter();
 
+  // Revoked/accepted invites are terminal — nothing to do.
+  const canManage = status === "pending" || status === "expired";
+
   async function handleRevoke() {
-    setLoading(true);
+    setRevoking(true);
     const result = await revokeInvitation(invitationId);
-    setLoading(false);
+    setRevoking(false);
     if (!result.ok) {
       toast.error(result.message ?? "Failed to revoke invitation.");
       return;
@@ -32,11 +43,31 @@ export function InvitationActions({ invitationId }: { invitationId: string }) {
     router.refresh();
   }
 
+  async function handleResend() {
+    setResending(true);
+    const result = await resendInvitation(invitationId);
+    setResending(false);
+    if (!result.ok) {
+      toast.error(result.message ?? "Failed to resend invitation.");
+      return;
+    }
+    toast.success("Invitation resent.");
+    router.refresh();
+  }
+
+  if (!canManage) return null;
+
   return (
     <>
-      <Button variant="ghost" size="sm" onClick={() => setShowRevoke(true)}>
-        Revoke
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="sm" onClick={handleResend} disabled={resending}>
+          {resending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+          Resend
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setShowRevoke(true)}>
+          Revoke
+        </Button>
+      </div>
 
       <Dialog open={showRevoke} onOpenChange={setShowRevoke}>
         <DialogContent>
@@ -50,8 +81,8 @@ export function InvitationActions({ invitationId }: { invitationId: string }) {
             <Button variant="ghost" onClick={() => setShowRevoke(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleRevoke} disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            <Button variant="destructive" onClick={handleRevoke} disabled={revoking}>
+              {revoking && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Revoke
             </Button>
           </div>

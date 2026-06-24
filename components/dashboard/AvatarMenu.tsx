@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Settings, LogOut } from "lucide-react";
+import { Settings, LogOut, Loader2 } from "lucide-react";
 
 export function AvatarMenu({ email }: { email?: string }) {
   const router = useRouter();
@@ -39,7 +39,11 @@ export function AvatarMenu({ email }: { email?: string }) {
           variant="destructive"
           className="cursor-pointer"
         >
-          <LogOut className="h-4 w-4" />
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <LogOut className="h-4 w-4" />
+          )}
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

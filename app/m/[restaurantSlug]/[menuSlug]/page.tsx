@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { loadRestaurantBySlug } from "@/lib/data/restaurants";
 import { loadMenuBySlug, loadCategoriesForMenu, loadMenuItemsForMenu } from "@/lib/data/menus";
 import { loadActiveSpecialsForRestaurant } from "@/lib/data/specials";
@@ -12,7 +13,13 @@ export default async function SpecificMenuPage({
 }) {
   const { restaurantSlug, menuSlug } = await params;
   const restaurant = await loadRestaurantBySlug(restaurantSlug);
-  const menu = await loadMenuBySlug(restaurantSlug, menuSlug);
+
+  let menu;
+  try {
+    menu = await loadMenuBySlug(restaurantSlug, menuSlug);
+  } catch {
+    notFound();
+  }
 
   const [categories, items, specials, menus, branding] = await Promise.all([
     loadCategoriesForMenu(menu.id),

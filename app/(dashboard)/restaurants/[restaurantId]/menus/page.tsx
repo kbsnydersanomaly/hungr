@@ -4,7 +4,7 @@ import { loadRestaurantById } from "@/lib/data/restaurants";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { MenuCard } from "@/components/menu/MenuCard";
 import { Plus, UtensilsCrossed } from "lucide-react";
 
 export default async function MenusPage({
@@ -40,24 +40,7 @@ export default async function MenusPage({
       {menus && menus.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {menus.map((menu) => (
-            <Card key={menu.id}>
-              <CardContent>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold">{menu.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">/{menu.slug}</p>
-                  </div>
-                  <Badge variant={menu.status === "published" ? "default" : "secondary"}>
-                    {menu.status}
-                  </Badge>
-                </div>
-                <Button variant="link" size="sm" className="px-0 mt-4" asChild>
-                  <Link href={`/restaurants/${restaurantId}/menus/${menu.id}`}>
-                    Edit menu
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+            <MenuCard key={menu.id} menu={menu} restaurantId={restaurantId} />
           ))}
         </div>
       ) : (

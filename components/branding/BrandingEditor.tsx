@@ -19,7 +19,14 @@ import {
   BRANDING_PREVIEW_MESSAGE,
   BRANDING_PREVIEW_READY_MESSAGE,
 } from "./BrandingPreviewBridge";
-import { Check, RotateCcw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Check, Loader2, Undo2, Redo2 } from "lucide-react";
 import { toast } from "sonner";
 
 type BrandingJsonField = Record<string, string> | null;
@@ -48,6 +55,13 @@ interface BrandingEditorProps {
 }
 
 type Page = "menu" | "about";
+
+// One step in the undo/redo stack. `key` identifies which field changed so
+// consecutive edits to the same field can be coalesced into a single step.
+interface HistoryEntry {
+  state: BrandingData;
+  key: string;
+}
 
 // The public menu is always phone-width, so the preview is too.
 const PREVIEW_WIDTH = "375px";
@@ -122,9 +136,29 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
   const [draftState, setDraftState] = useState<BrandingData>(
     draft ?? live ?? {}
   );
-  const [dirty, setDirty] = useState(false);
+  // Serialized snapshot of the last successfully persisted draft. `dirty` is
+  // derived by comparing the current state against it, so edits made while a
+  // save is in flight are never falsely marked as saved.
+  const [savedSnapshot, setSavedSnapshot] = useState<string>(
+    JSON.stringify(draft ?? live ?? {})
+  );
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Undo/redo history. Each user edit pushes a snapshot; consecutive edits to
+  // the same field coalesce into one step so typing a colour is a single undo.
+  const [history, setHistory] = useState<HistoryEntry[]>([
+    { state: draft ?? live ?? {}, key: "__init__" },
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const serializedDraft = JSON.stringify(draftState);
+  const dirty = serializedDraft !== savedSnapshot;
 
   // Push the current draft styles into the preview iframe.
   const postPreview = useCallback(
@@ -167,18 +201,28 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
 
   const handleSave = useCallback(async () => {
     if (!dirty) return;
+    // Capture exactly what we're persisting so we only mark this snapshot as
+    // saved — any edits that land during the await stay dirty.
+    const snapshot = serializedDraft;
     setSaving(true);
     try {
       const { saveDraftAction } = await import("@/lib/data/branding-actions");
-      await saveDraftAction(restaurantId, draftState as Record<string, unknown>);
-      setDirty(false);
+      const result = await saveDraftAction(
+        restaurantId,
+        draftState as Record<string, unknown>
+      );
+      if (result && !result.ok) {
+        toast.error(result.message ?? "Failed to save draft");
+        return;
+      }
+      setSavedSnapshot(snapshot);
       toast.success("Draft saved");
     } catch {
       toast.error("Failed to save draft");
     } finally {
       setSaving(false);
     }
-  }, [dirty, draftState, restaurantId]);
+  }, [dirty, serializedDraft, draftState, restaurantId]);
 
   // Debounced autosave
   useEffect(() => {
@@ -190,38 +234,82 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
   }, [dirty, handleSave]);
 
   const handlePublish = async () => {
+    setPublishing(true);
     try {
       // Make sure the latest edits are in the draft before publishing.
       if (dirty) {
+        const snapshot = serializedDraft;
         const { saveDraftAction } = await import("@/lib/data/branding-actions");
-        await saveDraftAction(restaurantId, draftState as Record<string, unknown>);
-        setDirty(false);
+        const saveResult = await saveDraftAction(
+          restaurantId,
+          draftState as Record<string, unknown>
+        );
+        if (saveResult && !saveResult.ok) {
+          toast.error(saveResult.message ?? "Failed to save draft");
+          return;
+        }
+        setSavedSnapshot(snapshot);
       }
       const { publishAction } = await import("@/lib/data/branding-actions");
-      await publishAction(restaurantId);
+      const publishResult = await publishAction(restaurantId);
+      if (publishResult && !publishResult.ok) {
+        toast.error(publishResult.message ?? "Failed to publish");
+        return;
+      }
       toast.success("Branding published");
     } catch {
       toast.error("Failed to publish");
+    } finally {
+      setPublishing(false);
     }
   };
 
   const handleDiscard = async () => {
+    setDiscarding(true);
     try {
       const { discardAction } = await import("@/lib/data/branding-actions");
-      await discardAction(restaurantId);
+      const result = await discardAction(restaurantId);
+      if (result && !result.ok) {
+        toast.error(result.message ?? "Failed to reset branding");
+        return;
+      }
       const reverted = live ?? {};
       setDraftState(reverted);
-      setDirty(false);
+      setSavedSnapshot(JSON.stringify(reverted));
+      // Resetting establishes a new baseline, so clear the undo history.
+      setHistory([{ state: reverted, key: "__init__" }]);
+      setHistoryIndex(0);
       postPreview(reverted);
-      toast.success("Draft discarded");
+      setConfirmResetOpen(false);
+      toast.success("Branding reset to published");
     } catch {
-      toast.error("Failed to discard draft");
+      toast.error("Failed to reset branding");
+    } finally {
+      setDiscarding(false);
     }
   };
 
-  const update = (changes: Partial<BrandingData>) => {
-    setDraftState((prev) => ({ ...prev, ...changes }));
-    setDirty(true);
+  // Apply an edit and record it on the undo stack. Editing the same field as
+  // the previous step replaces that step (coalescing) instead of adding a new
+  // one; editing after an undo discards the now-orphaned redo branch.
+  const commit = (next: BrandingData, fieldKey: string) => {
+    const base = history.slice(0, historyIndex + 1);
+    const atTip = historyIndex === history.length - 1;
+    const last = base[base.length - 1];
+    const newHistory =
+      atTip && last && last.key === fieldKey
+        ? [...base.slice(0, -1), { state: next, key: fieldKey }]
+        : [...base, { state: next, key: fieldKey }];
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setDraftState(next);
+  };
+
+  const update = (changes: Partial<BrandingData>, fieldKey?: string) => {
+    commit(
+      { ...draftState, ...changes },
+      fieldKey ?? Object.keys(changes).join(",")
+    );
   };
 
   const updateNested = (
@@ -229,15 +317,35 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
     key: string,
     value: string
   ) => {
-    setDraftState((prev) => ({
-      ...prev,
+    const next = {
+      ...draftState,
       [parent]: {
-        ...((prev[parent] as Record<string, string> | null) ?? {}),
+        ...((draftState[parent] as Record<string, string> | null) ?? {}),
         [key]: value,
       },
-    }));
-    setDirty(true);
+    };
+    commit(next, `${parent}.${key}`);
   };
+
+  const handleUndo = () => {
+    if (!canUndo) return;
+    const idx = historyIndex - 1;
+    setHistoryIndex(idx);
+    setDraftState(history[idx].state);
+  };
+
+  const handleRedo = () => {
+    if (!canRedo) return;
+    const idx = historyIndex + 1;
+    setHistoryIndex(idx);
+    setDraftState(history[idx].state);
+  };
+
+  // Resetting reverts the draft to the published branding, which removes an
+  // uploaded logo that hasn't been published yet.
+  const resetRemovesLogo =
+    Boolean(draftState.logo_url) &&
+    draftState.logo_url !== (live?.logo_url ?? null);
 
   function roleValue(role: ColorRole): string {
     if (role.key === "heading_color") return draftState.main_heading?.color ?? "";
@@ -251,7 +359,7 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
     } else if (role.key === "body_color") {
       updateNested("body", "color", value);
     } else {
-      update({ [role.key]: value } as Partial<BrandingData>);
+      update({ [role.key]: value } as Partial<BrandingData>, role.key);
     }
   }
 
@@ -293,11 +401,41 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
             {saving ? "Saving..." : dirty ? "Unsaved changes" : "All changes saved"}
           </span>
           <div className="flex gap-1">
-            <Button size="sm" variant="ghost" onClick={handleSave} disabled={!dirty}>
-              <Check className="h-3.5 w-3.5" />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              aria-label="Undo"
+              title="Undo"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
             </Button>
-            <Button size="sm" variant="ghost" onClick={handleDiscard}>
-              <RotateCcw className="h-3.5 w-3.5" />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              aria-label="Redo"
+              title="Redo"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleSave} disabled={!dirty || saving}>
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
+              Save
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmResetOpen(true)}
+              disabled={discarding}
+            >
+              Reset
             </Button>
           </div>
         </div>
@@ -315,7 +453,7 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
             value={draftState.logo_url ?? null}
             aspect="logo"
             onChange={(url, mediaId) =>
-              update({ logo_url: url, logo_media_id: mediaId ?? null })
+              update({ logo_url: url, logo_media_id: mediaId ?? null }, "logo")
             }
           />
           {NAV_COLOR_ROLES.map(renderColorRow)}
@@ -388,11 +526,18 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
         </div>
 
         <div className="pt-4 border-t space-y-2">
-          <Button onClick={handlePublish} className="w-full">
+          <Button onClick={handlePublish} className="w-full" disabled={publishing || discarding}>
+            {publishing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Publish changes
           </Button>
-          <Button onClick={handleDiscard} variant="outline" className="w-full">
-            Discard draft
+          <Button
+            onClick={() => setConfirmResetOpen(true)}
+            variant="outline"
+            className="w-full"
+            disabled={publishing || discarding}
+          >
+            {discarding && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Reset to published
           </Button>
         </div>
       </div>
@@ -434,6 +579,38 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
           </div>
         </div>
       </div>
+
+      <Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset branding changes?</DialogTitle>
+            <DialogDescription>
+              This discards all unsaved branding edits and reverts to your
+              currently published branding.
+              {resetRemovesLogo
+                ? " The logo you uploaded but haven't published yet will be removed from the draft."
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmResetOpen(false)}
+              disabled={discarding}
+            >
+              Never mind
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDiscard}
+              disabled={discarding}
+            >
+              {discarding && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Reset changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

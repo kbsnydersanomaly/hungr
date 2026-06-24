@@ -294,7 +294,7 @@ High — team collaboration is broken.
 ## Prompt 9: Allow team members to switch organisations
 
 ### Context
-A user who is a team member of multiple restaurants cannot switch between organisations from the dashboard.
+A user who is a team member of multiple restaurants cannot switch between organisations from the dashboard. When accepting an invite - they should be changed to the correct organisation that invited them by default. 
 
 ### Goal
 Add an organisation switcher so team members can move between restaurants they belong to.

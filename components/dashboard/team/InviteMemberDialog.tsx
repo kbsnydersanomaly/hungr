@@ -69,7 +69,7 @@ export function InviteMemberDialog({
       return;
     }
 
-    toast.success("Invitation sent.");
+    toast.success(result.data?.resent ? "Invitation updated." : "Invitation sent.");
     setOpen(false);
     router.refresh();
   }

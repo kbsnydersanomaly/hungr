@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, Pencil } from "lucide-react";
+import { GripVertical, Trash2, Pencil, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ItemEditSheet } from "./ItemEditSheet";
 
@@ -32,6 +32,7 @@ interface SortableItemProps {
 
 export function SortableItem({ item, menuId, restaurantId, onDelete }: SortableItemProps) {
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const {
     attributes,
@@ -80,11 +81,26 @@ export function SortableItem({ item, menuId, restaurantId, onDelete }: SortableI
           </Button>
           <form
             action={async () => {
-              await onDelete(item.id);
+              setDeleting(true);
+              try {
+                await onDelete(item.id);
+              } finally {
+                setDeleting(false);
+              }
             }}
           >
-            <Button type="submit" size="icon" variant="ghost" className="h-8 w-8 text-destructive">
-              <Trash2 className="h-3.5 w-3.5" />
+            <Button
+              type="submit"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-destructive"
+              disabled={deleting}
+            >
+              {deleting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
             </Button>
           </form>
         </div>

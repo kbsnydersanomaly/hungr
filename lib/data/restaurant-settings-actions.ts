@@ -12,8 +12,8 @@ function isUniqueViolation(error: { code?: string } | null): boolean {
   return error?.code === "23505";
 }
 
-export async function updateRestaurantSettings(restaurantId: string, formData: FormData): Promise<void> {
-  await safeAction(async () => {
+export async function updateRestaurantSettings(restaurantId: string, formData: FormData) {
+  return safeAction(async () => {
     await requireRestaurantAccess(restaurantId, "manager");
 
     const name = formData.get("name")?.toString().trim();

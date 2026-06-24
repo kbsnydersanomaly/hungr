@@ -20,7 +20,7 @@ import { env } from "@/lib/env";
  * 4. Redirect to PayFast checkout
  */
 export async function upgradeToProPlan(orgId: string) {
-  await safeAction(async () => {
+  return safeAction(async () => {
     const { supabase } = await requireOrgAccess(orgId, "owner");
 
     // Load Pro plan

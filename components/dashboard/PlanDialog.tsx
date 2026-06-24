@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/lib/database.types";
 
@@ -244,6 +244,7 @@ export function PlanDialog({ plan }: PlanDialogProps) {
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {isEdit ? "Save changes" : "Create plan"}
             </Button>
           </div>

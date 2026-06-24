@@ -26,8 +26,8 @@ export async function getNotificationPrefs() {
   });
 }
 
-export async function updateNotificationPrefs(formData: FormData): Promise<void> {
-  await safeAction(async () => {
+export async function updateNotificationPrefs(formData: FormData) {
+  return safeAction(async () => {
     const { user } = await requireSession();
     const supabase = await createServerClient();
 

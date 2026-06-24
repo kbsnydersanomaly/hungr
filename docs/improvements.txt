@@ -1,0 +1,48 @@
+We need to add: 
+
+General: 
+
+When I click on an "Add" button - eg - add menu - it should show a spinner when loading and become disabled. In the case of the menu it doesn't do this and people click multiple times and end up adding many menus. 
+
+Menus: 
+
+We need to be able to delete menus (draft and published) easily. 
+We need to work out a bulk upload system - that people can get a sample csv or excel to fill in and upload a new one to add or modify or replace a menu entirely with an uploaded spreadsheet (excel or csv). I would present all of this in a modal. 
+
+Media:
+
+Add a search bar for the media upload panel. 
+
+Subscriptions: 
+
+I can't cancel or pause my subscription. I need to be able to. Please refer to the payfast docs on this too https://developers.payfast.co.za/api#recurring-billing. Restuarants without a valid subscription shouldn't have a publically accessible menu - it should show as non existing, and we should have a fixed notification that the subscription is no longer valid. 
+
+If the payment is pending, they should have a link to try to pay again. When they haven't paid at all, they should not have access to adding or modifying restuarant or menus etc. 
+
+Team members:
+
+The team members section needs to be reworked a bit - the invites send fine, but it's not working properly. 
+
+When logged in as a team member, I don't think I'm able to switch organisations as a team member of another restaurant. 
+
+Users can be added but they don't show as team members on the list and I can't edit their permissions nor delete them or promote them. 
+
+Branding: 
+
+The branding sometimes doesn't save, the refresh icon for discarding changes is a bit ambiguous - lets make it an actual delete button. 
+
+We need an undo option and an obvious button saying that we must publish the menu to apply changes. 
+
+
+Help section:
+
+We need to add a simple help section that we can edit the contents of as a super admin, but it is visible to all users just a fancy FAQ basically that has an "article" - so each item would need a category, a topic and the ability to have screenshots and video, be searchable and filterable. 
+
+
+Menu:
+
+When viewing the menu and going to the about page - there's no back button. 
+
+Menus shouldn't show if the restuarants subscription is paused or cancelled. 
+
+

@@ -5,21 +5,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InviteMemberDialog } from "@/components/dashboard/team/InviteMemberDialog";
 import { MemberActionsMenu } from "@/components/dashboard/team/MemberActionsMenu";
-import { InvitationActions } from "@/components/dashboard/team/InvitationActions";
+import { InvitationList, type InvitationRow } from "@/components/dashboard/team/InvitationList";
 import { TeamMemberRow } from "@/components/dashboard/team/TeamMemberRow";
 import { rel, type ProfileRef } from "@/lib/types/relations";
 
 type Member = { role: string; joined_at?: string; profiles: unknown };
-type Invitation = {
-  id: string;
-  email: string;
-  role: string;
-  restaurant_id: string | null;
-  invited_by: string | null;
-  expires_at: string;
-  created_at: string;
-  profiles: unknown;
-};
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +35,9 @@ export default async function TeamSettingsPage() {
       supabase
         .from("invitations")
         .select(
-          "id, email, role, restaurant_id, invited_by, expires_at, created_at, profiles!invited_by(display_name, email)"
+          "id, email, role, restaurant_id, invited_by, expires_at, accepted_at, revoked_at, created_at, profiles!invited_by(display_name, email)"
         )
         .eq("org_id", activeOrg.orgId)
-        .is("accepted_at", null)
-        .is("revoked_at", null)
-        .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false }),
       supabase
         .from("organizations")
@@ -107,27 +94,13 @@ export default async function TeamSettingsPage() {
       {invitations && invitations.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Pending invitations</CardTitle>
+            <CardTitle>Invitations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="divide-y">
-              {invitations.map((inv: Invitation) => {
-                const inviter = rel<ProfileRef>(inv.profiles);
-                return (
-                  <div key={inv.id} className="flex items-center justify-between py-4">
-                    <div>
-                      <p className="text-sm font-medium">{inv.email}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Invited as {inv.role} by{" "}
-                        {inviter?.display_name || inviter?.email || "Unknown"} ·{" "}
-                        {new Date(inv.expires_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    {isAdmin && <InvitationActions invitationId={inv.id} />}
-                  </div>
-                );
-              })}
-            </div>
+            <InvitationList
+              invitations={invitations as InvitationRow[]}
+              isAdmin={isAdmin}
+            />
           </CardContent>
         </Card>
       )}

@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { loadRestaurantById } from "@/lib/data/restaurants";
-import { createMenu } from "@/lib/data/menu-actions";
 import { PageHeader } from "@/components/PageHeader";
+import { CreateMenuForm } from "@/components/menu/CreateMenuForm";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 
@@ -33,22 +31,7 @@ export default async function NewMenuPage({
 
       <Card>
         <CardContent>
-          <form
-            action={async (formData: FormData) => {
-              "use server";
-              await createMenu(restaurantId, formData);
-            }}
-            className="space-y-4"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="name">Menu name</Label>
-              <Input id="name" name="name" placeholder="e.g. Lunch, Dinner, Brunch" required />
-            </div>
-
-            <Button type="submit" className="w-full">
-              Create menu
-            </Button>
-          </form>
+          <CreateMenuForm restaurantId={restaurantId} />
         </CardContent>
       </Card>
     </div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Check, X, Pencil, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Check, X, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -59,6 +59,7 @@ export function SortableCategory({
   onDeleteItem,
 }: SortableCategoryProps) {
   const [editingName, setEditingName] = useState(false);
+  const [savingName, setSavingName] = useState(false);
   const [nameValue, setNameValue] = useState(category.name);
   const [showItemForm, setShowItemForm] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -94,8 +95,13 @@ export function SortableCategory({
           {editingName ? (
             <form
               action={async () => {
-                await onUpdateCategoryName(category.id, nameValue);
-                setEditingName(false);
+                setSavingName(true);
+                try {
+                  await onUpdateCategoryName(category.id, nameValue);
+                  setEditingName(false);
+                } finally {
+                  setSavingName(false);
+                }
               }}
               className="flex items-center gap-2 flex-1"
             >
@@ -104,9 +110,20 @@ export function SortableCategory({
                 onChange={(e) => setNameValue(e.target.value)}
                 className="h-8 text-sm"
                 autoFocus
+                disabled={savingName}
               />
-              <Button type="submit" size="icon" variant="ghost" className="h-8 w-8">
-                <Check className="h-4 w-4" />
+              <Button
+                type="submit"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                disabled={savingName}
+              >
+                {savingName ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
               </Button>
               <Button
                 type="button"
@@ -175,6 +192,7 @@ export function SortableCategory({
                     }
                   }}
                 >
+                  {deleting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                   Delete category
                 </Button>
               </DialogFooter>

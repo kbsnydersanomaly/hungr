@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InviteMemberDialog } from "@/components/dashboard/team/InviteMemberDialog";
 import { MemberActionsMenu } from "@/components/dashboard/team/MemberActionsMenu";
+import { InvitationList, type InvitationRow } from "@/components/dashboard/team/InvitationList";
 import { TeamMemberRow } from "@/components/dashboard/team/TeamMemberRow";
 import { rel, type ProfileRef } from "@/lib/types/relations";
 
@@ -31,20 +32,29 @@ export default async function RestaurantTeamPage({
 
   if (!restaurant) notFound();
 
-  const [{ data: restaurantMembers }, { data: orgMembers }] = await Promise.all([
-    supabase
-      .from("restaurant_members")
-      .select(
-        "role, joined_at, profiles(id, email, first_name, last_name, display_name)"
-      )
-      .eq("restaurant_id", restaurantId)
-      .order("joined_at", { ascending: false }),
-    supabase
-      .from("organization_members")
-      .select("role, profiles(id, email, first_name, last_name, display_name)")
-      .eq("org_id", restaurant.org_id)
-      .order("joined_at", { ascending: false }),
-  ]);
+  const [{ data: restaurantMembers }, { data: orgMembers }, { data: invitations }] =
+    await Promise.all([
+      supabase
+        .from("restaurant_members")
+        .select(
+          "role, joined_at, profiles(id, email, first_name, last_name, display_name)"
+        )
+        .eq("restaurant_id", restaurantId)
+        .order("joined_at", { ascending: false }),
+      supabase
+        .from("organization_members")
+        .select("role, profiles(id, email, first_name, last_name, display_name)")
+        .eq("org_id", restaurant.org_id)
+        .order("joined_at", { ascending: false }),
+      supabase
+        .from("invitations")
+        .select(
+          "id, email, role, expires_at, accepted_at, revoked_at, created_at, profiles!invited_by(display_name, email)"
+        )
+        .eq("org_id", restaurant.org_id)
+        .eq("restaurant_id", restaurantId)
+        .order("created_at", { ascending: false }),
+    ]);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -116,6 +126,20 @@ export default async function RestaurantTeamPage({
           </div>
         </CardContent>
       </Card>
+
+      {invitations && invitations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invitations</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <InvitationList
+              invitations={invitations as InvitationRow[]}
+              isAdmin
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

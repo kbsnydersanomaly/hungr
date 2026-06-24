@@ -1,17 +1,121 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NotFoundError, ValidationError, safeAction } from "@/lib/errors";
 import { requireOrgAccess, requireRestaurantAccess } from "@/lib/auth/role";
+import { requireSession } from "@/lib/auth/session";
 import {
   pauseSubscription as payfastPause,
   cancelSubscription as payfastCancel,
   unpauseSubscription as payfastUnpause,
   nextBillingDate,
 } from "@/lib/billing/payfast";
+import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
+
+type SubscriptionRow = {
+  id: string;
+  scope: "restaurant" | "org";
+  scope_id: string;
+  org_id: string;
+  plan_id: string;
+  status: string;
+  amount_cents: number;
+  billing_period: string;
+  payfast_token: string | null;
+  m_payment_id: string | null;
+  started_at: string | null;
+  current_period_end: string | null;
+  next_billing_date: string | null;
+  paused_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+async function getSubscriptionContext(
+  supabase: SupabaseClient<Database>,
+  sub: SubscriptionRow
+) {
+  const baseUrl = env.NEXT_PUBLIC_APP_URL;
+
+  if (sub.scope === "restaurant") {
+    const { data } = await supabase
+      .from("restaurants")
+      .select("name")
+      .eq("id", sub.scope_id)
+      .maybeSingle();
+
+    return {
+      name: data?.name ?? "Restaurant",
+      billingUrl: `${baseUrl}/restaurants/${sub.scope_id}/billing`,
+    };
+  }
+
+  const { data } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", sub.org_id)
+    .maybeSingle();
+
+  return {
+    name: data?.name ?? "Organization",
+    billingUrl: `${baseUrl}/settings/billing`,
+  };
+}
+
+async function notifySubscriptionEvent(
+  sub: SubscriptionRow,
+  action: "paused" | "cancelled" | "resumed",
+  actorUserId: string
+) {
+  const admin = createAdminClient();
+  const h = await headers();
+
+  const auditPromise = admin.from("audit_logs").insert({
+    org_id: sub.org_id,
+    restaurant_id: sub.scope === "restaurant" ? sub.scope_id : null,
+    actor_user_id: actorUserId,
+    action: `subscription:${action}`,
+    target_table: "subscriptions",
+    target_id: sub.id,
+    diff: { status: action },
+    ip: h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? null,
+    user_agent: h.get("user-agent") ?? null,
+  });
+
+  const { data: recipients } = await admin
+    .from("organization_members")
+    .select("user_id")
+    .eq("org_id", sub.org_id)
+    .in("role", ["owner", "admin"]);
+
+  const notificationType = `subscription_${action}` as const;
+  const notificationPayload = {
+    subscription_id: sub.id,
+    scope: sub.scope,
+    scope_id: sub.scope_id,
+    status: action,
+    message: `A subscription was ${action}.`,
+  };
+
+  const notificationPromises = (recipients ?? [])
+    .filter((r) => r.user_id)
+    .map((r) =>
+      admin.from("notifications").insert({
+        user_id: r.user_id,
+        type: notificationType,
+        payload: notificationPayload,
+      })
+    );
+
+  await Promise.all([auditPromise, ...notificationPromises]);
+}
 
 export async function loadSubscriptionForRestaurant(restaurantId: string) {
   const { supabase } = await requireRestaurantAccess(restaurantId, "staff");
@@ -21,7 +125,7 @@ export async function loadSubscriptionForRestaurant(restaurantId: string) {
     .select("*, plans(*)")
     .eq("scope", "restaurant")
     .eq("scope_id", restaurantId)
-    .in("status", ["pending", "active", "paused"])
+    .in("status", ["pending", "active", "paused", "cancelled"])
     .maybeSingle();
 
   if (error) {
@@ -59,7 +163,7 @@ export async function loadOrgBillingSummary(orgId: string) {
         .from("subscriptions")
         .select("*, plans(*)")
         .eq("org_id", orgId)
-        .in("status", ["pending", "active", "paused", "failed"])
+        .in("status", ["pending", "active", "paused", "failed", "cancelled"])
         .order("created_at", { ascending: false }),
       supabase
         .from("transactions")
@@ -83,6 +187,7 @@ export async function loadOrgBillingSummary(orgId: string) {
 
 export async function pauseSubscriptionAction(subscriptionId: string) {
   return safeAction(async () => {
+    const { user } = await requireSession();
     const supabase = await createServerClient();
 
     const { data: sub } = await supabase
@@ -96,7 +201,7 @@ export async function pauseSubscriptionAction(subscriptionId: string) {
     if (sub.scope === "restaurant") {
       await requireRestaurantAccess(sub.scope_id, "manager");
     } else {
-      await requireOrgAccess(sub.org_id, "owner");
+      await requireOrgAccess(sub.org_id, "admin");
     }
 
     if (!sub.payfast_token) {
@@ -119,6 +224,18 @@ export async function pauseSubscriptionAction(subscriptionId: string) {
       throw new ValidationError("Failed to pause subscription.");
     }
 
+    const context = await getSubscriptionContext(supabase, sub as SubscriptionRow);
+    try {
+      await sendMail("subscription-paused", user.email!, {
+        restaurant_name: context.name,
+        billing_url: context.billingUrl,
+      });
+    } catch (err) {
+      console.error("Failed to send subscription-paused email:", err);
+    }
+
+    await notifySubscriptionEvent(sub as SubscriptionRow, "paused", user.id);
+
     revalidatePath(`/restaurants/${sub.scope_id}/billing`);
     revalidatePath("/settings/billing");
     return { paused: true };
@@ -127,6 +244,7 @@ export async function pauseSubscriptionAction(subscriptionId: string) {
 
 export async function cancelSubscriptionAction(subscriptionId: string) {
   return safeAction(async () => {
+    const { user } = await requireSession();
     const supabase = await createServerClient();
 
     const { data: sub } = await supabase
@@ -140,7 +258,7 @@ export async function cancelSubscriptionAction(subscriptionId: string) {
     if (sub.scope === "restaurant") {
       await requireRestaurantAccess(sub.scope_id, "manager");
     } else {
-      await requireOrgAccess(sub.org_id, "owner");
+      await requireOrgAccess(sub.org_id, "admin");
     }
 
     if (sub.payfast_token) {
@@ -161,6 +279,18 @@ export async function cancelSubscriptionAction(subscriptionId: string) {
       throw new ValidationError("Failed to cancel subscription.");
     }
 
+    const context = await getSubscriptionContext(supabase, sub as SubscriptionRow);
+    try {
+      await sendMail("subscription-cancelled", user.email!, {
+        restaurant_name: context.name,
+        billing_url: context.billingUrl,
+      });
+    } catch (err) {
+      console.error("Failed to send subscription-cancelled email:", err);
+    }
+
+    await notifySubscriptionEvent(sub as SubscriptionRow, "cancelled", user.id);
+
     revalidatePath(`/restaurants/${sub.scope_id}/billing`);
     revalidatePath("/settings/billing");
     return { cancelled: true };
@@ -169,6 +299,7 @@ export async function cancelSubscriptionAction(subscriptionId: string) {
 
 export async function resumeSubscriptionAction(subscriptionId: string) {
   return safeAction(async () => {
+    const { user } = await requireSession();
     const supabase = await createServerClient();
 
     const { data: sub } = await supabase
@@ -182,7 +313,7 @@ export async function resumeSubscriptionAction(subscriptionId: string) {
     if (sub.scope === "restaurant") {
       await requireRestaurantAccess(sub.scope_id, "manager");
     } else {
-      await requireOrgAccess(sub.org_id, "owner");
+      await requireOrgAccess(sub.org_id, "admin");
     }
 
     if (!sub.payfast_token) {
@@ -204,6 +335,8 @@ export async function resumeSubscriptionAction(subscriptionId: string) {
       console.error("resumeSubscriptionAction error:", error);
       throw new ValidationError("Failed to resume subscription.");
     }
+
+    await notifySubscriptionEvent(sub as SubscriptionRow, "resumed", user.id);
 
     revalidatePath(`/restaurants/${sub.scope_id}/billing`);
     revalidatePath("/settings/billing");
