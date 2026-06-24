@@ -102,6 +102,30 @@ describe("isRestaurantSubscriptionValid", () => {
       reason: "no_active_subscription",
     });
   });
+
+  it("prefers paused over pending for inactive subscriptions", () => {
+    expect(
+      isRestaurantSubscriptionValid(
+        [
+          { status: "pending", current_period_end: FUTURE },
+          { status: "paused", current_period_end: FUTURE },
+        ],
+        NOW
+      )
+    ).toEqual({ valid: false, reason: "paused" });
+  });
+
+  it("prefers cancelled over failed for inactive subscriptions", () => {
+    expect(
+      isRestaurantSubscriptionValid(
+        [
+          { status: "failed", current_period_end: FUTURE },
+          { status: "cancelled", current_period_end: FUTURE },
+        ],
+        NOW
+      )
+    ).toEqual({ valid: false, reason: "cancelled" });
+  });
 });
 
 describe("loadRestaurantSubscriptions", () => {

@@ -1,29 +1,20 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/lib/database.types";
 
-export type SubscriptionStatus =
-  | "pending"
-  | "active"
-  | "paused"
-  | "cancelled"
-  | "failed";
+export type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 
-export type SubscriptionCheckRow = {
-  status: SubscriptionStatus;
-  current_period_end: string | null;
-};
+export type SubscriptionCheckRow = Pick<
+  Database["public"]["Tables"]["subscriptions"]["Row"],
+  "status" | "current_period_end"
+>;
+
+type InactiveSubscriptionStatus = Exclude<SubscriptionStatus, "active">;
 
 export type SubscriptionValidity =
   | { valid: true }
   | {
       valid: false;
-      reason:
-        | "no_active_subscription"
-        | "expired"
-        | "paused"
-        | "cancelled"
-        | "failed"
-        | "pending";
+      reason: InactiveSubscriptionStatus | "no_active_subscription" | "expired";
     };
 
 export function isRestaurantSubscriptionValid(
@@ -31,8 +22,12 @@ export function isRestaurantSubscriptionValid(
   now: Date = new Date()
 ): SubscriptionValidity {
   let hasExpired = false;
-  let inactiveReason: Exclude<SubscriptionValidity["valid"] extends true ? never : SubscriptionValidity, { valid: true }>["reason"] | null = null;
+  let inactiveReason: SubscriptionStatus | null = null;
+  // Inactive status precedence: paused > cancelled > failed > pending
   const precedence: SubscriptionStatus[] = ["paused", "cancelled", "failed", "pending"];
+
+  const precedenceIndex = (status: SubscriptionStatus): number =>
+    precedence.indexOf(status);
 
   for (const sub of subscriptions) {
     if (sub.status === "active") {
@@ -44,15 +39,12 @@ export function isRestaurantSubscriptionValid(
       }
       hasExpired = true;
     } else {
-      const index = precedence.indexOf(sub.status);
-      if (index !== -1) {
-        if (
-          inactiveReason === null ||
-          precedence.indexOf(inactiveReason) === -1 ||
-          index < precedence.indexOf(inactiveReason)
-        ) {
-          inactiveReason = sub.status;
-        }
+      const index = precedenceIndex(sub.status);
+      if (
+        index !== -1 &&
+        (inactiveReason === null || index < precedenceIndex(inactiveReason))
+      ) {
+        inactiveReason = sub.status;
       }
     }
   }
@@ -62,7 +54,7 @@ export function isRestaurantSubscriptionValid(
   }
 
   if (inactiveReason) {
-    return { valid: false, reason: inactiveReason };
+    return { valid: false, reason: inactiveReason as InactiveSubscriptionStatus };
   }
 
   return { valid: false, reason: "no_active_subscription" };
