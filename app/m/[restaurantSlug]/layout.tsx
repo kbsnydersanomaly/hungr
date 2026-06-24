@@ -2,6 +2,11 @@ import { notFound } from "next/navigation";
 import { loadRestaurantBySlug } from "@/lib/data/restaurants";
 import { loadBranding } from "@/lib/data/branding";
 import { isBottomNavEnabled } from "@/lib/data/platform-settings";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  isRestaurantSubscriptionValid,
+  loadRestaurantSubscriptions,
+} from "@/lib/billing/subscription";
 import {
   brandingToCssVars,
   brandingFontFamilies,
@@ -23,6 +28,15 @@ export default async function PublicMenuLayout({
 
   const restaurant = await loadRestaurantBySlug(restaurantSlug);
   if (!restaurant) notFound();
+
+  const subscriptions = await loadRestaurantSubscriptions(
+    createAdminClient(),
+    restaurant
+  );
+  const validity = isRestaurantSubscriptionValid(subscriptions);
+  if (!validity.valid) {
+    notFound();
+  }
 
   const [branding, showBottomNav] = await Promise.all([
     loadBranding(restaurant.id),
