@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  isRestaurantManagementAllowed,
   isRestaurantSubscriptionValid,
   loadRestaurantSubscriptions,
 } from "@/lib/billing/subscription";
@@ -180,18 +181,21 @@ describe("loadRestaurantSubscriptions", () => {
   it("filters rows by restaurant and org scope", async () => {
     const rows = [
       {
+        id: "s1",
         status: "active",
         current_period_end: FUTURE,
         scope: "restaurant",
         scope_id: "r1",
       },
       {
+        id: "s2",
         status: "active",
         current_period_end: FUTURE,
         scope: "restaurant",
         scope_id: "r2",
       },
       {
+        id: "s3",
         status: "active",
         current_period_end: FUTURE,
         scope: "org",
@@ -216,10 +220,70 @@ describe("loadRestaurantSubscriptions", () => {
 
     expect(mockSupabase.from).toHaveBeenCalledWith("subscriptions");
     expect(select).toHaveBeenCalledWith(
-      "status, current_period_end, scope, scope_id"
+      "id, status, current_period_end, scope, scope_id"
     );
     expect(eq).toHaveBeenCalledWith("org_id", "o1");
     expect(result).toHaveLength(2);
     expect(result.map((r) => r.scope_id).sort()).toEqual(["o1", "r1"]);
+  });
+});
+
+describe("isRestaurantManagementAllowed", () => {
+  it("allows active subscriptions", () => {
+    expect(
+      isRestaurantManagementAllowed(
+        [{ id: "s1", status: "active", current_period_end: FUTURE }],
+        NOW
+      )
+    ).toBe(true);
+  });
+
+  it("allows pending subscriptions so the retry banner can be shown", () => {
+    expect(
+      isRestaurantManagementAllowed(
+        [{ id: "s1", status: "pending", current_period_end: FUTURE }],
+        NOW
+      )
+    ).toBe(true);
+  });
+
+  it("blocks failed subscriptions", () => {
+    expect(
+      isRestaurantManagementAllowed(
+        [{ id: "s1", status: "failed", current_period_end: FUTURE }],
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("blocks cancelled subscriptions", () => {
+    expect(
+      isRestaurantManagementAllowed(
+        [{ id: "s1", status: "cancelled", current_period_end: FUTURE }],
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("blocks paused subscriptions", () => {
+    expect(
+      isRestaurantManagementAllowed(
+        [{ id: "s1", status: "paused", current_period_end: FUTURE }],
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("blocks expired subscriptions", () => {
+    expect(
+      isRestaurantManagementAllowed(
+        [{ id: "s1", status: "active", current_period_end: PAST }],
+        NOW
+      )
+    ).toBe(false);
+  });
+
+  it("blocks when there is no subscription", () => {
+    expect(isRestaurantManagementAllowed([], NOW)).toBe(false);
   });
 });

@@ -5,7 +5,7 @@ export type SubscriptionStatus = Database["public"]["Enums"]["subscription_statu
 
 export type SubscriptionCheckRow = Pick<
   Database["public"]["Tables"]["subscriptions"]["Row"],
-  "status" | "current_period_end"
+  "id" | "status" | "current_period_end"
 >;
 
 type InactiveSubscriptionStatus = Exclude<SubscriptionStatus, "active">;
@@ -60,9 +60,18 @@ export function isRestaurantSubscriptionValid(
   return { valid: false, reason: "no_active_subscription" };
 }
 
+export function isRestaurantManagementAllowed(
+  subscriptions: SubscriptionCheckRow[],
+  now: Date = new Date()
+): boolean {
+  const validity = isRestaurantSubscriptionValid(subscriptions, now);
+  if (validity.valid) return true;
+  return validity.reason === "pending";
+}
+
 type SubscriptionRow = Pick<
   Database["public"]["Tables"]["subscriptions"]["Row"],
-  "status" | "current_period_end" | "scope" | "scope_id"
+  "id" | "status" | "current_period_end" | "scope" | "scope_id"
 >;
 
 export async function loadRestaurantSubscriptions(
@@ -71,7 +80,7 @@ export async function loadRestaurantSubscriptions(
 ): Promise<SubscriptionRow[]> {
   const { data, error } = await supabase
     .from("subscriptions")
-    .select("status, current_period_end, scope, scope_id")
+    .select("id, status, current_period_end, scope, scope_id")
     .eq("org_id", restaurant.org_id)
     .in("status", ["active", "pending", "paused", "cancelled", "failed"]);
 
