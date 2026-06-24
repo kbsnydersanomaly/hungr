@@ -3,6 +3,7 @@ import {
   signUpAndVerify,
   createRestaurant,
   getFirstRestaurant,
+  activateRestaurantSubscription,
   createMenu,
   createMenuItem,
   publishMenu,
@@ -25,6 +26,7 @@ test.describe("Public menu", () => {
     await signUpAndVerify(page, TEST_EMAIL, TEST_PASSWORD, "Public", "Viewer");
     await createRestaurant(page, `Public E2E ${RUN_ID}`);
     const { id: restaurantId, slug } = await getFirstRestaurant(page);
+    await activateRestaurantSubscription(restaurantId);
     await createMenu(page, "All Day", restaurantId);
     await createMenuItem(page, {
       name: "Sushi Platter",

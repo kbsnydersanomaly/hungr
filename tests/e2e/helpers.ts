@@ -14,7 +14,7 @@ export const TEST_PNG = Buffer.from(
   "base64"
 );
 
-function adminClient() {
+export function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
@@ -267,6 +267,37 @@ export async function publishMenu(page: Page) {
   await expect(
     page.getByRole("button", { name: "Unpublish", exact: true })
   ).toBeVisible({ timeout: 15000 });
+}
+
+/**
+ * Marks the restaurant's subscription as active and restores the restaurant
+ * status. Use this after createRestaurant in tests that need a public menu.
+ */
+export async function activateRestaurantSubscription(restaurantId: string) {
+  const admin = adminClient();
+  const now = new Date();
+  const future = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const { error: subError } = await admin
+    .from("subscriptions")
+    .update({
+      status: "active",
+      started_at: now.toISOString(),
+      current_period_end: future.toISOString(),
+      next_billing_date: future.toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq("scope", "restaurant")
+    .eq("scope_id", restaurantId);
+
+  if (subError) throw subError;
+
+  const { error: restaurantError } = await admin
+    .from("restaurants")
+    .update({ status: "active", updated_at: now.toISOString() })
+    .eq("id", restaurantId);
+
+  if (restaurantError) throw restaurantError;
 }
 
 /**
