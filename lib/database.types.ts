@@ -428,6 +428,83 @@ export type Database = {
           },
         ]
       }
+      help_articles: {
+        Row: {
+          category_id: string | null
+          content: string
+          created_at: string
+          id: string
+          published: boolean
+          screenshots: string[]
+          slug: string
+          title: string
+          topics: string[]
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          published?: boolean
+          screenshots?: string[]
+          slug: string
+          title: string
+          topics?: string[]
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          published?: boolean
+          screenshots?: string[]
+          slug?: string
+          title?: string
+          topics?: string[]
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "help_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_at: string | null
