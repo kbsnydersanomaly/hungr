@@ -26,8 +26,12 @@ export default async function PublicMenuLayout({
 }) {
   const { restaurantSlug } = await params;
 
-  const restaurant = await loadRestaurantBySlug(restaurantSlug);
-  if (!restaurant) notFound();
+  let restaurant;
+  try {
+    restaurant = await loadRestaurantBySlug(restaurantSlug);
+  } catch {
+    notFound();
+  }
 
   const subscriptions = await loadRestaurantSubscriptions(
     createAdminClient(),
