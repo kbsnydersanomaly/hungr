@@ -16,7 +16,7 @@ export interface PaginationOptions {
 }
 
 export async function paginatedQuery<T extends Record<string, unknown>>(
-  query: PostgrestFilterBuilder<any, any, T, any, any>,
+  query: PostgrestFilterBuilder<any, any, T, T[], unknown>,
   opts: PaginationOptions = {}
 ): Promise<PaginationResult<T>> {
   const page = Math.max(1, opts.page ?? 1);
@@ -24,18 +24,18 @@ export async function paginatedQuery<T extends Record<string, unknown>>(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const { data, error, count } = await query.range(from, to).limit(pageSize);
+  const { data, error, count } = await query.range(from, to);
 
   if (error) {
     console.error("paginatedQuery error:", error);
-    throw new Error("Failed to load data.");
+    throw new Error("Failed to load data.", { cause: error });
   }
 
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return {
-    data: (data ?? []) as T[],
+    data: data ?? [],
     total,
     page,
     pageSize,
@@ -45,7 +45,7 @@ export async function paginatedQuery<T extends Record<string, unknown>>(
 
 export function parsePaginationParams(
   sp: Record<string, string | string[] | undefined>
-) {
+): PaginationOptions {
   const rawPage = Number(sp?.page);
   const rawPageSize = Number(sp?.pageSize);
   return {
