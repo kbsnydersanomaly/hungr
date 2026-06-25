@@ -26,10 +26,8 @@ export function UserActions({ userId, email }: UserActionsProps) {
   return (
     <div className="flex items-center gap-2">
       <ServerActionForm
-        action={async () => {
-          await enableUser(userId);
-          router.refresh();
-        }}
+        action={enableUser.bind(null, userId)}
+        onSuccess={() => router.refresh()}
         successMessage="User enabled."
       >
         <SubmitButton type="submit" size="sm" variant="outline">
@@ -37,10 +35,8 @@ export function UserActions({ userId, email }: UserActionsProps) {
         </SubmitButton>
       </ServerActionForm>
       <ServerActionForm
-        action={async () => {
-          await disableUser(userId);
-          router.refresh();
-        }}
+        action={disableUser.bind(null, userId)}
+        onSuccess={() => router.refresh()}
         successMessage="User disabled."
       >
         <SubmitButton type="submit" size="sm" variant="outline">
