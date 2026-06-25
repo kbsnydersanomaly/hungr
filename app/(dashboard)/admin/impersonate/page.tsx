@@ -28,8 +28,8 @@ export default function ImpersonatePage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const data = await listUsers(search);
-      setUsers(data as User[]);
+      const result = await listUsers({ search });
+      setUsers(result.data as User[]);
     } catch {
       setUsers([]);
     } finally {

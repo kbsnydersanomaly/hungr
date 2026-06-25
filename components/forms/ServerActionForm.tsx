@@ -8,7 +8,7 @@ type ActionResult = { ok: boolean; message?: string };
 
 export interface ServerActionFormProps {
   action: (formData: FormData) => Promise<ActionResult | void>;
-  children: (state: { isPending: boolean }) => ReactNode;
+  children: ReactNode | ((state: { isPending: boolean }) => ReactNode);
   onSuccess?: () => void;
   successMessage?: string;
   className?: string;
@@ -44,7 +44,7 @@ export function ServerActionForm({
 
   return (
     <form action={handleSubmit} className={className}>
-      {children({ isPending })}
+      {typeof children === "function" ? children({ isPending }) : children}
     </form>
   );
 }
