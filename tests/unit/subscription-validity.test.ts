@@ -1,35 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  findPendingSubscription,
   isRestaurantManagementAllowed,
   isRestaurantSubscriptionValid,
   loadRestaurantSubscriptions,
 } from "@/lib/billing/subscription";
-import { ForbiddenError } from "@/lib/errors";
-
-vi.mock("@/lib/supabase/server", () => ({
-  createServerClient: vi.fn(),
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn((url: string) => {
-    const err = new Error(`NEXT_REDIRECT ${url}`);
-    Object.assign(err, { digest: "NEXT_REDIRECT" });
-    throw err;
-  }),
-}));
-
-import { createServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import {
-  assertRestaurantManagementAllowed,
-  requireRestaurantManagementOrRedirect,
-} from "@/lib/billing/subscription";
-
-const mockedCreateServerClient = createServerClient as unknown as ReturnType<
-  typeof vi.fn
->;
-const mockedRedirect = redirect as unknown as ReturnType<typeof vi.fn>;
 
 const NOW = new Date("2026-06-24T12:00:00Z");
 const FUTURE = "2026-07-01T12:00:00Z";
@@ -258,7 +232,7 @@ describe("isRestaurantManagementAllowed", () => {
   it("allows active subscriptions", () => {
     expect(
       isRestaurantManagementAllowed(
-        [{ status: "active", current_period_end: FUTURE }],
+        [{ id: "s1", status: "active", current_period_end: FUTURE }],
         NOW
       )
     ).toBe(true);
@@ -267,7 +241,7 @@ describe("isRestaurantManagementAllowed", () => {
   it("allows pending subscriptions so the retry banner can be shown", () => {
     expect(
       isRestaurantManagementAllowed(
-        [{ status: "pending", current_period_end: FUTURE }],
+        [{ id: "s1", status: "pending", current_period_end: FUTURE }],
         NOW
       )
     ).toBe(true);
@@ -276,7 +250,7 @@ describe("isRestaurantManagementAllowed", () => {
   it("blocks failed subscriptions", () => {
     expect(
       isRestaurantManagementAllowed(
-        [{ status: "failed", current_period_end: FUTURE }],
+        [{ id: "s1", status: "failed", current_period_end: FUTURE }],
         NOW
       )
     ).toBe(false);
@@ -285,7 +259,7 @@ describe("isRestaurantManagementAllowed", () => {
   it("blocks cancelled subscriptions", () => {
     expect(
       isRestaurantManagementAllowed(
-        [{ status: "cancelled", current_period_end: FUTURE }],
+        [{ id: "s1", status: "cancelled", current_period_end: FUTURE }],
         NOW
       )
     ).toBe(false);
@@ -294,7 +268,7 @@ describe("isRestaurantManagementAllowed", () => {
   it("blocks paused subscriptions", () => {
     expect(
       isRestaurantManagementAllowed(
-        [{ status: "paused", current_period_end: FUTURE }],
+        [{ id: "s1", status: "paused", current_period_end: FUTURE }],
         NOW
       )
     ).toBe(false);
@@ -303,7 +277,7 @@ describe("isRestaurantManagementAllowed", () => {
   it("blocks expired subscriptions", () => {
     expect(
       isRestaurantManagementAllowed(
-        [{ status: "active", current_period_end: PAST }],
+        [{ id: "s1", status: "active", current_period_end: PAST }],
         NOW
       )
     ).toBe(false);
@@ -311,126 +285,5 @@ describe("isRestaurantManagementAllowed", () => {
 
   it("blocks when there is no subscription", () => {
     expect(isRestaurantManagementAllowed([], NOW)).toBe(false);
-  });
-});
-
-describe("findPendingSubscription", () => {
-  it("prefers restaurant-scoped pending subscriptions", () => {
-    const result = findPendingSubscription([
-      {
-        id: "org-pending",
-        status: "pending",
-        current_period_end: FUTURE,
-        scope: "org",
-        scope_id: "o1",
-      },
-      {
-        id: "rest-pending",
-        status: "pending",
-        current_period_end: FUTURE,
-        scope: "restaurant",
-        scope_id: "r1",
-      },
-    ]);
-
-    expect(result?.id).toBe("rest-pending");
-  });
-
-  it("falls back to org-scoped pending subscriptions", () => {
-    const result = findPendingSubscription([
-      {
-        id: "org-pending",
-        status: "pending",
-        current_period_end: FUTURE,
-        scope: "org",
-        scope_id: "o1",
-      },
-    ]);
-
-    expect(result?.id).toBe("org-pending");
-  });
-
-  it("returns null when no pending subscription exists", () => {
-    expect(
-      findPendingSubscription([
-        {
-          id: "s1",
-          status: "active",
-          current_period_end: FUTURE,
-          scope: "restaurant",
-          scope_id: "r1",
-        },
-      ])
-    ).toBeNull();
-  });
-});
-
-describe("assertRestaurantManagementAllowed", () => {
-  it("throws when management is blocked", async () => {
-    mockedCreateServerClient.mockResolvedValue({
-      from: vi.fn((table: string) => {
-        if (table === "restaurants") {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: { id: "r1", org_id: "o1" },
-              error: null,
-            }),
-          };
-        }
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          in: vi.fn().mockResolvedValue({
-            data: [
-              {
-                id: "s1",
-                status: "failed",
-                current_period_end: FUTURE,
-                scope: "restaurant",
-                scope_id: "r1",
-              },
-            ],
-            error: null,
-          }),
-        };
-      }),
-    });
-
-    await expect(assertRestaurantManagementAllowed("r1")).rejects.toThrow(
-      ForbiddenError
-    );
-  });
-});
-
-describe("requireRestaurantManagementOrRedirect", () => {
-  it("redirects to billing when management is blocked", async () => {
-    mockedCreateServerClient.mockResolvedValue({
-      from: vi.fn(() => ({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        in: vi.fn().mockResolvedValue({
-          data: [
-            {
-              id: "s1",
-              status: "cancelled",
-              current_period_end: FUTURE,
-              scope: "restaurant",
-              scope_id: "r1",
-            },
-          ],
-          error: null,
-        }),
-      })),
-    });
-
-    await expect(
-      requireRestaurantManagementOrRedirect("r1", "o1")
-    ).rejects.toMatchObject({ digest: "NEXT_REDIRECT" });
-
-    expect(mockedRedirect).toHaveBeenCalledWith(
-      "/restaurants/r1/billing?reason=subscription_required"
-    );
   });
 });

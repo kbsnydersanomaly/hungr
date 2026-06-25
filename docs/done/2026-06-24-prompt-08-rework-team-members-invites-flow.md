@@ -1,7 +1,5 @@
 # Prompt 08 — Rework team members section / fix invites flow
 
-> Note: Prompt 7 later moved restaurant management routes under `(manage)/` (e.g. `app/(dashboard)/restaurants/[restaurantId]/(manage)/team/...`); public URLs are unchanged.
-
 **Date:** 2026-06-24
 **Status:** Implemented & verified (DB-level + automated tests). Manual browser walkthrough optional (see below).
 
@@ -51,10 +49,9 @@ invites silently vanished).
 - `app/(dashboard)/layout.tsx` — restaurant nav is gated by an **effective restaurant role**
   (the higher of the user's org role and their `restaurant_members` role for the active
   restaurant), so a restaurant-only member who is a restaurant `manager` sees manager nav.
-- `lib/auth/invitations.ts` — `acceptInviteAndSignUp` passes `invited: true` in user metadata so
-  `handle_new_user` skips the auto-created personal org. It also repoints `default_org_id` at
-  the invited org as a safety net, so brand-new invitees land in the invited org even on a
-  later cookie-less login.
+- `lib/auth/invitations.ts` — `acceptInviteAndSignUp` now repoints the freshly-created user's
+  `default_org_id` at the invited org (overriding the personal-org artifact from the signup
+  trigger), so brand-new invitees land in the invited org even on a later cookie-less login.
 
 ### Invite-management UX
 - `lib/team/invite-status.ts` — new pure helper `computeInviteStatus()` →
@@ -99,8 +96,9 @@ invites silently vanished).
 - **Migration:** `pnpm db:migrate` applied `20260624120000_invite_org_context.sql` cleanly to
   the local DB. No table/column changes, so `lib/database.types.ts` regeneration is a no-op.
 
-### Type-check status
-- `npx tsc --noEmit` is clean across the codebase.
+### Pre-existing, unrelated
+- `npx tsc --noEmit` reports one error in `tests/unit/billing-actions.test.ts:330`
+  (`payfast_token: null` vs `string`) — a file not touched by this work; pre-existing.
 
 ---
 
@@ -131,19 +129,17 @@ pnpm dev
 
 ## Deployment notes
 
-- This fix depends on **three** migrations being applied to staging/production:
+- This fix depends on **two** migrations being applied to staging/production:
   `20260612100000_team_profiles_rls.sql` (peer-profile read RLS — without it, accepted members
-  render blank), `20260624120000_invite_org_context.sql`, and
-  `20260624125000_skip_personal_org_for_invites.sql`. Verify all three are applied remotely.
-- The `20260624125000_skip_personal_org_for_invites.sql` migration was added after the main
-  invite work to eliminate the auto-created personal org for invite-only signups. It detects
-  `raw_user_meta_data->>'invited' = 'true'` in `handle_new_user` and skips the personal-org
-  block; `accept_invitation` still grants the invited org membership and sets `default_org_id`.
-  Self-signups continue to receive a personal org + `default_org_id` as before.
+  render blank) **and** the new `20260624120000_invite_org_context.sql`. Verify both are
+  applied remotely.
+- **Optional future cleanup (not done):** brand-new invited users still receive an auto-created
+  personal org from `handle_new_user`; it shows as clutter in the org switcher. Removing it
+  would require detecting "invited" context in the signup trigger. Left as-is; the
+  `default_org_id` repoint means it no longer affects which org they land in.
 
 ## Files touched
 - `supabase/migrations/20260624120000_invite_org_context.sql` (new)
-- `supabase/migrations/20260624125000_skip_personal_org_for_invites.sql` (new)
 - `lib/team/invite-status.ts` (new)
 - `components/dashboard/team/InvitationList.tsx` (new)
 - `lib/auth/active-org.ts`

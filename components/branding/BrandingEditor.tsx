@@ -393,7 +393,7 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
   };
 
   return (
-    <div className="grid grid-cols-[0.5fr_1fr] gap-4 h-full">
+    <div className="grid grid-cols-[300px_1fr] gap-4 h-full">
       {/* Controls */}
       <div className="space-y-5 overflow-y-auto pr-2">
         <div className="flex items-center justify-between">

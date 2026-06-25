@@ -1,7 +1,5 @@
 # Prompt 3: Bulk menu upload via CSV/Excel modal
 
-> Note: Prompt 7 later moved restaurant management routes under `(manage)/` (e.g. `app/(dashboard)/restaurants/[restaurantId]/(manage)/menus/...`); public URLs are unchanged.
-
 ## Summary
 Added a "Bulk upload" modal to the menu workspace that lets restaurant owners download a
 sample spreadsheet, fill it in, and upload it to **add**, **modify**, or **replace** the items

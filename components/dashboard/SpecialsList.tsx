@@ -122,12 +122,12 @@ export function SpecialsList({
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-sm">{special.title}</h3>
                   <Badge variant={special.active ? "default" : "secondary"}>
                     {special.active ? "Active" : "Inactive"}
                   </Badge>
                   <Badge variant="outline">{KIND_LABELS[special.kind]}</Badge>
                 </div>
-                <h3 className="font-semibold text-sm mt-1">{special.title}</h3>
                 {special.description && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                     {special.description}

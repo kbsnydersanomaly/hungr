@@ -27,43 +27,48 @@ export default async function ProfileSettingsPage() {
             action={updateProfile}
             successMessage="Profile updated."
           >
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" value={user.email ?? ""} disabled />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="display_name">Display name</Label>
-                <Input
-                  id="display_name"
-                  name="display_name"
-                  defaultValue={profile?.display_name ?? ""}
-                  placeholder="Your display name"
-                  required
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+            {({ isPending }) => (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="first_name">First name</Label>
-                  <Input
-                    id="first_name"
-                    name="first_name"
-                    defaultValue={profile?.first_name ?? ""}
-                    placeholder="First name"
-                  />
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" value={user.email ?? ""} disabled />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last_name">Last name</Label>
+                  <Label htmlFor="display_name">Display name</Label>
                   <Input
-                    id="last_name"
-                    name="last_name"
-                    defaultValue={profile?.last_name ?? ""}
-                    placeholder="Last name"
+                    id="display_name"
+                    name="display_name"
+                    defaultValue={profile?.display_name ?? ""}
+                    placeholder="Your display name"
+                    required
+                    disabled={isPending}
                   />
                 </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="first_name">First name</Label>
+                    <Input
+                      id="first_name"
+                      name="first_name"
+                      defaultValue={profile?.first_name ?? ""}
+                      placeholder="First name"
+                      disabled={isPending}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="last_name">Last name</Label>
+                    <Input
+                      id="last_name"
+                      name="last_name"
+                      defaultValue={profile?.last_name ?? ""}
+                      placeholder="Last name"
+                      disabled={isPending}
+                    />
+                  </div>
+                </div>
+                <SubmitButton>Save changes</SubmitButton>
               </div>
-              <SubmitButton>Save changes</SubmitButton>
-            </div>
+            )}
           </ServerActionForm>
         </CardContent>
       </Card>

@@ -13,8 +13,6 @@ import { NotificationBellServer } from "@/components/dashboard/NotificationBellS
 import { SidebarNavLink } from "@/components/dashboard/SidebarNavLink";
 import { ImpersonationBanner } from "@/components/dashboard/ImpersonationBanner";
 import { SubscriptionInvalidBanner } from "@/components/dashboard/SubscriptionInvalidBanner";
-import { PaymentPendingBanner } from "@/components/dashboard/PaymentPendingBanner";
-import { loadRestaurantSubscriptions } from "@/lib/billing/subscription";
 import { getImpersonationState } from "@/lib/auth/impersonation";
 import {
   LayoutDashboard,
@@ -132,22 +130,6 @@ export default async function DashboardLayout({
 
   const impersonation = await getImpersonationState();
 
-  // Subscription banners: managers see them (info-only) so they understand why the
-  // public menu is hidden; only owners/admins get the billing CTA. Load subscriptions
-  // once here and share between both banners to avoid a duplicate query.
-  const canManageBilling = hasMinRole(orgRole, "owner");
-  const showSubscriptionBanners =
-    !!effectiveRestaurant &&
-    !!activeOrgId &&
-    hasMinRole(effectiveRestaurantRole, "manager");
-  const bannerSubscriptions =
-    effectiveRestaurant && activeOrgId && showSubscriptionBanners
-      ? await loadRestaurantSubscriptions(supabase, {
-          id: effectiveRestaurant.id,
-          org_id: activeOrgId,
-        })
-      : [];
-
   return (
     <div className="grid grid-cols-[260px_1fr] min-h-screen">
       {impersonation?.isImpersonating && impersonation.targetUser && (
@@ -220,22 +202,12 @@ export default async function DashboardLayout({
       </aside>
 
       <div className="flex flex-col min-h-screen">
-        {effectiveRestaurant && activeOrgId && showSubscriptionBanners && (
-          <>
-            <PaymentPendingBanner
-              restaurantId={effectiveRestaurant.id}
-              orgId={activeOrgId}
-              canManageBilling={canManageBilling}
-              subscriptions={bannerSubscriptions}
-            />
-            <SubscriptionInvalidBanner
-              restaurantId={effectiveRestaurant.id}
-              orgId={activeOrgId}
-              billingHref={`/restaurants/${effectiveRestaurant.id}/billing`}
-              canManageBilling={canManageBilling}
-              subscriptions={bannerSubscriptions}
-            />
-          </>
+        {effectiveRestaurant && activeOrgId && hasMinRole(orgRole, "owner") && (
+          <SubscriptionInvalidBanner
+            restaurantId={effectiveRestaurant.id}
+            orgId={activeOrgId}
+            billingHref={`/restaurants/${effectiveRestaurant.id}/billing`}
+          />
         )}
         <header className="border-b px-6 py-3 flex items-center justify-between bg-background/95 backdrop-blur sticky top-0 z-10">
           <RestaurantBreadcrumb

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Menu, Info, UtensilsCrossed } from "lucide-react";
-import { publicAboutHref } from "@/lib/menu/public-routes";
 
 interface MobileNavProps {
   restaurantSlug: string;
@@ -90,7 +89,7 @@ export function MobileNav({
               More
             </p>
             <Link
-              href={publicAboutHref(restaurantSlug, currentMenuSlug)}
+              href={`/m/${restaurantSlug}/about`}
               onClick={() => setOpen(false)}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors"
             >

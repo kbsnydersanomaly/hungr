@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Info } from "lucide-react";
-import { publicAboutHref } from "@/lib/menu/public-routes";
 import { MobileNav } from "./MobileNav";
 
 interface HeaderProps {
@@ -61,7 +60,7 @@ export function Header({
       </div>
       <div className="flex items-center gap-2">
         <Link
-          href={publicAboutHref(restaurantSlug, currentMenuSlug)}
+          href={`/m/${restaurantSlug}/about`}
           aria-label={`About ${restaurantName}`}
           className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-current/10"
         >

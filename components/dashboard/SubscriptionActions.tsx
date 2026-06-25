@@ -6,7 +6,6 @@ import {
   cancelSubscriptionAction,
   resumeSubscriptionAction,
 } from "@/lib/data/billing-actions";
-import { RetryPaymentButton } from "@/components/dashboard/RetryPaymentButton";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -124,14 +123,8 @@ export function SubscriptionActions({
 
   if (status === "pending") {
     return (
-      <div className="rounded-lg border border-dashed p-4 space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Waiting for first payment. Complete checkout to activate your
-          subscription.
-        </p>
-        <RetryPaymentButton subscriptionId={subscriptionId} size="sm">
-          Retry payment
-        </RetryPaymentButton>
+      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        Waiting for first payment. Complete checkout to activate your subscription.
       </div>
     );
   }
@@ -205,17 +198,12 @@ export function SubscriptionActions({
       )}
 
       {status === "failed" && (
-        <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
-          <div className="text-sm">
-            <p className="font-medium text-destructive">Payment failed</p>
-            <p className="text-muted-foreground">
-              Your last payment could not be processed. Retry checkout to
-              activate your subscription.
-            </p>
-          </div>
-          <RetryPaymentButton subscriptionId={subscriptionId} size="sm" variant="outline">
-            Retry payment
-          </RetryPaymentButton>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium text-destructive">Payment failed</p>
+          <p className="text-muted-foreground">
+            Your last payment could not be processed. Please update your
+            payment method or contact support.
+          </p>
         </div>
       )}
     </div>

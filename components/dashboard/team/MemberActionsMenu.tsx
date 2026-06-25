@@ -50,9 +50,6 @@ type MemberActionsMenuProps =
 export function MemberActionsMenu(props: MemberActionsMenuProps) {
   const [loading, setLoading] = useState(false);
   const [showRemove, setShowRemove] = useState(false);
-  // Owner-impacting role changes (promote to / demote from owner) require an
-  // explicit confirmation; pendingRole holds the target role until confirmed.
-  const [pendingRole, setPendingRole] = useState<string | null>(null);
   const router = useRouter();
 
   const roles: string[] =
@@ -65,20 +62,6 @@ export function MemberActionsMenu(props: MemberActionsMenuProps) {
   const removeTarget =
     props.scope === "org" ? "the organization" : "the restaurant";
 
-  /** Promotion to owner, or demotion of an existing owner, is high-impact. */
-  function isOwnerImpacting(role: string): boolean {
-    if (props.scope !== "org") return false;
-    return role === "owner" || (props.currentRole === "owner" && role !== "owner");
-  }
-
-  function selectRole(role: string) {
-    if (isOwnerImpacting(role)) {
-      setPendingRole(role);
-      return;
-    }
-    handleRoleChange(role);
-  }
-
   async function handleRoleChange(role: string) {
     setLoading(true);
     const result =
@@ -90,7 +73,6 @@ export function MemberActionsMenu(props: MemberActionsMenuProps) {
             role as RestaurantRole
           );
     setLoading(false);
-    setPendingRole(null);
     if (!result.ok) {
       toast.error(result.message ?? "Failed to change role.");
       return;
@@ -129,7 +111,7 @@ export function MemberActionsMenu(props: MemberActionsMenuProps) {
             <DropdownMenuItem
               key={role}
               disabled={loading || role === props.currentRole}
-              onClick={() => selectRole(role)}
+              onClick={() => handleRoleChange(role)}
               className="capitalize"
             >
               {role === props.currentRole ? `${role} (current)` : `Make ${role}`}
@@ -145,37 +127,6 @@ export function MemberActionsMenu(props: MemberActionsMenuProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Dialog
-        open={pendingRole !== null}
-        onOpenChange={(open) => !open && setPendingRole(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {pendingRole === "owner" ? "Make owner" : "Remove owner role"}
-            </DialogTitle>
-            <DialogDescription>
-              {pendingRole === "owner"
-                ? "Make this member an owner? Owners have full control, including billing and deleting the organization."
-                : "Remove this member's owner role? They will lose owner-level access to the organization."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setPendingRole(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant={pendingRole === "owner" ? "default" : "destructive"}
-              onClick={() => pendingRole && handleRoleChange(pendingRole)}
-              disabled={loading}
-            >
-              {loading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-              {pendingRole === "owner" ? "Make owner" : "Remove owner role"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showRemove} onOpenChange={setShowRemove}>
         <DialogContent>

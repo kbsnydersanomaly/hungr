@@ -70,7 +70,7 @@ export function MenuCard({ menu, restaurantId }: MenuCardProps) {
           </div>
 
           <div className="flex items-center gap-4 mt-4">
-            <Button variant="link" size="sm" className="px-0 h-auto text-foreground" asChild>
+            <Button variant="link" size="sm" className="px-0 h-auto" asChild>
               <Link href={`/restaurants/${restaurantId}/menus/${menu.id}`}>
                 <Pencil className="h-3.5 w-3.5 mr-1" />
                 Edit menu
@@ -78,9 +78,9 @@ export function MenuCard({ menu, restaurantId }: MenuCardProps) {
             </Button>
 
             <Button
-              variant="link"
+              variant="ghost"
               size="sm"
-              className="px-0 h-auto text-destructive"
+              className="px-0 h-auto text-destructive hover:text-destructive"
               onClick={() => setShowDelete(true)}
             >
               <Trash2 className="h-3.5 w-3.5 mr-1" />

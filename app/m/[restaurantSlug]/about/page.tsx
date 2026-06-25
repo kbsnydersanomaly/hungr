@@ -4,29 +4,20 @@ import { loadPublishedMenusForRestaurant } from "@/lib/data/menu-switcher-action
 import { loadBranding } from "@/lib/data/branding";
 import { createServerClient } from "@/lib/supabase/server";
 import { Header } from "@/components/menu/Header";
-import { MenuBackLink } from "@/components/menu/MenuBackLink";
-import {
-  menuSlugFromPublicMenuHref,
-  publicMenuHref,
-} from "@/lib/menu/public-routes";
 import { MapPin, Clock, Mail, Phone } from "lucide-react";
 
 export default async function AboutPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ restaurantSlug: string }>;
-  searchParams: Promise<{ menu?: string }>;
 }) {
   const { restaurantSlug } = await params;
-  const { menu: menuParam } = await searchParams;
   const restaurant = await loadRestaurantBySlug(restaurantSlug);
   const [menus, branding] = await Promise.all([
     loadPublishedMenusForRestaurant(restaurant.id),
     loadBranding(restaurant.id),
   ]);
-  const backHref = publicMenuHref(restaurantSlug, menus, menuParam);
-  const currentMenuSlug = menuSlugFromPublicMenuHref(restaurantSlug, backHref);
+  const defaultMenu = menus[0];
 
   const supabase = await createServerClient();
   const { data: about } = await supabase
@@ -41,12 +32,11 @@ export default async function AboutPage({
         restaurantName={restaurant.name}
         logoUrl={branding?.logo_url}
         restaurantSlug={restaurantSlug}
-        currentMenuSlug={currentMenuSlug}
+        currentMenuSlug={defaultMenu?.slug ?? ""}
         menus={menus}
       />
 
       <div className="flex-1 px-4 py-6 space-y-6">
-        <MenuBackLink href={backHref} />
         {about?.main_image_url && (
           <div className="relative aspect-video w-full overflow-hidden rounded-xl">
             <Image

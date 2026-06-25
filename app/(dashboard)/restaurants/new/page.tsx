@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getActiveOrg } from "@/lib/auth/active-org";
 import { getRestaurantBillingContext } from "@/lib/billing/pricing";
-import { createServerClient } from "@/lib/supabase/server";
 import { formatZar } from "@/lib/utils/money";
 import { PageHeader } from "@/components/PageHeader";
 import { NewRestaurantForm } from "@/components/forms/NewRestaurantForm";
@@ -21,26 +19,6 @@ export default async function NewRestaurantPage() {
   const orgId = org?.orgId;
 
   const billing = orgId ? await getRestaurantBillingContext(orgId) : null;
-
-  if (
-    orgId &&
-    billing &&
-    billing.state === "checkout" &&
-    billing.plan.pricing_model === "flat_includes_n"
-  ) {
-    const supabase = await createServerClient();
-    const { data: failedOrgSub } = await supabase
-      .from("subscriptions")
-      .select("id")
-      .eq("org_id", orgId)
-      .eq("scope", "org")
-      .eq("status", "failed")
-      .maybeSingle();
-
-    if (failedOrgSub) {
-      redirect("/settings/billing?reason=subscription_required");
-    }
-  }
 
   return (
     <div className="space-y-6 max-w-xl">

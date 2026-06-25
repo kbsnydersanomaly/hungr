@@ -20,7 +20,6 @@ import {
   UtensilsCrossed,
   Calendar,
   ArrowUpRight,
-  Lock,
 } from "lucide-react";
 import { rel, type PlanRef } from "@/lib/types/relations";
 
@@ -102,7 +101,6 @@ export default async function OrgBillingPage({
 
   const sp = await searchParams;
   const status = sp?.status;
-  const reason = sp?.reason;
   const filters = parseTransactionFilters(sp);
 
   const isOwner = activeOrg.role === "owner";
@@ -138,25 +136,6 @@ export default async function OrgBillingPage({
       />
 
       <PaymentStatusBanner status={status} />
-
-      {reason === "subscription_required" && (
-        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                  Add restaurant is locked
-                </p>
-                <p className="text-sm text-amber-800 dark:text-amber-300">
-                  Your last payment failed. Retry checkout below before adding
-                  another restaurant.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Plan Summary */}
       <Card>
@@ -202,21 +181,23 @@ export default async function OrgBillingPage({
               }}
               className="pt-2"
             >
-              <div className="rounded-lg border border-dashed p-4 bg-muted/30">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Upgrade to Pro</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Flat fee for up to 10 restaurants. Cancel your per-restaurant
-                      subscriptions and simplify billing.
-                    </p>
+              {() => (
+                <div className="rounded-lg border border-dashed p-4 bg-muted/30">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Upgrade to Pro</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Flat fee for up to 10 restaurants. Cancel your per-restaurant
+                        subscriptions and simplify billing.
+                      </p>
+                    </div>
+                    <SubmitButton type="submit" size="sm">
+                      <ArrowUpRight className="h-4 w-4 mr-2" />
+                      Upgrade
+                    </SubmitButton>
                   </div>
-                  <SubmitButton type="submit" size="sm">
-                    <ArrowUpRight className="h-4 w-4 mr-2" />
-                    Upgrade
-                  </SubmitButton>
                 </div>
-              </div>
+              )}
             </ServerActionForm>
           )}
         </CardContent>

@@ -36,19 +36,22 @@ export default async function OrganizationSettingsPage() {
             action={updateOrganizationName}
             successMessage="Organization name updated."
           >
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Organization name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  defaultValue={org?.name ?? ""}
-                  placeholder="e.g. Acme Inc."
-                  required
-                />
+            {({ isPending }) => (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Organization name</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    defaultValue={org?.name ?? ""}
+                    placeholder="e.g. Acme Inc."
+                    required
+                    disabled={isPending}
+                  />
+                </div>
+                <SubmitButton>Save changes</SubmitButton>
               </div>
-              <SubmitButton>Save changes</SubmitButton>
-            </div>
+            )}
           </ServerActionForm>
         </CardContent>
       </Card>

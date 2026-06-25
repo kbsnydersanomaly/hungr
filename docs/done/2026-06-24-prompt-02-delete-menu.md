@@ -1,7 +1,5 @@
 # Done: Prompt 2 — Delete draft and published menus
 
-> Note: Prompt 7 later moved restaurant management routes under `(manage)/` (e.g. `app/(dashboard)/restaurants/[restaurantId]/(manage)/menus/...`); public URLs are unchanged.
-
 **Date:** 2026-06-24  
 **Prompt:** Prompt 2: Delete draft and published menus
 
@@ -18,4 +16,4 @@ Added a safe, confirmation-backed delete action for every menu in the dashboard.
 ## Verification
 - ESLint passes for all changed files.
 - Playwright E2E spec `tests/e2e/menu-delete.spec.ts` passes end-to-end.
-- `npx tsc --noEmit` is clean.
+- TypeScript has pre-existing unrelated errors in `components/dashboard/SubscriptionActions.tsx` and `tests/unit/billing-actions.test.ts`.
