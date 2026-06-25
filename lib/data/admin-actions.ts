@@ -408,3 +408,163 @@ export async function getOrganization(orgId: string) {
 
   return data;
 }
+
+// ── Deletions ────────────────────────────────────────────────────────────
+
+async function deleteOrganizationUnsafe(orgId: string) {
+  const { supabase } = await requireSuperAdmin();
+
+  // Delete dependent data in FK-safe order.
+  // Adjust order based on actual schema constraints.
+  const tables = [
+    "transactions",
+    "invoices",
+    "subscriptions",
+    "restaurants",
+    "organization_members",
+  ] as const;
+
+  for (const table of tables) {
+    const { error } = await supabase.from(table).delete().eq("org_id", orgId);
+    if (error) {
+      console.error(`deleteOrganization cascade error on ${table}:`, error);
+      throw new ValidationError(`Failed to delete related ${table}.`);
+    }
+  }
+
+  const { error } = await supabase.from("organizations").delete().eq("id", orgId);
+  if (error) {
+    console.error("deleteOrganization error:", error);
+    throw new ValidationError("Failed to delete organization.");
+  }
+
+  return { deleted: true };
+}
+
+export async function deleteOrganization(orgId: string) {
+  return safeAction(() => deleteOrganizationUnsafe(orgId));
+}
+
+export async function deleteSubscription(subscriptionId: string) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const { error } = await supabase.from("subscriptions").delete().eq("id", subscriptionId);
+    if (error) {
+      console.error("deleteSubscription error:", error);
+      throw new ValidationError("Failed to delete subscription.");
+    }
+
+    return { deleted: true };
+  });
+}
+
+export async function deactivatePlan(planId: string) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const { error } = await supabase
+      .from("plans")
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq("id", planId);
+
+    if (error) {
+      console.error("deactivatePlan error:", error);
+      throw new ValidationError("Failed to deactivate plan.");
+    }
+
+    return { updated: true };
+  });
+}
+
+export async function deletePlan(planId: string) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const { count, error: countError } = await supabase
+      .from("subscriptions")
+      .select("*", { count: "exact", head: true })
+      .eq("plan_id", planId);
+
+    if (countError) {
+      console.error("deletePlan count error:", countError);
+      throw new ValidationError("Failed to check plan usage.");
+    }
+
+    if ((count ?? 0) > 0) {
+      throw new ValidationError("Cannot delete a plan that has subscriptions. Deactivate it instead.");
+    }
+
+    const { error } = await supabase.from("plans").delete().eq("id", planId);
+    if (error) {
+      console.error("deletePlan error:", error);
+      throw new ValidationError("Failed to delete plan.");
+    }
+
+    return { deleted: true };
+  });
+}
+
+export async function disableUser(userId: string) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const { error } = await supabase.auth.admin.updateUserById(userId, {
+      ban_duration: "876000h", // 100 years
+    });
+
+    if (error) {
+      console.error("disableUser error:", error);
+      throw new ValidationError("Failed to disable user.");
+    }
+
+    return { disabled: true };
+  });
+}
+
+export async function enableUser(userId: string) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const { error } = await supabase.auth.admin.updateUserById(userId, {
+      ban_duration: "0",
+    });
+
+    if (error) {
+      console.error("enableUser error:", error);
+      throw new ValidationError("Failed to enable user.");
+    }
+
+    return { enabled: true };
+  });
+}
+
+export async function deleteUser(userId: string) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    // Find organizations owned by this user.
+    const { data: ownedOrgs, error: orgError } = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("owner_id", userId);
+
+    if (orgError) {
+      console.error("deleteUser org lookup error:", orgError);
+      throw new ValidationError("Failed to lookup user organizations.");
+    }
+
+    // Cascade-delete each owned organization.
+    for (const org of ownedOrgs ?? []) {
+      await deleteOrganizationUnsafe(org.id);
+    }
+
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) {
+      console.error("deleteUser error:", error);
+      throw new ValidationError("Failed to delete user.");
+    }
+
+    return { deleted: true };
+  });
+}
