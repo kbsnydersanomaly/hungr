@@ -7,11 +7,8 @@ import { requireSuperAdmin, isSuperAdmin } from "@/lib/auth/role";
 import { safeAction, ValidationError, NotFoundError } from "@/lib/errors";
 import { slugify } from "@/lib/utils/slugify";
 import type { Database } from "@/lib/database.types";
-import {
-  paginatedQuery,
-  parsePaginationParams,
-  type PaginationResult,
-} from "@/lib/data/admin-pagination";
+import { paginatedQuery, type PaginationResult } from "@/lib/data/admin-pagination";
+import { parsePaginationParams } from "@/lib/utils/pagination";
 import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
 
 type HelpArticleRow = Database["public"]["Tables"]["help_articles"]["Row"];

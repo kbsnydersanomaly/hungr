@@ -1,6 +1,7 @@
 "use server";
 
-import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
+import type { PostgrestError } from "@supabase/supabase-js";
+import type { PaginationOptions } from "@/lib/utils/pagination";
 
 export interface PaginationResult<T> {
   data: T[];
@@ -10,13 +11,16 @@ export interface PaginationResult<T> {
   totalPages: number;
 }
 
-export interface PaginationOptions {
-  page?: number;
-  pageSize?: number;
+interface RangeQuery<T> {
+  range(from: number, to: number): PromiseLike<{
+    data: T[] | null;
+    error: PostgrestError | null;
+    count: number | null;
+  }>;
 }
 
 export async function paginatedQuery<T extends Record<string, unknown>>(
-  query: PostgrestFilterBuilder<any, any, T, T[], unknown>,
+  query: RangeQuery<T>,
   opts: PaginationOptions = {}
 ): Promise<PaginationResult<T>> {
   const page = Math.max(1, opts.page ?? 1);
@@ -40,16 +44,5 @@ export async function paginatedQuery<T extends Record<string, unknown>>(
     page,
     pageSize,
     totalPages,
-  };
-}
-
-export function parsePaginationParams(
-  sp: Record<string, string | string[] | undefined>
-): PaginationOptions {
-  const rawPage = Number(sp?.page);
-  const rawPageSize = Number(sp?.pageSize);
-  return {
-    page: Number.isNaN(rawPage) || rawPage < 1 ? 1 : rawPage,
-    pageSize: Number.isNaN(rawPageSize) ? 25 : Math.min(100, Math.max(1, rawPageSize)),
   };
 }

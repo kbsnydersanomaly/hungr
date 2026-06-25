@@ -3,11 +3,8 @@
 import { ValidationError, safeAction, NotFoundError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/auth/role";
 import type { Database, Json } from "@/lib/database.types";
-import {
-  paginatedQuery,
-  parsePaginationParams,
-  type PaginationResult,
-} from "@/lib/data/admin-pagination";
+import { paginatedQuery, type PaginationResult } from "@/lib/data/admin-pagination";
+import { parsePaginationParams } from "@/lib/utils/pagination";
 import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
 
 type OrganizationListRow = Database["public"]["Tables"]["organizations"]["Row"] & {
