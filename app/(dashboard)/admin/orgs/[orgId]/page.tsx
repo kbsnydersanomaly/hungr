@@ -4,7 +4,7 @@ import { getOrganization, getOrganizationMetrics } from "@/lib/data/admin-action
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, Users, CreditCard, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, Users, CreditCard, UtensilsCrossed } from "lucide-react";
 import { formatZar } from "@/lib/utils/money";
 import { rel, type ProfileRef, type PlanRef } from "@/lib/types/relations";
 
