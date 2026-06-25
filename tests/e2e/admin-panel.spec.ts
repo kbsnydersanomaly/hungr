@@ -8,20 +8,22 @@ test.describe("Admin panel", () => {
   });
 
   test("organizations list paginates and searches", async ({ page }) => {
-    await expect(page.getByText("Organizations")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Organizations" })
+    ).toBeVisible();
     await page.getByPlaceholder("Search by name or slug").fill("test");
-    await expect(page.getByText(/total/)).toBeVisible();
+    await expect(page.getByText(/\d+ total/i).first()).toBeVisible();
   });
 
   test("organization detail loads", async ({ page }) => {
     const detailsLink = page.getByRole("link", { name: /details/i }).first();
     await detailsLink.click();
-    await expect(page.getByText("Owner")).toBeVisible();
+    await expect(page.getByText(/Owner:/).first()).toBeVisible();
   });
 
   test("users list supports disable and delete", async ({ page }) => {
     await page.goto("/admin/users");
-    await expect(page.getByText("Users")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
     // We don't click disable/delete to avoid mutating the super-admin test user.
     await expect(page.getByRole("button", { name: "Disable" }).first()).toBeVisible();
   });
@@ -29,7 +31,7 @@ test.describe("Admin panel", () => {
   test("transactions list supports date filter", async ({ page }) => {
     await page.goto("/admin/transactions");
     await page.locator('input[type="date"]').first().fill("2025-01-01");
-    await expect(page.getByText(/total/)).toBeVisible();
+    await expect(page.getByText(/\d+ total/i).first()).toBeVisible();
   });
 
   test("plans can be deactivated", async ({ page }) => {

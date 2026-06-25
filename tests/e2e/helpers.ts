@@ -86,34 +86,58 @@ export async function signIn(page: Page, email: string, password: string) {
 const SUPER_ADMIN_EMAIL = "superadmin-e2e@example.com";
 const SUPER_ADMIN_PASSWORD = "TestPassword123!";
 
+async function findUserByEmail(admin: ReturnType<typeof adminClient>, email: string) {
+  let page = 1;
+  const perPage = 200;
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const match = data.users.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+    if (match) return match;
+    if (data.users.length < perPage) return null;
+    page += 1;
+  }
+}
+
 export async function loginAsSuperAdmin(page: Page) {
   const admin = adminClient();
 
-  // Ensure the super-admin test user exists.
-  const { data: existing } = await admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1,
-  });
-  const alreadyExists = existing?.users.some(
-    (u) => u.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
-  );
+  // Ensure the super-admin test user exists. Multiple workers may run this
+  // concurrently, so we tolerate duplicate creation errors.
+  let user = await findUserByEmail(admin, SUPER_ADMIN_EMAIL);
 
-  if (!alreadyExists) {
-    const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email: SUPER_ADMIN_EMAIL,
-      password: SUPER_ADMIN_PASSWORD,
-      email_confirm: true,
-    });
-    if (createError) throw createError;
+  if (!user) {
+    const { data: created, error: createError } =
+      await admin.auth.admin.createUser({
+        email: SUPER_ADMIN_EMAIL,
+        password: SUPER_ADMIN_PASSWORD,
+        email_confirm: true,
+      });
 
-    // Mark as super admin in profiles.
-    const { error: profileError } = await admin
-      .from("profiles")
-      .update({ is_super_admin: true })
-      .eq("id", created.user!.id);
-
-    if (profileError) throw profileError;
+    if (createError) {
+      const msg = createError.message.toLowerCase();
+      if (
+        msg.includes("already been registered") ||
+        msg.includes("already registered") ||
+        msg.includes("database error creating new user")
+      ) {
+        user = await findUserByEmail(admin, SUPER_ADMIN_EMAIL);
+      }
+      if (!user) throw createError;
+    } else {
+      user = created.user!;
+    }
   }
+
+  // Ensure the profile is marked as super admin (idempotent).
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({ is_super_admin: true })
+    .eq("id", user.id);
+
+  if (profileError) throw profileError;
 
   await signIn(page, SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD);
 }
