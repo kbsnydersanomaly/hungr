@@ -192,30 +192,37 @@ export async function listUsers(
   return paginatedQuery(query as unknown as PostgrestFilterBuilder<never, never, Database["public"]["Tables"]["profiles"]["Row"], Database["public"]["Tables"]["profiles"]["Row"][], unknown>, { page, pageSize });
 }
 
+type SubscriptionListRow = Database["public"]["Tables"]["subscriptions"]["Row"] & {
+  plans: Database["public"]["Tables"]["plans"]["Row"] | null;
+  organizations: { name: string | null; slug: string | null } | null;
+};
+
 // ── Subscriptions ────────────────────────────────────────────────────────
 
-export async function listSubscriptions(search?: string, limit = 100) {
+export async function listSubscriptions(
+  searchParams: { [key: string]: string | string[] | undefined }
+): Promise<PaginationResult<SubscriptionListRow>> {
   const { supabase } = await requireSuperAdmin();
+  const { page, pageSize } = parsePaginationParams(searchParams);
+  const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
+  const status = typeof searchParams?.status === "string" ? searchParams.status : undefined;
 
   let query = supabase
     .from("subscriptions")
-    .select("*, plans(*), organizations(name, slug)")
+    .select("*, plans(*), organizations(name, slug)", { count: "exact" })
     .order("created_at", { ascending: false });
 
   if (search) {
     query = query.or(
-      `organizations.name.ilike.%${search}%,organizations.slug.ilike.%${search}%`
+      `organizations.name.ilike.%${search}%,plans.name.ilike.%${search}%`
     );
   }
 
-  const { data, error } = await query.limit(limit);
-
-  if (error) {
-    console.error("listSubscriptions error:", error);
-    throw new ValidationError("Failed to load subscriptions.");
+  if (status) {
+    query = query.eq("status", status as Database["public"]["Enums"]["subscription_status"]);
   }
 
-  return data ?? [];
+  return paginatedQuery(query as unknown as PostgrestFilterBuilder<never, never, SubscriptionListRow, SubscriptionListRow[], unknown>, { page, pageSize });
 }
 
 // ── Subscription overrides ───────────────────────────────────────────────
