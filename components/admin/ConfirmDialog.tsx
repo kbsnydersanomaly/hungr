@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,14 +11,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import type { VariantProps } from "class-variance-authority";
+
+type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
 interface ConfirmDialogProps {
   title: string;
   description: string;
   confirmLabel?: string;
-  confirmVariant?: "default" | "destructive" | "outline";
+  confirmVariant?: ButtonVariant;
   onConfirm: () => void | Promise<void>;
-  children: React.ReactNode;
+  children: React.ReactElement;
 }
 
 export function ConfirmDialog({
@@ -37,6 +42,8 @@ export function ConfirmDialog({
     try {
       await onConfirm();
       setOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsPending(false);
     }
@@ -44,7 +51,7 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={children as React.ReactElement} />
+      <DialogTrigger render={children} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -63,7 +70,10 @@ export function ConfirmDialog({
             onClick={handleConfirm}
             disabled={isPending}
           >
-            {isPending ? "Please wait..." : confirmLabel}
+            {isPending && (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            )}
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
