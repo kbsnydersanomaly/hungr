@@ -1,6 +1,7 @@
 import { listUsers } from "@/lib/data/admin-actions";
 import { AdminListLayout } from "@/components/admin/AdminListLayout";
 import { AdminPagination } from "@/components/admin/AdminPagination";
+import { UserActions } from "@/components/admin/UserActions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -66,6 +67,8 @@ export default async function AdminUsersPage({
                         </span>
                       </div>
                     </div>
+
+                    <UserActions userId={user.id} email={user.email} />
                   </div>
                 </CardContent>
               </Card>
