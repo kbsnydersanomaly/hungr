@@ -165,7 +165,7 @@ const restaurantSub = {
   status: "active",
   amount_cents: 9900,
   billing_period: "monthly",
-  payfast_token: "pf-token-rest",
+  payfast_token: "pf-token-rest" as string | null,
   m_payment_id: "mp-123",
   started_at: null,
   current_period_end: null,

@@ -13,7 +13,7 @@ describe("isRestaurantSubscriptionValid", () => {
   it("returns valid when an active subscription has a future period end", () => {
     expect(
       isRestaurantSubscriptionValid(
-        [{ status: "active", current_period_end: FUTURE }],
+        [{ id: "s1", status: "active", current_period_end: FUTURE }],
         NOW
       )
     ).toEqual({ valid: true });
@@ -22,7 +22,7 @@ describe("isRestaurantSubscriptionValid", () => {
   it("returns valid when an active subscription has a null period end", () => {
     expect(
       isRestaurantSubscriptionValid(
-        [{ status: "active", current_period_end: null }],
+        [{ id: "s1", status: "active", current_period_end: null }],
         NOW
       )
     ).toEqual({ valid: true });
@@ -31,7 +31,7 @@ describe("isRestaurantSubscriptionValid", () => {
   it("returns expired when an active subscription has a past period end", () => {
     expect(
       isRestaurantSubscriptionValid(
-        [{ status: "active", current_period_end: PAST }],
+        [{ id: "s1", status: "active", current_period_end: PAST }],
         NOW
       )
     ).toEqual({ valid: false, reason: "expired" });
@@ -40,7 +40,7 @@ describe("isRestaurantSubscriptionValid", () => {
   it("returns pending for pending subscriptions", () => {
     expect(
       isRestaurantSubscriptionValid(
-        [{ status: "pending", current_period_end: FUTURE }],
+        [{ id: "s1", status: "pending", current_period_end: FUTURE }],
         NOW
       )
     ).toEqual({ valid: false, reason: "pending" });
@@ -49,7 +49,7 @@ describe("isRestaurantSubscriptionValid", () => {
   it("returns paused for paused subscriptions", () => {
     expect(
       isRestaurantSubscriptionValid(
-        [{ status: "paused", current_period_end: FUTURE }],
+        [{ id: "s1", status: "paused", current_period_end: FUTURE }],
         NOW
       )
     ).toEqual({ valid: false, reason: "paused" });
@@ -58,7 +58,7 @@ describe("isRestaurantSubscriptionValid", () => {
   it("returns cancelled for cancelled subscriptions", () => {
     expect(
       isRestaurantSubscriptionValid(
-        [{ status: "cancelled", current_period_end: FUTURE }],
+        [{ id: "s1", status: "cancelled", current_period_end: FUTURE }],
         NOW
       )
     ).toEqual({ valid: false, reason: "cancelled" });
@@ -67,7 +67,7 @@ describe("isRestaurantSubscriptionValid", () => {
   it("returns failed for failed subscriptions", () => {
     expect(
       isRestaurantSubscriptionValid(
-        [{ status: "failed", current_period_end: FUTURE }],
+        [{ id: "s1", status: "failed", current_period_end: FUTURE }],
         NOW
       )
     ).toEqual({ valid: false, reason: "failed" });
@@ -77,8 +77,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "paused", current_period_end: FUTURE },
-          { status: "active", current_period_end: FUTURE },
+          { id: "s1", status: "paused", current_period_end: FUTURE },
+          { id: "s1", status: "active", current_period_end: FUTURE },
         ],
         NOW
       )
@@ -89,8 +89,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "paused", current_period_end: FUTURE },
-          { status: "active", current_period_end: PAST },
+          { id: "s1", status: "paused", current_period_end: FUTURE },
+          { id: "s1", status: "active", current_period_end: PAST },
         ],
         NOW
       )
@@ -108,8 +108,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "pending", current_period_end: FUTURE },
-          { status: "paused", current_period_end: FUTURE },
+          { id: "s1", status: "pending", current_period_end: FUTURE },
+          { id: "s1", status: "paused", current_period_end: FUTURE },
         ],
         NOW
       )
@@ -120,8 +120,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "failed", current_period_end: FUTURE },
-          { status: "cancelled", current_period_end: FUTURE },
+          { id: "s1", status: "failed", current_period_end: FUTURE },
+          { id: "s1", status: "cancelled", current_period_end: FUTURE },
         ],
         NOW
       )
@@ -132,8 +132,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "cancelled", current_period_end: FUTURE },
-          { status: "paused", current_period_end: FUTURE },
+          { id: "s1", status: "cancelled", current_period_end: FUTURE },
+          { id: "s1", status: "paused", current_period_end: FUTURE },
         ],
         NOW
       )
@@ -144,8 +144,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "failed", current_period_end: FUTURE },
-          { status: "paused", current_period_end: FUTURE },
+          { id: "s1", status: "failed", current_period_end: FUTURE },
+          { id: "s1", status: "paused", current_period_end: FUTURE },
         ],
         NOW
       )
@@ -156,8 +156,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "pending", current_period_end: FUTURE },
-          { status: "cancelled", current_period_end: FUTURE },
+          { id: "s1", status: "pending", current_period_end: FUTURE },
+          { id: "s1", status: "cancelled", current_period_end: FUTURE },
         ],
         NOW
       )
@@ -168,8 +168,8 @@ describe("isRestaurantSubscriptionValid", () => {
     expect(
       isRestaurantSubscriptionValid(
         [
-          { status: "pending", current_period_end: FUTURE },
-          { status: "failed", current_period_end: FUTURE },
+          { id: "s1", status: "pending", current_period_end: FUTURE },
+          { id: "s1", status: "failed", current_period_end: FUTURE },
         ],
         NOW
       )
