@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getSubscription, updateSubscription, listTransactionsForSubscription } from "@/lib/data/admin-actions";
 import { PageHeader } from "@/components/PageHeader";
+import { SubscriptionDeleteButton } from "@/components/admin/SubscriptionDeleteButton";
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -199,7 +200,8 @@ export default async function AdminSubscriptionDetailPage({
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end gap-2 pt-2">
+                    <SubscriptionDeleteButton subscriptionId={sub.id} />
                     <SubmitButton>Save changes</SubmitButton>
                   </div>
                 </div>

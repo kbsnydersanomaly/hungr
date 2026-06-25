@@ -2,6 +2,7 @@ import { listSubscriptions, updateSubscriptionStatus } from "@/lib/data/admin-ac
 import { AdminListLayout } from "@/components/admin/AdminListLayout";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { StatusFilter } from "@/components/admin/StatusFilter";
+import { SubscriptionDeleteButton } from "@/components/admin/SubscriptionDeleteButton";
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -130,6 +131,7 @@ export default async function AdminSubscriptionsPage({
                             </SubmitButton>
                           </ServerActionForm>
                         )}
+                        <SubscriptionDeleteButton subscriptionId={sub.id} />
                       </div>
                     </div>
                   </CardContent>
