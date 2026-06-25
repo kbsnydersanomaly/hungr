@@ -449,6 +449,17 @@ export async function deleteSubscription(subscriptionId: string) {
   return safeAction(async () => {
     const { supabase } = await requireSuperAdmin();
 
+    // Delete dependent invoices first (FK without cascade).
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .delete()
+      .eq("subscription_id", subscriptionId);
+
+    if (invoiceError) {
+      console.error("deleteSubscription invoices error:", invoiceError);
+      throw new ValidationError("Failed to delete subscription invoices.");
+    }
+
     const { error } = await supabase.from("subscriptions").delete().eq("id", subscriptionId);
     if (error) {
       console.error("deleteSubscription error:", error);
