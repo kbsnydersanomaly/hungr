@@ -110,19 +110,23 @@ export async function getOrganizationMetrics(orgId: string) {
   };
 }
 
-export async function listPlans() {
+export async function listPlans(
+  searchParams: { [key: string]: string | string[] | undefined } = {}
+): Promise<PaginationResult<Database["public"]["Tables"]["plans"]["Row"]>> {
   const { supabase } = await requireSuperAdmin();
-  const { data, error } = await supabase
+  const { page, pageSize } = parsePaginationParams(searchParams);
+  const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
+
+  let query = supabase
     .from("plans")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("sort_order", { ascending: true });
 
-  if (error) {
-    console.error("listPlans error:", error);
-    throw new ValidationError("Failed to load plans.");
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
   }
 
-  return data ?? [];
+  return paginatedQuery(query as unknown as PostgrestFilterBuilder<never, never, Database["public"]["Tables"]["plans"]["Row"], Database["public"]["Tables"]["plans"]["Row"][], unknown>, { page, pageSize });
 }
 
 export async function createPlan(formData: FormData) {
