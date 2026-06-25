@@ -3,6 +3,11 @@
 import { ValidationError, safeAction, NotFoundError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/auth/role";
 import type { Database, Json } from "@/lib/database.types";
+import {
+  paginatedQuery,
+  parsePaginationParams,
+  type PaginationResult,
+} from "@/lib/data/admin-pagination";
 
 type PlanInsert = Database["public"]["Tables"]["plans"]["Insert"];
 type PlanUpdate = Database["public"]["Tables"]["plans"]["Update"];
@@ -33,26 +38,23 @@ function parsePlanForm(formData: FormData): Omit<PlanInsert, "slug"> & { slug?: 
   };
 }
 
-export async function listOrganizations(search?: string) {
+export async function listOrganizations(
+  searchParams: { [key: string]: string | string[] | undefined }
+): Promise<PaginationResult<any>> {
   const { supabase } = await requireSuperAdmin();
+  const { page, pageSize } = parsePaginationParams(searchParams);
+  const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
 
   let query = supabase
     .from("organizations")
-    .select("*, profiles!organizations_owner_id_fkey(email, display_name)")
+    .select("*, profiles!organizations_owner_id_fkey(email, display_name)", { count: "exact" })
     .order("created_at", { ascending: false });
 
   if (search) {
-    query = query.ilike("name", `%${search}%`);
+    query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
   }
 
-  const { data, error } = await query.limit(100);
-
-  if (error) {
-    console.error("listOrganizations error:", error);
-    throw new ValidationError("Failed to load organizations.");
-  }
-
-  return data ?? [];
+  return paginatedQuery(query as any, { page, pageSize });
 }
 
 export async function getOrganizationMetrics(orgId: string) {
