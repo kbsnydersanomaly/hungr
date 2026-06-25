@@ -83,6 +83,41 @@ export async function signIn(page: Page, email: string, password: string) {
   await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 }
 
+const SUPER_ADMIN_EMAIL = "superadmin-e2e@example.com";
+const SUPER_ADMIN_PASSWORD = "TestPassword123!";
+
+export async function loginAsSuperAdmin(page: Page) {
+  const admin = adminClient();
+
+  // Ensure the super-admin test user exists.
+  const { data: existing } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1,
+  });
+  const alreadyExists = existing?.users.some(
+    (u) => u.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
+  );
+
+  if (!alreadyExists) {
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: SUPER_ADMIN_EMAIL,
+      password: SUPER_ADMIN_PASSWORD,
+      email_confirm: true,
+    });
+    if (createError) throw createError;
+
+    // Mark as super admin in profiles.
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update({ is_super_admin: true })
+      .eq("id", created.user!.id);
+
+    if (profileError) throw profileError;
+  }
+
+  await signIn(page, SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD);
+}
+
 /** Full flow: sign up, confirm the email via service role, then sign in. */
 export async function signUpAndVerify(
   page: Page,
