@@ -345,30 +345,47 @@ export async function listTransactionsForSubscription(subscriptionId: string, li
   return data ?? [];
 }
 
+type TransactionListRow = Database["public"]["Tables"]["transactions"]["Row"] & {
+  organizations: { name: string | null; slug: string | null } | null;
+  restaurants: { name: string | null } | null;
+};
+
 // ── Transactions ─────────────────────────────────────────────────────────
 
-export async function listTransactions(search?: string, limit = 100) {
+export async function listTransactions(
+  searchParams: { [key: string]: string | string[] | undefined }
+): Promise<PaginationResult<TransactionListRow>> {
   const { supabase } = await requireSuperAdmin();
+  const { page, pageSize } = parsePaginationParams(searchParams);
+  const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
+  const status = typeof searchParams?.status === "string" ? searchParams.status : undefined;
+  const from = typeof searchParams?.from === "string" ? searchParams.from : undefined;
+  const to = typeof searchParams?.to === "string" ? searchParams.to : undefined;
 
   let query = supabase
     .from("transactions")
-    .select("*, organizations(name, slug), restaurants(name)")
+    .select("*, organizations(name, slug), restaurants(name)", { count: "exact" })
     .order("occurred_at", { ascending: false });
 
   if (search) {
     query = query.or(
-      `payfast_payment_id.ilike.%${search}%,m_payment_id.ilike.%${search}%`
+      `payfast_payment_id.ilike.%${search}%,m_payment_id.ilike.%${search}%,organizations.name.ilike.%${search}%`
     );
   }
 
-  const { data, error } = await query.limit(limit);
-
-  if (error) {
-    console.error("listTransactions error:", error);
-    throw new ValidationError("Failed to load transactions.");
+  if (status) {
+    query = query.eq("payment_status", status);
   }
 
-  return data ?? [];
+  if (from) {
+    query = query.gte("occurred_at", from);
+  }
+
+  if (to) {
+    query = query.lte("occurred_at", to);
+  }
+
+  return paginatedQuery(query as unknown as PostgrestFilterBuilder<never, never, TransactionListRow, TransactionListRow[], unknown>, { page, pageSize });
 }
 
 export async function getOrganization(orgId: string) {
