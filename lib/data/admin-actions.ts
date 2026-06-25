@@ -409,6 +409,39 @@ export async function getOrganization(orgId: string) {
   return data;
 }
 
+export async function updateOrganization(orgId: string, formData: FormData) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const name = String(formData.get("name") ?? "").trim();
+    const slug = String(formData.get("slug") ?? "").trim();
+    const ownerId = String(formData.get("owner_id") ?? "").trim();
+    const planId = String(formData.get("plan_id") ?? "").trim() || null;
+
+    if (!name) throw new ValidationError("Name is required.");
+    if (!slug) throw new ValidationError("Slug is required.");
+    if (!ownerId) throw new ValidationError("Owner is required.");
+
+    const { error } = await supabase
+      .from("organizations")
+      .update({
+        name,
+        slug,
+        owner_id: ownerId,
+        plan_id: planId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orgId);
+
+    if (error) {
+      console.error("updateOrganization error:", error);
+      throw new ValidationError("Failed to update organization.");
+    }
+
+    return { updated: true };
+  });
+}
+
 // ── Deletions ────────────────────────────────────────────────────────────
 
 async function deleteOrganizationUnsafe(orgId: string) {

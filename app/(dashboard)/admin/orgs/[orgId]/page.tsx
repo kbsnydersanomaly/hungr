@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, CreditCard, UtensilsCrossed } from "lucide-react";
 import { formatZar } from "@/lib/utils/money";
 import { rel, type ProfileRef, type PlanRef } from "@/lib/types/relations";
+import { OrganizationEditDialog } from "@/components/admin/OrganizationEditDialog";
+import { OrganizationDeleteButton } from "@/components/admin/OrganizationDeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +54,8 @@ export default async function AdminOrgDetailPage({
           <Button variant="outline" size="sm" asChild>
             <Link href={`/dashboard?org=${org.slug}`}>View as org</Link>
           </Button>
-          {/* Edit/Delete actions added in Task 4.3 */}
+          <OrganizationEditDialog org={org} />
+          <OrganizationDeleteButton orgId={org.id} orgName={org.name} />
         </div>
       </div>
 
