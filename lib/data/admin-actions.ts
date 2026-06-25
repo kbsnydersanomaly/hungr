@@ -351,3 +351,20 @@ export async function listTransactions(search?: string, limit = 100) {
 
   return data ?? [];
 }
+
+export async function getOrganization(orgId: string) {
+  const { supabase } = await requireSuperAdmin();
+
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("*, profiles!organizations_owner_id_fkey(*), plans(*)")
+    .eq("id", orgId)
+    .single();
+
+  if (error || !data) {
+    console.error("getOrganization error:", error);
+    throw new NotFoundError("Organization not found.");
+  }
+
+  return data;
+}
