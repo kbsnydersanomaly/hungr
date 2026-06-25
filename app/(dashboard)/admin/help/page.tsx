@@ -1,33 +1,54 @@
 import Link from "next/link";
-import { listHelpCategories, listHelpArticles } from "@/lib/data/help-actions";
+import { listHelpCategories, listHelpArticlesAdmin } from "@/lib/data/help-actions";
+import { AdminListLayout } from "@/components/admin/AdminListLayout";
+import { AdminPagination } from "@/components/admin/AdminPagination";
+import { StatusFilter } from "@/components/admin/StatusFilter";
 import { AdminArticleActions } from "@/components/help/AdminArticleActions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 
+const PUBLISHED_OPTIONS = [
+  { value: "true", label: "Published" },
+  { value: "false", label: "Draft" },
+];
+
 export const dynamic = "force-dynamic";
 
-export default async function AdminHelpPage() {
-  const [categoriesRes, articlesRes] = await Promise.all([
-    listHelpCategories(),
-    listHelpArticles({ publishedOnly: false }),
-  ]);
+export default async function AdminHelpPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const sp = await searchParams;
+  const [categoriesRes, { data: articles, total, page, pageSize, totalPages }] =
+    await Promise.all([listHelpCategories(), listHelpArticlesAdmin(sp)]);
 
   const categories = categoriesRes.ok ? categoriesRes.data ?? [] : [];
-  const articles = articlesRes.ok ? articlesRes.data ?? [] : [];
-
-  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold font-heading">Help Articles</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage public help content.
-          </p>
-        </div>
+    <AdminListLayout
+      title="Help Articles"
+      total={total}
+      searchPlaceholder="Search by title, content or topics..."
+      extraFilters={
+        <>
+          <StatusFilter
+            options={PUBLISHED_OPTIONS}
+            paramName="published"
+            placeholder="Filter by status"
+          />
+          <StatusFilter
+            options={categoryOptions}
+            paramName="category"
+            placeholder="Filter by category"
+          />
+        </>
+      }
+    >
+      <div className="flex items-center justify-end">
         <Button asChild size="sm">
           <Link href="/admin/help/new">
             <Plus className="h-4 w-4 mr-2" />
@@ -43,13 +64,9 @@ export default async function AdminHelpPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {articles.map((article) => {
-            const category = article.category_id
-              ? categoryById.get(article.category_id)
-              : null;
-
-            return (
+        <>
+          <div className="grid gap-4">
+            {articles.map((article) => (
               <Card key={article.id}>
                 <CardContent className="py-4">
                   <div className="flex items-start justify-between gap-4">
@@ -63,8 +80,8 @@ export default async function AdminHelpPage() {
                         >
                           {article.published ? "Published" : "Draft"}
                         </Badge>
-                        {category && (
-                          <Badge variant="outline">{category.name}</Badge>
+                        {article.category_name && (
+                          <Badge variant="outline">{article.category_name}</Badge>
                         )}
                       </div>
 
@@ -90,10 +107,11 @@ export default async function AdminHelpPage() {
                   </div>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+          <AdminPagination page={page} pageSize={pageSize} totalPages={totalPages} total={total} />
+        </>
       )}
-    </div>
+    </AdminListLayout>
   );
 }

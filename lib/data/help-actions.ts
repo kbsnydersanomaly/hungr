@@ -7,6 +7,12 @@ import { requireSuperAdmin, isSuperAdmin } from "@/lib/auth/role";
 import { safeAction, ValidationError, NotFoundError } from "@/lib/errors";
 import { slugify } from "@/lib/utils/slugify";
 import type { Database } from "@/lib/database.types";
+import {
+  paginatedQuery,
+  parsePaginationParams,
+  type PaginationResult,
+} from "@/lib/data/admin-pagination";
+import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
 
 type HelpArticleRow = Database["public"]["Tables"]["help_articles"]["Row"];
 type HelpCategoryRow = Database["public"]["Tables"]["help_categories"]["Row"];
@@ -142,6 +148,51 @@ export async function listHelpArticles(filters?: {
       mapArticleWithCategory(row as HelpArticleRow & { help_categories: { name: string } | null })
     );
   });
+}
+
+export async function listHelpArticlesAdmin(
+  searchParams: { [key: string]: string | string[] | undefined }
+): Promise<PaginationResult<HelpArticleWithCategory>> {
+  const { supabase } = await requireSuperAdmin();
+  const { page, pageSize } = parsePaginationParams(searchParams);
+  const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
+  const published = typeof searchParams?.published === "string" ? searchParams.published : undefined;
+  const category = typeof searchParams?.category === "string" ? searchParams.category : undefined;
+
+  let query = supabase
+    .from("help_articles")
+    .select("*, help_categories(name)", { count: "exact" })
+    .order("created_at", { ascending: false });
+
+  if (published === "true") {
+    query = query.eq("published", true);
+  } else if (published === "false") {
+    query = query.eq("published", false);
+  }
+
+  if (category) {
+    query = query.eq("category_id", category);
+  }
+
+  if (search?.trim()) {
+    const q = search.trim().toLowerCase();
+    query = query.or(`title.ilike.%${q}%,content.ilike.%${q}%,topics.cs.{${q}}`);
+  }
+
+  const typedQuery = query as unknown as PostgrestFilterBuilder<
+    never,
+    never,
+    HelpArticleRow & { help_categories: { name: string } | null },
+    (HelpArticleRow & { help_categories: { name: string } | null })[],
+    unknown
+  >;
+
+  const result = await paginatedQuery(typedQuery, { page, pageSize });
+
+  return {
+    ...result,
+    data: result.data.map((row) => mapArticleWithCategory(row)),
+  };
 }
 
 export async function getHelpArticleBySlug(slug: string) {
