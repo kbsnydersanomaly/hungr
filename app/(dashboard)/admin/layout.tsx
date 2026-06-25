@@ -8,7 +8,7 @@ const adminNav: TabNavItem[] = [
   { href: "/admin/plans", label: "Plans", icon: "credit-card" },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: "receipt" },
   { href: "/admin/transactions", label: "Transactions", icon: "file-text" },
-  { href: "/admin/audit", label: "Audit", icon: "activity" },
+  { href: "/admin/help", label: "Help", icon: "help-circle" },
   { href: "/admin/health", label: "Health", icon: "shield" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
