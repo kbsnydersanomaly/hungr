@@ -52,6 +52,7 @@ export function AdminListLayout({
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
+              key={currentSearch}
               type="search"
               placeholder={searchPlaceholder}
               defaultValue={currentSearch}
