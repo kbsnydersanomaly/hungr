@@ -8,6 +8,11 @@ import {
   parsePaginationParams,
   type PaginationResult,
 } from "@/lib/data/admin-pagination";
+import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
+
+type OrganizationListRow = Database["public"]["Tables"]["organizations"]["Row"] & {
+  profiles: { email: string; display_name: string | null } | null;
+};
 
 type PlanInsert = Database["public"]["Tables"]["plans"]["Insert"];
 type PlanUpdate = Database["public"]["Tables"]["plans"]["Update"];
@@ -40,7 +45,7 @@ function parsePlanForm(formData: FormData): Omit<PlanInsert, "slug"> & { slug?: 
 
 export async function listOrganizations(
   searchParams: { [key: string]: string | string[] | undefined }
-): Promise<PaginationResult<any>> {
+): Promise<PaginationResult<OrganizationListRow>> {
   const { supabase } = await requireSuperAdmin();
   const { page, pageSize } = parsePaginationParams(searchParams);
   const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
@@ -54,7 +59,15 @@ export async function listOrganizations(
     query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
   }
 
-  return paginatedQuery(query as any, { page, pageSize });
+  const typedQuery = query as unknown as PostgrestFilterBuilder<
+    never,
+    never,
+    OrganizationListRow,
+    OrganizationListRow[],
+    unknown
+  >;
+
+  return paginatedQuery(typedQuery, { page, pageSize });
 }
 
 export async function getOrganizationMetrics(orgId: string) {
