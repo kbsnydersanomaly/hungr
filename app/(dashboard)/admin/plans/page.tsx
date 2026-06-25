@@ -2,6 +2,7 @@ import { listPlans } from "@/lib/data/admin-actions";
 import { AdminListLayout } from "@/components/admin/AdminListLayout";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { PlanDialog } from "@/components/dashboard/PlanDialog";
+import { PlanActions } from "@/components/admin/PlanActions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatZar } from "@/lib/utils/money";
@@ -80,7 +81,10 @@ export default async function AdminPlansPage({
                       </div>
                     </div>
 
-                    <PlanDialog plan={plan} />
+                    <div className="flex items-center gap-2">
+                      <PlanDialog plan={plan} />
+                      <PlanActions planId={plan.id} active={plan.active} />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
