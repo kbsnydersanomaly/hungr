@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { updateOrganization } from "@/lib/data/admin-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ interface OrganizationEditDialogProps {
 
 export function OrganizationEditDialog({ org }: OrganizationEditDialogProps) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -38,8 +40,11 @@ export function OrganizationEditDialog({ org }: OrganizationEditDialogProps) {
         <ServerActionForm
           action={async (formData) => {
             const result = await updateOrganization(org.id, formData);
-            setOpen(false);
             return result;
+          }}
+          onSuccess={() => {
+            setOpen(false);
+            router.refresh();
           }}
           successMessage="Organization updated."
         >
