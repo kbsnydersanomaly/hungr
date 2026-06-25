@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MenuCard } from "@/components/menu/MenuCard";
+import { LinkPendingIcon } from "@/components/LinkPendingIcon";
 import { Plus, UtensilsCrossed } from "lucide-react";
 
 export default async function MenusPage({
@@ -30,7 +31,7 @@ export default async function MenusPage({
         action={
           <Button asChild>
             <Link href={`/restaurants/${restaurantId}/menus/new`}>
-              <Plus className="h-4 w-4 mr-2" />
+              <LinkPendingIcon icon={<Plus className="h-4 w-4 mr-2" />} />
               New menu
             </Link>
           </Button>
@@ -53,7 +54,7 @@ export default async function MenusPage({
             </p>
             <Button asChild className="mt-4">
               <Link href={`/restaurants/${restaurantId}/menus/new`}>
-                <Plus className="h-4 w-4 mr-2" />
+                <LinkPendingIcon icon={<Plus className="h-4 w-4 mr-2" />} />
                 New menu
               </Link>
             </Button>

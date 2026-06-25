@@ -1,11 +1,14 @@
+import { redirect } from "next/navigation";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/lib/database.types";
+import { createServerClient } from "@/lib/supabase/server";
+import { ForbiddenError } from "@/lib/errors";
 
 export type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 
 export type SubscriptionCheckRow = Pick<
   Database["public"]["Tables"]["subscriptions"]["Row"],
-  "id" | "status" | "current_period_end"
+  "status" | "current_period_end"
 >;
 
 type InactiveSubscriptionStatus = Exclude<SubscriptionStatus, "active">;
@@ -69,7 +72,7 @@ export function isRestaurantManagementAllowed(
   return validity.reason === "pending";
 }
 
-type SubscriptionRow = Pick<
+export type SubscriptionRow = Pick<
   Database["public"]["Tables"]["subscriptions"]["Row"],
   "id" | "status" | "current_period_end" | "scope" | "scope_id"
 >;
@@ -95,4 +98,56 @@ export async function loadRestaurantSubscriptions(
       (row.scope === "org" && row.scope_id === restaurant.org_id)
     );
   });
+}
+
+export function findPendingSubscription(
+  subscriptions: SubscriptionRow[]
+): SubscriptionRow | null {
+  const restaurantPending = subscriptions.find(
+    (s) => s.status === "pending" && s.scope === "restaurant"
+  );
+  if (restaurantPending) return restaurantPending;
+  return (
+    subscriptions.find((s) => s.status === "pending" && s.scope === "org") ??
+    null
+  );
+}
+
+export async function assertRestaurantManagementAllowed(
+  restaurantId: string
+): Promise<void> {
+  const supabase = await createServerClient();
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("id, org_id")
+    .eq("id", restaurantId)
+    .maybeSingle();
+
+  if (!restaurant) throw new ForbiddenError();
+
+  const subscriptions = await loadRestaurantSubscriptions(supabase, {
+    id: restaurantId,
+    org_id: restaurant.org_id,
+  });
+
+  if (!isRestaurantManagementAllowed(subscriptions)) {
+    throw new ForbiddenError("Subscription required for this action.");
+  }
+}
+
+export async function requireRestaurantManagementOrRedirect(
+  restaurantId: string,
+  orgId: string
+): Promise<void> {
+  const supabase = await createServerClient();
+  const subscriptions = await loadRestaurantSubscriptions(supabase, {
+    id: restaurantId,
+    org_id: orgId,
+  });
+
+  if (!isRestaurantManagementAllowed(subscriptions)) {
+    redirect(
+      `/restaurants/${restaurantId}/billing?reason=subscription_required`
+    );
+  }
 }

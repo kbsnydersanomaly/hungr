@@ -1,6 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
+import { assertRestaurantManagementAllowed } from "@/lib/billing/subscription";
 import { requireSession } from "./session";
 
 export type OrgRole = "owner" | "admin" | "manager" | "staff";
@@ -38,6 +39,9 @@ export async function requireRestaurantAccess(
     min_role: min,
   });
   if (!data) throw new ForbiddenError();
+  if (min === "manager") {
+    await assertRestaurantManagementAllowed(restaurantId);
+  }
   return { user, supabase };
 }
 

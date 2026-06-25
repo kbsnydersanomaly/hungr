@@ -4,9 +4,7 @@ import {
   signIn,
   createRestaurant,
   getFirstRestaurant,
-  createMenu,
-  createMenuItem,
-  publishMenu,
+  seedPublishedMenu,
   activateRestaurantSubscription,
   adminClient,
 } from "./helpers";
@@ -31,9 +29,9 @@ test.describe("Invalid subscription hides public menu", () => {
       restaurantId = restaurant.id;
       const { slug } = restaurant;
       await activateRestaurantSubscription(restaurantId);
-      await createMenu(page, "Menu", restaurantId);
-      await createMenuItem(page, { name: "Test Burger", price: "75.00" });
-      await publishMenu(page);
+      await seedPublishedMenu(restaurantId, "Menu", "menu", [
+        { name: "Test Burger", price: "75.00" },
+      ]);
 
       // 2. Public menu is visible while active.
       let response = await page.goto(`/m/${slug}`);

@@ -11,6 +11,7 @@ import {
   pauseSubscriptionAction,
   cancelSubscriptionAction,
   resumeSubscriptionAction,
+  retrySubscriptionCheckoutAction,
 } from "@/lib/data/billing-actions";
 import { ForbiddenError } from "@/lib/errors";
 import * as payfast from "@/lib/billing/payfast";
@@ -54,6 +55,14 @@ vi.mock("next/headers", async (importOriginal) => {
   };
 });
 
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    const err = new Error(`NEXT_REDIRECT ${url}`);
+    Object.assign(err, { digest: "NEXT_REDIRECT" });
+    throw err;
+  }),
+}));
+
 vi.mock("@/lib/auth/role", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/auth/role")>();
   return {
@@ -81,6 +90,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 
 interface MockSupabaseConfig {
   selectSingle?: Record<string, unknown> | null;
@@ -155,6 +165,7 @@ const mockedCreateServerClient = createServerClient as unknown as ReturnType<
 const mockedCreateAdminClient = createAdminClient as unknown as ReturnType<
   typeof vi.fn
 >;
+const mockedRedirect = redirect as unknown as ReturnType<typeof vi.fn>;
 
 const restaurantSub = {
   id: "sub-rest-123",
@@ -165,7 +176,7 @@ const restaurantSub = {
   status: "active",
   amount_cents: 9900,
   billing_period: "monthly",
-  payfast_token: "pf-token-rest",
+  payfast_token: "pf-token-rest" as string | null,
   m_payment_id: "mp-123",
   started_at: null,
   current_period_end: null,
@@ -182,6 +193,12 @@ const orgSub = {
   scope: "org",
   scope_id: "org-123",
   payfast_token: "pf-token-org",
+};
+
+const pendingRestaurantSub = {
+  ...restaurantSub,
+  status: "pending",
+  payfast_token: null,
 };
 
 const actor = {
@@ -376,6 +393,87 @@ describe("billing actions", () => {
 
       expect(result.ok).toBe(false);
       expect(result.code).toBe("validation");
+    });
+  });
+
+  describe("retrySubscriptionCheckoutAction", () => {
+    it("redirects to PayFast checkout for a pending restaurant subscription", async () => {
+      mockedCreateServerClient.mockReturnValue(
+        createMockSupabase({ selectSingle: pendingRestaurantSub })
+      );
+      mockedRole.requireRestaurantAccess.mockResolvedValue({});
+
+      await expect(
+        retrySubscriptionCheckoutAction(pendingRestaurantSub.id)
+      ).rejects.toMatchObject({ digest: "NEXT_REDIRECT" });
+
+      expect(mockedRole.requireRestaurantAccess).toHaveBeenCalledWith(
+        pendingRestaurantSub.scope_id,
+        "manager"
+      );
+      expect(mockedRedirect).toHaveBeenCalledWith(
+        expect.stringContaining("payfast.co.za")
+      );
+      expect(mockedRedirect).toHaveBeenCalledWith(
+        expect.stringContaining(encodeURIComponent(pendingRestaurantSub.m_payment_id))
+      );
+    });
+
+    it("rejects active subscriptions", async () => {
+      mockedCreateServerClient.mockReturnValue(
+        createMockSupabase({ selectSingle: restaurantSub })
+      );
+
+      const result = await retrySubscriptionCheckoutAction(restaurantSub.id);
+
+      expect(result.ok).toBe(false);
+      expect(result.code).toBe("validation");
+    });
+
+    it("updates payment id and redirects for failed subscriptions", async () => {
+      const failedSub = {
+        ...pendingRestaurantSub,
+        status: "failed",
+      };
+      mockedCreateServerClient.mockReturnValue(
+        createMockSupabase({ selectSingle: failedSub })
+      );
+      mockedCreateAdminClient.mockReturnValue(
+        createMockSupabase({ selectSingle: failedSub })
+      );
+      mockedRole.requireRestaurantAccess.mockResolvedValue({});
+
+      await expect(
+        retrySubscriptionCheckoutAction(failedSub.id)
+      ).rejects.toMatchObject({ digest: "NEXT_REDIRECT" });
+
+      expect(mockedRedirect).toHaveBeenCalledWith(
+        expect.stringContaining("-retry-")
+      );
+    });
+
+    it("requires org admin access for org subscriptions", async () => {
+      const pendingOrgSub = {
+        ...orgSub,
+        status: "pending",
+        payfast_token: null,
+      };
+      mockedCreateServerClient.mockReturnValue(
+        createMockSupabase({ selectSingle: pendingOrgSub })
+      );
+      mockedRole.requireOrgAccess.mockResolvedValue({});
+
+      await expect(
+        retrySubscriptionCheckoutAction(pendingOrgSub.id)
+      ).rejects.toMatchObject({ digest: "NEXT_REDIRECT" });
+
+      expect(mockedRole.requireOrgAccess).toHaveBeenCalledWith(
+        pendingOrgSub.org_id,
+        "admin"
+      );
+      expect(mockedRedirect).toHaveBeenCalledWith(
+        expect.stringContaining("settings%2Fbilling%2Freturn")
+      );
     });
   });
 });

@@ -103,11 +103,9 @@ export default async function AdminSubscriptionsPage({
                           }}
                           successMessage="Subscription marked active."
                         >
-                          {() => (
-                            <SubmitButton type="submit" size="sm" variant="outline">
-                              Force active
-                            </SubmitButton>
-                          )}
+                          <SubmitButton type="submit" size="sm" variant="outline">
+                            Force active
+                          </SubmitButton>
                         </ServerActionForm>
                       )}
                       {sub.status === "active" && (
@@ -118,11 +116,9 @@ export default async function AdminSubscriptionsPage({
                           }}
                           successMessage="Subscription paused."
                         >
-                          {() => (
-                            <SubmitButton type="submit" size="sm" variant="outline">
-                              Force pause
-                            </SubmitButton>
-                          )}
+                          <SubmitButton type="submit" size="sm" variant="outline">
+                            Force pause
+                          </SubmitButton>
                         </ServerActionForm>
                       )}
                     </div>

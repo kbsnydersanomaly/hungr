@@ -84,21 +84,19 @@ export default async function MenuWorkspacePage({
           )}
 
           <ServerActionForm action={updateMenuStatus.bind(null, menuId, menu.status === "published" ? "draft" : "published")}>
-            {() => (
-              <SubmitButton type="submit" size="sm" variant={isPublished ? "outline" : "default"}>
-                {isPublished ? (
-                  <>
-                    <EyeOff className="h-4 w-4 mr-2" />
-                    Unpublish
-                  </>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Publish
-                  </>
-                )}
-              </SubmitButton>
-            )}
+            <SubmitButton type="submit" size="sm" variant={isPublished ? "outline" : "default"}>
+              {isPublished ? (
+                <>
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  Unpublish
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Publish
+                </>
+              )}
+            </SubmitButton>
           </ServerActionForm>
         </div>
       </div>

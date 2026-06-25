@@ -4,10 +4,10 @@ import {
   createRestaurant,
   getFirstRestaurant,
   activateRestaurantSubscription,
-  createMenu,
-  createMenuItem,
-  publishMenu,
+  seedPublishedMenu,
+  adminClient,
   collectRenderingErrors,
+  TEST_PNG,
 } from "./helpers";
 
 const RUN_ID = Date.now();
@@ -27,18 +27,18 @@ test.describe("Public menu", () => {
     await createRestaurant(page, `Public E2E ${RUN_ID}`);
     const { id: restaurantId, slug } = await getFirstRestaurant(page);
     await activateRestaurantSubscription(restaurantId);
-    await createMenu(page, "All Day", restaurantId);
-    await createMenuItem(page, {
-      name: "Sushi Platter",
-      price: "1234.56",
-      description: "Twelve-piece chef selection",
-      withImage: true,
-    });
-    await createMenuItem(page, {
-      name: "Miso Soup",
-      price: "45.00",
-    });
-    await publishMenu(page);
+    await seedPublishedMenu(restaurantId, "All Day", "all-day", [
+      {
+        name: "Sushi Platter",
+        price: "1234.56",
+        description: "Twelve-piece chef selection",
+        imageUrl: `data:image/png;base64,${TEST_PNG.toString("base64")}`,
+      },
+      {
+        name: "Miso Soup",
+        price: "45.00",
+      },
+    ]);
 
     // Visit the public menu, watching for hydration / rendering errors.
     const renderingErrors = collectRenderingErrors(page);
@@ -91,5 +91,15 @@ test.describe("Public menu", () => {
     ).toBeVisible({ timeout: 15000 });
 
     expect(renderingErrors).toEqual([]);
+
+    // Clean up.
+    const admin = adminClient();
+    await admin.from("restaurants").delete().eq("id", restaurantId);
+    const { data: users } = await admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 100,
+    });
+    const user = users?.find((u) => u.email === TEST_EMAIL);
+    if (user) await admin.auth.admin.deleteUser(user.id);
   });
 });

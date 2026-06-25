@@ -173,26 +173,23 @@ export async function updatePlan(planId: string, formData: FormData) {
 
 // ── Users ────────────────────────────────────────────────────────────────
 
-export async function listUsers(search?: string, limit = 100) {
+export async function listUsers(
+  searchParams: { [key: string]: string | string[] | undefined }
+): Promise<PaginationResult<Database["public"]["Tables"]["profiles"]["Row"]>> {
   const { supabase } = await requireSuperAdmin();
+  const { page, pageSize } = parsePaginationParams(searchParams);
+  const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
 
   let query = supabase
     .from("profiles")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("created_at", { ascending: false });
 
   if (search) {
     query = query.or(`email.ilike.%${search}%,display_name.ilike.%${search}%`);
   }
 
-  const { data, error } = await query.limit(limit);
-
-  if (error) {
-    console.error("listUsers error:", error);
-    throw new ValidationError("Failed to load users.");
-  }
-
-  return data ?? [];
+  return paginatedQuery(query as unknown as PostgrestFilterBuilder<never, never, Database["public"]["Tables"]["profiles"]["Row"], Database["public"]["Tables"]["profiles"]["Row"][], unknown>, { page, pageSize });
 }
 
 // ── Subscriptions ────────────────────────────────────────────────────────

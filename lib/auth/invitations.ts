@@ -79,6 +79,9 @@ export async function acceptInviteAndSignUp(token: string, formData: FormData) {
           first_name: firstName,
           last_name: lastName,
           display_name: `${firstName} ${lastName}`,
+          // Signals handle_new_user to skip creating a personal org — this account
+          // exists solely to accept an invite and will land in the invited org.
+          invited: true,
         },
       });
 

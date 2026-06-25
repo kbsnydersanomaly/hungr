@@ -8,7 +8,9 @@ type ActionResult = { ok: boolean; message?: string };
 
 export interface ServerActionFormProps {
   action: (formData: FormData) => Promise<ActionResult | void>;
-  children: (state: { isPending: boolean }) => ReactNode;
+  // Plain nodes work from Server Components. A render prop is also supported,
+  // but only from Client Components — functions can't cross the RSC boundary.
+  children: ReactNode | ((state: { isPending: boolean }) => ReactNode);
   onSuccess?: () => void;
   successMessage?: string;
   className?: string;
@@ -44,7 +46,7 @@ export function ServerActionForm({
 
   return (
     <form action={handleSubmit} className={className}>
-      {children({ isPending })}
+      {typeof children === "function" ? children({ isPending }) : children}
     </form>
   );
 }

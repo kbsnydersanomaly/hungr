@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,6 +13,7 @@ import {
   cancelSubscription as payfastCancel,
   unpauseSubscription as payfastUnpause,
   nextBillingDate,
+  buildPayFastCheckout,
 } from "@/lib/billing/payfast";
 import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
@@ -67,6 +69,112 @@ async function getSubscriptionContext(
     name: data?.name ?? "Organization",
     billingUrl: `${baseUrl}/settings/billing`,
   };
+}
+
+function buildCheckoutForSubscription(
+  sub: Pick<
+    SubscriptionRow,
+    "scope" | "scope_id" | "org_id" | "amount_cents"
+  >,
+  displayName: string,
+  mPaymentId: string
+): string {
+  const baseUrl = env.NEXT_PUBLIC_APP_URL;
+
+  if (sub.scope === "restaurant") {
+    return buildPayFastCheckout({
+      m_payment_id: mPaymentId,
+      amount_cents: sub.amount_cents,
+      item_name: `Hungr — ${displayName}`,
+      subscription_type: 1,
+      frequency: 3,
+      cycles: 0,
+      return_url: `${baseUrl}/restaurants/${sub.scope_id}/billing/return?m_payment_id=${encodeURIComponent(mPaymentId)}`,
+      cancel_url: `${baseUrl}/restaurants/${sub.scope_id}/billing?status=cancel`,
+      notify_url: `${baseUrl}/api/webhooks/payfast`,
+      custom_str1: sub.scope_id,
+      custom_str2: sub.org_id,
+    });
+  }
+
+  return buildPayFastCheckout({
+    m_payment_id: mPaymentId,
+    amount_cents: sub.amount_cents,
+    item_name: `Hungr — ${displayName}`,
+    subscription_type: 1,
+    frequency: 3,
+    cycles: 0,
+    return_url: `${baseUrl}/settings/billing/return?m_payment_id=${encodeURIComponent(mPaymentId)}`,
+    cancel_url: `${baseUrl}/settings/billing?status=cancel`,
+    notify_url: `${baseUrl}/api/webhooks/payfast`,
+    custom_str1: sub.org_id,
+    custom_str2: "org",
+  });
+}
+
+export async function retrySubscriptionCheckoutAction(subscriptionId: string) {
+  return safeAction(async () => {
+    const supabase = await createServerClient();
+
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("*")
+      .eq("id", subscriptionId)
+      .single();
+
+    if (!sub) throw new NotFoundError("Subscription not found");
+
+    if (sub.status !== "pending" && sub.status !== "failed") {
+      throw new ValidationError("This subscription cannot be retried.");
+    }
+
+    if (sub.payfast_token) {
+      throw new ValidationError("Subscription already has an active payment.");
+    }
+
+    if (!sub.m_payment_id) {
+      throw new ValidationError("No payment reference found.");
+    }
+
+    if (sub.scope === "restaurant") {
+      await requireRestaurantAccess(sub.scope_id, "manager");
+    } else {
+      await requireOrgAccess(sub.org_id, "admin");
+    }
+
+    let mPaymentId = sub.m_payment_id;
+
+    if (sub.status === "failed") {
+      mPaymentId = `${sub.m_payment_id}-retry-${Date.now()}`;
+      const { error } = await createAdminClient()
+        .from("subscriptions")
+        .update({
+          m_payment_id: mPaymentId,
+          status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subscriptionId);
+
+      if (error) {
+        console.error("retrySubscriptionCheckoutAction update error:", error);
+        throw new ValidationError("Failed to prepare payment retry.");
+      }
+    }
+
+    const context = await getSubscriptionContext(supabase, sub as SubscriptionRow);
+    const checkoutUrl = buildCheckoutForSubscription(
+      sub as SubscriptionRow,
+      context.name,
+      mPaymentId
+    );
+
+    if (sub.scope === "restaurant") {
+      revalidatePath(`/restaurants/${sub.scope_id}/billing`);
+    }
+    revalidatePath("/settings/billing");
+
+    redirect(checkoutUrl);
+  });
 }
 
 async function notifySubscriptionEvent(
@@ -125,7 +233,7 @@ export async function loadSubscriptionForRestaurant(restaurantId: string) {
     .select("*, plans(*)")
     .eq("scope", "restaurant")
     .eq("scope_id", restaurantId)
-    .in("status", ["pending", "active", "paused", "cancelled"])
+    .in("status", ["pending", "active", "paused", "cancelled", "failed"])
     .maybeSingle();
 
   if (error) {

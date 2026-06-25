@@ -19,7 +19,12 @@ vi.mock("@/lib/env", () => ({ env: { NEXT_PUBLIC_APP_URL: "http://localhost:3000
 vi.mock("@/lib/auth/role", () => ({ requireOrgAccess, requireRestaurantAccess }));
 vi.mock("@/lib/supabase/server", () => ({ createServerClient }));
 
-import { inviteMember, resendInvitation } from "@/lib/data/team-actions";
+import {
+  inviteMember,
+  resendInvitation,
+  changeMemberRole,
+  removeMember,
+} from "@/lib/data/team-actions";
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -31,8 +36,12 @@ type Result = { data?: unknown; error?: unknown };
  * queued results for `.maybeSingle()` / `.single()` in call order. `update` and
  * `insert` record their payloads on `captured` for assertions.
  */
-function makeSupabase(singleResults: Result[]) {
-  const captured: { update?: Record<string, unknown>; insert?: Record<string, unknown> } = {};
+function makeSupabase(singleResults: Result[], opts: { count?: number } = {}) {
+  const captured: {
+    update?: Record<string, unknown>;
+    insert?: Record<string, unknown>;
+    deleted?: boolean;
+  } = {};
   const queue = [...singleResults];
   const builder: Record<string, unknown> = {
     from: () => builder,
@@ -40,12 +49,20 @@ function makeSupabase(singleResults: Result[]) {
     eq: () => builder,
     ilike: () => builder,
     is: () => builder,
+    // `head: true` count queries are awaited directly (no .single()); awaiting a
+    // non-thenable returns the builder, so `const { count } = await ...` reads
+    // this property.
+    count: opts.count ?? null,
     update: (payload: Record<string, unknown>) => {
       captured.update = payload;
       return builder;
     },
     insert: (payload: Record<string, unknown>) => {
       captured.insert = payload;
+      return builder;
+    },
+    delete: () => {
+      captured.deleted = true;
       return builder;
     },
     maybeSingle: () => Promise.resolve(queue.shift() ?? { data: null }),
@@ -177,5 +194,103 @@ describe("resendInvitation", () => {
     expect(result.ok).toBe(false);
     expect(result.message).toMatch(/already been accepted/i);
     expect(sendMail).not.toHaveBeenCalled();
+  });
+});
+
+const USER_ID = "22222222-2222-4222-8222-222222222222";
+
+describe("changeMemberRole", () => {
+  it("promotes a member (staff -> admin)", async () => {
+    const { builder, captured } = makeSupabase([{ data: { role: "staff" } }]);
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await changeMemberRole(ORG_ID, USER_ID, "admin");
+
+    expect(result.ok).toBe(true);
+    expect(captured.update).toMatchObject({ role: "admin" });
+  });
+
+  it("rejects demoting the last owner", async () => {
+    // current role lookup, then owner count = 1
+    const { builder, captured } = makeSupabase([{ data: { role: "owner" } }], {
+      count: 1,
+    });
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await changeMemberRole(ORG_ID, USER_ID, "admin");
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/last owner/i);
+    expect(captured.update).toBeUndefined();
+  });
+
+  it("allows demoting an owner when other owners remain", async () => {
+    const { builder, captured } = makeSupabase([{ data: { role: "owner" } }], {
+      count: 2,
+    });
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await changeMemberRole(ORG_ID, USER_ID, "admin");
+
+    expect(result.ok).toBe(true);
+    expect(captured.update).toMatchObject({ role: "admin" });
+  });
+
+  it("requires owner access to promote to owner", async () => {
+    const { builder } = makeSupabase([{ data: { role: "staff" } }]);
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await changeMemberRole(ORG_ID, USER_ID, "owner");
+
+    expect(result.ok).toBe(true);
+    expect(requireOrgAccess).toHaveBeenCalledWith(ORG_ID, "owner");
+  });
+
+  it("returns a validation error when the member is not found", async () => {
+    const { builder, captured } = makeSupabase([{ data: null }]);
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await changeMemberRole(ORG_ID, USER_ID, "admin");
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/not found/i);
+    expect(captured.update).toBeUndefined();
+  });
+});
+
+describe("removeMember", () => {
+  it("removes a non-owner member", async () => {
+    const { builder, captured } = makeSupabase([{ data: { role: "staff" } }]);
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await removeMember(ORG_ID, USER_ID);
+
+    expect(result.ok).toBe(true);
+    expect(captured.deleted).toBe(true);
+  });
+
+  it("rejects removing the last owner", async () => {
+    const { builder, captured } = makeSupabase([{ data: { role: "owner" } }], {
+      count: 1,
+    });
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await removeMember(ORG_ID, USER_ID);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/last owner/i);
+    expect(captured.deleted).toBeUndefined();
+  });
+
+  it("allows removing an owner when other owners remain", async () => {
+    const { builder, captured } = makeSupabase([{ data: { role: "owner" } }], {
+      count: 2,
+    });
+    requireOrgAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await removeMember(ORG_ID, USER_ID);
+
+    expect(result.ok).toBe(true);
+    expect(captured.deleted).toBe(true);
   });
 });

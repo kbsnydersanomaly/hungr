@@ -1,5 +1,7 @@
 # Loading Spinners for Dashboard Server Actions
 
+> Note: Prompt 7 later moved restaurant management routes under `(manage)/` (e.g. `app/(dashboard)/restaurants/[restaurantId]/(manage)/...`); public URLs are unchanged.
+
 **Date:** 2026-06-24  
 **Goal:** Prevent duplicate submissions and communicate progress by showing a loading spinner and disabling every dashboard server-action button while its action is pending, with `sonner` toast feedback.
 
@@ -81,7 +83,7 @@ Previously these actions swallowed validation errors by returning `void`:
 | `pnpm build` | ✅ Passed |
 | `pnpm test --run` | ✅ 91 tests passed |
 
-`npx tsc --noEmit` reports one pre-existing type error in the untracked test file `tests/unit/billing-actions.test.ts`, unrelated to this task.
+`npx tsc --noEmit` is clean.
 
 ## Deployment notes
 

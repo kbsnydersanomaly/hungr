@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatZar } from "@/lib/utils/money";
-import { CreditCard, Calendar } from "lucide-react";
+import { CreditCard, Calendar, Lock } from "lucide-react";
 import { SubscriptionActions } from "@/components/dashboard/SubscriptionActions";
 import { PaymentStatusBanner } from "@/components/dashboard/PaymentStatusBanner";
 import { TransactionHistoryCard } from "@/components/dashboard/TransactionHistoryCard";
@@ -36,6 +36,7 @@ export default async function RestaurantBillingPage({
 
   const sp = await searchParams;
   const status = sp?.status;
+  const reason = sp?.reason;
   const filters = parseTransactionFilters(sp);
 
   let restaurant;
@@ -70,6 +71,25 @@ export default async function RestaurantBillingPage({
         status={status}
         cancelMessage="Payment was cancelled. You can try again below."
       />
+
+      {reason === "subscription_required" && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                  Restaurant management is locked
+                </p>
+                <p className="text-sm text-amber-800 dark:text-amber-300">
+                  Resolve your subscription below to edit menus, branding, and
+                  other restaurant settings.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subscription Card */}
       <Card>

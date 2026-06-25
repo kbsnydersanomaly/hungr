@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   isRestaurantSubscriptionValid,
   loadRestaurantSubscriptions,
+  type SubscriptionRow,
   type SubscriptionValidity,
 } from "@/lib/billing/subscription";
 
@@ -12,6 +13,10 @@ interface SubscriptionInvalidBannerProps {
   restaurantId: string;
   orgId: string;
   billingHref: string;
+  /** Whether the viewer can act on billing (owner/admin). Managers get an info-only note. */
+  canManageBilling?: boolean;
+  /** Pre-loaded subscriptions; when omitted the banner loads them itself. */
+  subscriptions?: SubscriptionRow[];
 }
 
 const messages: Record<
@@ -30,15 +35,22 @@ export async function SubscriptionInvalidBanner({
   restaurantId,
   orgId,
   billingHref,
+  canManageBilling = true,
+  subscriptions: subscriptionsProp,
 }: SubscriptionInvalidBannerProps) {
-  const supabase = await createServerClient();
-  const subscriptions = await loadRestaurantSubscriptions(supabase, {
-    id: restaurantId,
-    org_id: orgId,
-  });
+  const subscriptions =
+    subscriptionsProp ??
+    (await loadRestaurantSubscriptions(await createServerClient(), {
+      id: restaurantId,
+      org_id: orgId,
+    }));
   const validity = isRestaurantSubscriptionValid(subscriptions);
 
   if (validity.valid) {
+    return null;
+  }
+
+  if (validity.reason === "pending") {
     return null;
   }
 
@@ -52,14 +64,20 @@ export async function SubscriptionInvalidBanner({
             Your public menu is hidden from visitors.
           </span>
         </div>
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900 shrink-0"
-        >
-          <Link href={billingHref}>Billing settings</Link>
-        </Button>
+        {canManageBilling ? (
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900 shrink-0"
+          >
+            <Link href={billingHref}>Billing settings</Link>
+          </Button>
+        ) : (
+          <span className="text-rose-600 dark:text-rose-400 text-sm shrink-0">
+            Contact your account owner to restore it.
+          </span>
+        )}
       </div>
     </div>
   );

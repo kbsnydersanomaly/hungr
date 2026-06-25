@@ -53,6 +53,19 @@ describe("Header", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "About Testaurant" })
+    ).toHaveAttribute("href", "/m/testaurant/about?menu=dinner");
+  });
+
+  it("omits the menu query param when no current menu slug is set", () => {
+    render(
+      <Header
+        restaurantName="Testaurant"
+        restaurantSlug="testaurant"
+        currentMenuSlug=""
+      />
+    );
+    expect(
+      screen.getByRole("link", { name: "About Testaurant" })
     ).toHaveAttribute("href", "/m/testaurant/about");
   });
 });
