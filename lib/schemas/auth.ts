@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidSouthAfricanPhone } from "@/lib/utils/phone";
 
 export const SignUpSchema = z
   .object({
@@ -9,6 +10,9 @@ export const SignUpSchema = z
     confirmPassword: z.string(),
     firstName: z.string().min(1, "First name is required"),
     lastName: z.string().min(1, "Last name is required"),
+    phone: z.string().refine(isValidSouthAfricanPhone, {
+      message: "Please enter a valid South African cellphone number",
+    }),
     organizationName: z
       .string()
       .trim()
