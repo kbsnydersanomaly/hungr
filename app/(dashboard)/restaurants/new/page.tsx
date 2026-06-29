@@ -52,7 +52,7 @@ export default async function NewRestaurantPage() {
               </div>
             </div>
             <Button asChild>
-              <Link href="/pricing">View plans</Link>
+              <Link href="/settings/billing">Manage billing</Link>
             </Button>
           </CardContent>
         </Card>
@@ -73,7 +73,9 @@ export default async function NewRestaurantPage() {
               </div>
             </div>
             <Button asChild variant="outline">
-              <Link href="/contact-sales">Contact sales</Link>
+              <a href="mailto:hello@hungr.app?subject=Enterprise%20plan%20enquiry">
+                Contact sales
+              </a>
             </Button>
           </CardContent>
         </Card>
