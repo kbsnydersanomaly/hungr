@@ -6,22 +6,17 @@ import { requireSession } from "@/lib/auth/session";
 import { safeAction, ValidationError } from "@/lib/errors";
 import { UpdateProfileSchema } from "@/lib/schemas/profile";
 import { normalizeSouthAfricanPhone } from "@/lib/utils/phone";
-import { ZodError } from "zod";
 
 export async function updateProfile(formData: FormData) {
   return safeAction(async () => {
     const { user } = await requireSession();
 
     const raw = Object.fromEntries(formData);
-    let parsed;
-    try {
-      parsed = UpdateProfileSchema.parse(raw);
-    } catch (err) {
-      if (err instanceof ZodError) {
-        throw new ValidationError(err.errors[0].message);
-      }
-      throw err;
+    const parsedResult = UpdateProfileSchema.safeParse(raw);
+    if (!parsedResult.success) {
+      throw new ValidationError(parsedResult.error.issues[0].message);
     }
+    const parsed = parsedResult.data;
 
     const normalizedPhone = parsed.phone
       ? normalizeSouthAfricanPhone(parsed.phone)
