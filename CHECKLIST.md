@@ -8,7 +8,7 @@
 ☐ Plans seeded ☐ Test user email confirmed ☐ Super admin set (if testing `/admin`) ☐ `NEXT_PUBLIC_APP_URL` matches env
 
 ### Marketing & auth
-☐ `/` loads ☐ `/pricing` shows plans ☐ Sign up → confirm email → sign in ☐ Sign out ☐ Forgot password email + reset works ☐ Logged-out `/dashboard` → `/sign-in`
+☐ `/` redirects to `/sign-in` when logged out ☐ `/sign-in` loads and sign-up mode is accessible ☐ Sign up → confirm email → sign in ☐ Sign out ☐ Forgot password email + reset works ☐ Logged-out `/dashboard` → `/sign-in`
 
 ### Restaurant & billing
 ☐ Create restaurant ☐ PayFast checkout completes (or sandbox return) ☐ Success banner on billing ☐ Restaurant slug visible on `/restaurants`

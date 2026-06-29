@@ -33,10 +33,9 @@ cd rebuild && pnpm build
 
 | Route | Status | Notes |
 |-------|--------|-------|
-| `/` (landing) | ✅ | Marketing page |
-| `/pricing` | ✅ | Dynamic plans from DB |
-| `/contact-sales` | ✅ | Form wired to `sendMail()` |
-| `/sign-in`, `/sign-up`, `/forgot`, `/reset`, `/verify` | ✅ | Full auth flow |
+| `/` | ✅ | Redirects logged-out users to `/sign-in` |
+| `/sign-in` | ✅ | Unified auth page (sign-in + embedded sign-up) |
+| `/forgot`, `/reset`, `/verify` | ✅ | Full auth flow |
 | `/accept-invite/[token]` | ✅ | Signed-in + sign-up-and-accept |
 | `/dashboard` | ✅ | Real stats, checklist |
 | `/insights` | ✅ | Recharts: line, pie, bar charts + top items |

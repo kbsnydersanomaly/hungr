@@ -24,8 +24,7 @@ Hungr is a **digital menu SaaS** for restaurants (South Africa, ZAR billing via 
 
 | Surface | URL prefix | Who uses it |
 |---------|------------|-------------|
-| **Marketing** | `/`, `/pricing`, `/contact-sales` | Prospects |
-| **Auth** | `/sign-in`, `/sign-up`, `/forgot`, `/reset`, `/verify`, `/accept-invite/[token]` | New & returning users |
+| **Auth** | `/sign-in` (sign-in + embedded sign-up), `/forgot`, `/reset`, `/verify`, `/accept-invite/[token]` | New & returning users |
 | **Dashboard** | `/dashboard`, `/restaurants/...`, `/settings/...`, `/insights` | Restaurant owners & staff |
 | **Public menu** | `/m/[restaurantSlug]/...` | Diners (no login) |
 | **Super admin** | `/admin/...` | Platform operators |
@@ -147,13 +146,11 @@ Create these accounts for a complete walkthrough. Use `@demo.test` or similar so
 
 Use **two browser contexts** for best effect: one logged-in dashboard (desktop), one incognito for the public menu (mobile viewport).
 
-### Act 1 — Marketing & signup (3 min)
+### Act 1 — Auth & signup (3 min)
 
-1. Open `/` — landing page, CTAs to sign up and pricing.
-2. Open `/pricing` — plans loaded from DB (Starter, Pro, Enterprise).
-3. Open `/contact-sales` — submit the form; with `MAIL_PROVIDER=console`, show the email in the terminal.
-4. Go to `/sign-up` — create `owner@demo.test`.
-5. Show “Check your email” → run `pnpm db:confirm-user owner@demo.test` → sign in at `/sign-in`.
+1. Open `/` while logged out — redirect to `/sign-in`.
+2. Open `/sign-in` — switch to **Sign up** and create `owner@demo.test` (cellphone required).
+3. Show “Check your email” → run `pnpm db:confirm-user owner@demo.test` → log in.
 
 **Talking point:** Sign-up auto-creates a profile and default organization.
 
@@ -228,14 +225,14 @@ Back in dashboard:
 
 Use the checklists below for QA. Mark each row: ✅ pass / ❌ fail / ⏭ skip.
 
-### 5.1 Marketing
+### 5.1 Public redirects
 
 | # | Steps | Expected |
 |---|-------|----------|
-| M1 | Visit `/` | Hero, Get started + View pricing links work |
-| M2 | Visit `/pricing` | Three plans visible with ZAR pricing |
-| M3 | Submit `/contact-sales` | Success message; email in console (or inbox if Resend/Brevo configured) |
-| M4 | Marketing nav | Pricing + Sign in links; logo links home |
+| M1 | Visit `/` while logged out | Redirects to `/sign-in` |
+| M2 | Visit `/pricing` while logged out | Redirects to `/sign-in` |
+| M3 | Visit `/contact-sales` while logged out | Redirects to `/sign-in` |
+| M4 | Visit `/sign-up` (legacy) | Redirects to `/sign-in` |
 
 ### 5.2 Authentication
 
@@ -515,10 +512,9 @@ Do **not** expect these to work in v1 — note if stakeholders ask:
 ## Quick reference — important URLs
 
 ```
-/                                    Marketing home
-/pricing                             Plans
-/sign-up                             Create account
-/sign-in                             Login
+/                                    Redirects to /sign-in when logged out
+/sign-in                             Unified auth (sign-in + embedded sign-up)
+/forgot                              Password reset request
 /dashboard                           Overview
 /insights                            Analytics
 /restaurants                         Restaurant list
