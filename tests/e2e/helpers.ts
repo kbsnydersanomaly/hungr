@@ -59,18 +59,23 @@ export async function signUp(
   email: string,
   password: string,
   firstName: string,
-  lastName: string
+  lastName: string,
+  phone: string = "0821234567"
 ) {
-  await page.goto("/sign-up");
+  await page.goto("/sign-in");
   await page.waitForSelector("form");
+
+  await page.getByRole("button", { name: /sign up/i }).click();
+  await page.waitForSelector('input[name="phone"]');
 
   await page.fill('input[name="firstName"]', firstName);
   await page.fill('input[name="lastName"]', lastName);
   await page.fill('input[name="email"]', email);
+  await page.fill('input[name="phone"]', phone);
   await page.fill('input[name="password"]', password);
   await page.fill('input[name="confirmPassword"]', password);
 
-  await page.getByRole("button", { name: "Create account" }).click();
+  await page.getByRole("button", { name: /create account/i }).click();
   await expect(page.getByText("Check your email")).toBeVisible({ timeout: 15000 });
 }
 
@@ -79,7 +84,7 @@ export async function signIn(page: Page, email: string, password: string) {
   await page.waitForSelector("form");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: /log in/i }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 }
 
