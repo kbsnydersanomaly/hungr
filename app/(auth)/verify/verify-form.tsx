@@ -64,10 +64,10 @@ export default function VerifyForm() {
         The verification link is invalid or has expired.
       </p>
       <Link
-        href="/sign-up"
+        href="/sign-in"
         className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium transition-all hover:bg-muted w-full"
       >
-        Back to sign up
+        Back to sign in
       </Link>
     </div>
   );
