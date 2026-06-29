@@ -14,7 +14,7 @@ export default async function ProfileSettingsPage() {
   const supabase = await createServerClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, first_name, last_name")
+    .select("display_name, first_name, last_name, phone")
     .eq("id", user.id)
     .single();
 
@@ -65,6 +65,17 @@ export default async function ProfileSettingsPage() {
                       disabled={isPending}
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Cellphone</Label>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    defaultValue={profile?.phone ?? ""}
+                    placeholder="082 123 4567"
+                    disabled={isPending}
+                  />
                 </div>
                 <SubmitButton>Save changes</SubmitButton>
               </div>
