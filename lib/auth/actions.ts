@@ -17,6 +17,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "@/lib/auth/auth-email";
+import { normalizeSouthAfricanPhone } from "@/lib/utils/phone";
 
 export async function signUpAction(formData: FormData) {
   return safeAction(async () => {
@@ -28,6 +29,7 @@ export async function signUpAction(formData: FormData) {
       first_name: parsed.firstName,
       last_name: parsed.lastName,
       display_name: `${parsed.firstName} ${parsed.lastName}`,
+      phone: normalizeSouthAfricanPhone(parsed.phone),
       ...(parsed.organizationName
         ? { org_name: parsed.organizationName }
         : {}),
