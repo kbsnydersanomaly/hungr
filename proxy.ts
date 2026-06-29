@@ -3,14 +3,11 @@ import { createServerClient } from "@supabase/ssr";
 import { env } from "@/lib/env";
 import type { Database } from "@/lib/database.types";
 
-// Routes that never require a session. "/" must match exactly —
-// everything else here is a prefix.
-const PUBLIC_EXACT = ["/", "/pricing", "/contact-sales", "/api/health"];
+const PUBLIC_EXACT = ["/sign-in", "/forgot", "/reset", "/verify", "/api/health"];
 
 const PUBLIC_PREFIXES = [
   "/m/",
   "/sign-in",
-  "/sign-up",
   "/forgot",
   "/reset",
   "/verify",
@@ -23,15 +20,18 @@ const PUBLIC_PREFIXES = [
 function isPublicPath(pathname: string): boolean {
   return (
     PUBLIC_EXACT.includes(pathname) ||
-    PUBLIC_PREFIXES.some((p) => pathname === p.replace(/\/$/, "") || pathname.startsWith(p))
+    PUBLIC_PREFIXES.some(
+      (p) => pathname === p.replace(/\/$/, "") || pathname.startsWith(p)
+    )
   );
 }
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (isPublicPath(pathname)) {
-    return NextResponse.next();
+  // Legacy sign-up route now lives inside /sign-in.
+  if (pathname === "/sign-up" || pathname.startsWith("/sign-up/")) {
+    return NextResponse.redirect(new URL("/sign-in", req.url));
   }
 
   // Create a Supabase client bound to the request/response so that
@@ -63,6 +63,15 @@ export async function proxy(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Authenticated users hitting the removed homepage go to the dashboard.
+  if (user && pathname === "/") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  if (isPublicPath(pathname)) {
+    return response;
+  }
 
   if (!user) {
     const url = req.nextUrl.clone();
