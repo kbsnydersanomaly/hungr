@@ -14,6 +14,7 @@ describe("normalizeSouthAfricanPhone", () => {
   it("normalizes international +27 numbers", () => {
     expect(normalizeSouthAfricanPhone("+27 82 123 4567")).toBe("+27821234567");
     expect(normalizeSouthAfricanPhone("27821234567")).toBe("+27821234567");
+    expect(normalizeSouthAfricanPhone("+27 (0)82 123 4567")).toBe("+27821234567");
   });
 
   it("rejects invalid numbers", () => {
@@ -21,6 +22,9 @@ describe("normalizeSouthAfricanPhone", () => {
     expect(normalizeSouthAfricanPhone("082123")).toBeNull();
     expect(normalizeSouthAfricanPhone("")).toBeNull();
     expect(normalizeSouthAfricanPhone("+1 555 123 4567")).toBeNull();
+    expect(normalizeSouthAfricanPhone("2751234567")).toBeNull();
+    expect(normalizeSouthAfricanPhone("0951234567")).toBeNull();
+    expect(normalizeSouthAfricanPhone("08212345678")).toBeNull();
   });
 });
 
