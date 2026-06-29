@@ -10,7 +10,13 @@ import { signInAction, resendVerificationEmail } from "@/lib/auth/actions";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
-export default function SignInForm() {
+interface SignInFormProps {
+  onSwitchToSignUp: () => void;
+}
+
+export default function SignInForm({
+  onSwitchToSignUp,
+}: SignInFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -29,11 +35,9 @@ export default function SignInForm() {
 
   useEffect(() => {
     if (resendCountdown <= 0) return;
-
     const timer = setTimeout(() => {
       setResendCountdown((prev) => Math.max(0, prev - 1));
     }, 1000);
-
     return () => clearTimeout(timer);
   }, [resendCountdown]);
 
@@ -79,10 +83,7 @@ export default function SignInForm() {
   return (
     <div className="space-y-6">
       <div className="space-y-2 text-center">
-        <h1 className="text-xl font-semibold font-heading">Sign in</h1>
-        <p className="text-sm text-muted-foreground">
-          Welcome back to Hungr
-        </p>
+        <h1 className="text-xl font-semibold font-heading">Log in</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -99,7 +100,15 @@ export default function SignInForm() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link
+              href="/forgot"
+              className="text-sm text-muted-foreground hover:text-primary"
+            >
+              Forgot Password?
+            </Link>
+          </div>
           <Input
             id="password"
             name="password"
@@ -120,7 +129,9 @@ export default function SignInForm() {
                 size="sm"
                 className="h-auto shrink-0 px-2 py-1 text-xs"
                 onClick={handleResend}
-                disabled={resendLoading || resendCountdown > 0 || !email || !password}
+                disabled={
+                  resendLoading || resendCountdown > 0 || !email || !password
+                }
               >
                 {resendLoading
                   ? "Sending..."
@@ -137,24 +148,19 @@ export default function SignInForm() {
         )}
 
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? "Signing in..." : "Log in"}
         </Button>
-
-        <div className="text-center">
-          <Link
-            href="/forgot"
-            className="text-sm text-muted-foreground hover:text-primary"
-          >
-            Forgot your password?
-          </Link>
-        </div>
       </form>
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
-        <Link href="/sign-up" className="text-primary hover:underline">
-          Get started
-        </Link>
+        <button
+          type="button"
+          onClick={onSwitchToSignUp}
+          className="text-primary hover:underline"
+        >
+          Sign up
+        </button>
       </p>
     </div>
   );
