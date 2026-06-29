@@ -1,10 +1,19 @@
-import { Suspense } from "react";
+"use client";
+
+import { useState } from "react";
 import SignInForm from "./sign-in-form";
+import SignUpForm from "./sign-up-form";
 
 export default function SignInPage() {
+  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+
   return (
-    <Suspense fallback={<div className="text-center text-sm text-muted-foreground">Loading...</div>}>
-      <SignInForm />
-    </Suspense>
+    <>
+      {mode === "sign-in" ? (
+        <SignInForm onSwitchToSignUp={() => setMode("sign-up")} />
+      ) : (
+        <SignUpForm onSwitchToSignIn={() => setMode("sign-in")} />
+      )}
+    </>
   );
 }
