@@ -1123,6 +1123,7 @@ export type Database = {
           is_super_admin: boolean
           last_name: string | null
           notification_prefs: Json
+          phone: string | null
           updated_at: string
         }
         Insert: {
@@ -1136,6 +1137,7 @@ export type Database = {
           is_super_admin?: boolean
           last_name?: string | null
           notification_prefs?: Json
+          phone?: string | null
           updated_at?: string
         }
         Update: {
@@ -1149,6 +1151,7 @@ export type Database = {
           is_super_admin?: boolean
           last_name?: string | null
           notification_prefs?: Json
+          phone?: string | null
           updated_at?: string
         }
         Relationships: [
