@@ -181,23 +181,21 @@ export default async function OrgBillingPage({
               }}
               className="pt-2"
             >
-              {() => (
-                <div className="rounded-lg border border-dashed p-4 bg-muted/30">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium">Upgrade to Pro</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Flat fee for up to 10 restaurants. Cancel your per-restaurant
-                        subscriptions and simplify billing.
-                      </p>
-                    </div>
-                    <SubmitButton type="submit" size="sm">
-                      <ArrowUpRight className="h-4 w-4 mr-2" />
-                      Upgrade
-                    </SubmitButton>
+              <div className="rounded-lg border border-dashed p-4 bg-muted/30">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Upgrade to Pro</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Flat fee for up to 10 restaurants. Cancel your per-restaurant
+                      subscriptions and simplify billing.
+                    </p>
                   </div>
+                  <SubmitButton type="submit" size="sm">
+                    <ArrowUpRight className="h-4 w-4 mr-2" />
+                    Upgrade
+                  </SubmitButton>
                 </div>
-              )}
+              </div>
             </ServerActionForm>
           )}
         </CardContent>

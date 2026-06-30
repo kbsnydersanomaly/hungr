@@ -67,6 +67,13 @@ interface ItemData {
   variations: { name: string; price_cents?: number }[];
   sides: { name: string; price_cents?: number }[];
   sauces: { name: string; price_cents?: number }[];
+  pairing_ids?: string[];
+}
+
+/** Minimal shape needed to offer an item as a pairing choice. */
+interface PairingOption {
+  id: string;
+  name: string;
 }
 
 interface ItemEditSheetProps {
@@ -76,6 +83,8 @@ interface ItemEditSheetProps {
   categoryId: string;
   restaurantId: string;
   item?: ItemData | null;
+  /** Other items in this menu, used to pick pairings. */
+  menuItems?: PairingOption[];
 }
 
 interface FormState {
@@ -89,6 +98,7 @@ interface FormState {
   variations: OptionItem[];
   sides: OptionItem[];
   sauces: OptionItem[];
+  pairingIds: string[];
 }
 
 function toOptionItems(
@@ -120,6 +130,7 @@ function getInitialState(item?: ItemData | null): FormState {
     variations: toOptionItems(item?.variations),
     sides: toOptionItems(item?.sides),
     sauces: toOptionItems(item?.sauces),
+    pairingIds: item?.pairing_ids ?? [],
   };
 }
 
@@ -137,19 +148,33 @@ export function ItemEditSheet({
   categoryId,
   restaurantId,
   item,
+  menuItems = [],
 }: ItemEditSheetProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<FormState>(() => getInitialState(item));
   const [suggestions, setSuggestions] =
     useState<OptionSuggestions>(EMPTY_SUGGESTIONS);
+  const [pairingSearch, setPairingSearch] = useState("");
+
+  // Other items in the menu that can be picked as pairings (never itself).
+  const pairingChoices = menuItems.filter((m) => m.id !== item?.id);
+  const pairingNameById = new Map(pairingChoices.map((m) => [m.id, m.name]));
+  const unselectedPairings = pairingChoices.filter(
+    (m) =>
+      !form.pairingIds.includes(m.id) &&
+      m.name.toLowerCase().includes(pairingSearch.trim().toLowerCase())
+  );
 
   // Re-derive form state every time the sheet opens so stale values never
   // leak between items (state adjustment during render, per React docs).
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
     setPrevOpen(open);
-    if (open) setForm(getInitialState(item));
+    if (open) {
+      setForm(getInitialState(item));
+      setPairingSearch("");
+    }
   }
 
   // Load option-name suggestions for autocomplete when the sheet opens.
@@ -201,6 +226,19 @@ export function ItemEditSheet({
     );
   }
 
+  function addPairing(id: string) {
+    if (form.pairingIds.includes(id)) return;
+    set("pairingIds", [...form.pairingIds, id]);
+    setPairingSearch("");
+  }
+
+  function removePairing(id: string) {
+    set(
+      "pairingIds",
+      form.pairingIds.filter((pid) => pid !== id)
+    );
+  }
+
   function toCents(priceStr: string): number | undefined {
     const n = parseFloat(priceStr);
     return isNaN(n) || n <= 0 ? undefined : Math.round(n * 100);
@@ -231,6 +269,7 @@ export function ItemEditSheet({
     formData.set("variations", serializeOptions(form.variations));
     formData.set("sides", serializeOptions(form.sides));
     formData.set("sauces", serializeOptions(form.sauces));
+    formData.set("pairing_ids", JSON.stringify(form.pairingIds));
 
     try {
       const result = await upsertItem(menuId, formData);
@@ -411,6 +450,64 @@ export function ItemEditSheet({
               </div>
             </details>
           ))}
+
+          {/* Pairings — other items in this menu that go well with this one */}
+          {pairingChoices.length > 0 && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium py-2 border-b">
+                Pairings
+              </summary>
+              <div className="space-y-3 pt-3">
+                {form.pairingIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {form.pairingIds.map((id) => (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground"
+                      >
+                        {pairingNameById.get(id) ?? "Unknown item"}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${pairingNameById.get(id) ?? "pairing"}`}
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => removePairing(id)}
+                        >
+                          <X className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <Input
+                  value={pairingSearch}
+                  onChange={(e) => setPairingSearch(e.target.value)}
+                  placeholder="Search items to pair…"
+                />
+
+                {pairingSearch.trim() && (
+                  <div className="max-h-48 overflow-y-auto rounded-lg border">
+                    {unselectedPairings.length > 0 ? (
+                      unselectedPairings.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className="flex w-full items-center px-3 py-2 text-left text-sm hover:bg-muted"
+                          onClick={() => addPairing(m.id)}
+                        >
+                          {m.name}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">
+                        No matching items.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

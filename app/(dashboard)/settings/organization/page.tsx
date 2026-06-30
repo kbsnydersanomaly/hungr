@@ -1,9 +1,13 @@
 import { redirect } from "next/navigation";
 import { getActiveOrg } from "@/lib/auth/active-org";
 import { createServerClient } from "@/lib/supabase/server";
+import { getRestaurantBillingContext } from "@/lib/billing/pricing";
+import type { OrgRole } from "@/lib/auth/role";
 import { updateOrganizationName } from "@/lib/data/organization-actions";
 import { PageHeader } from "@/components/PageHeader";
+import { AddRestaurantButton } from "@/components/dashboard/AddRestaurantButton";
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
+import { FormFieldset } from "@/components/forms/FormFieldset";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +21,8 @@ export default async function OrganizationSettingsPage() {
     redirect("/settings/profile");
   }
 
+  const billing = await getRestaurantBillingContext(activeOrg.orgId);
+
   const supabase = await createServerClient();
   const { data: org } = await supabase
     .from("organizations")
@@ -29,6 +35,9 @@ export default async function OrganizationSettingsPage() {
       <PageHeader
         title="Organization"
         description="Manage your organization settings"
+        action={
+          <AddRestaurantButton role={activeOrg.role as OrgRole} billing={billing} />
+        }
       />
       <Card>
         <CardContent className="space-y-4">
@@ -36,22 +45,19 @@ export default async function OrganizationSettingsPage() {
             action={updateOrganizationName}
             successMessage="Organization name updated."
           >
-            {({ isPending }) => (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Organization name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    defaultValue={org?.name ?? ""}
-                    placeholder="e.g. Acme Inc."
-                    required
-                    disabled={isPending}
-                  />
-                </div>
-                <SubmitButton>Save changes</SubmitButton>
+            <FormFieldset className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Organization name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  defaultValue={org?.name ?? ""}
+                  placeholder="e.g. Acme Inc."
+                  required
+                />
               </div>
-            )}
+              <SubmitButton>Save changes</SubmitButton>
+            </FormFieldset>
           </ServerActionForm>
         </CardContent>
       </Card>

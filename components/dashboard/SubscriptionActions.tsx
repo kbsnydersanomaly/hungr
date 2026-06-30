@@ -1,69 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import {
   pauseSubscriptionAction,
   cancelSubscriptionAction,
   resumeSubscriptionAction,
+  retrySubscriptionCheckout,
 } from "@/lib/data/billing-actions";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Pause, Play, XCircle, Loader2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
+import { useAction } from "@/lib/hooks/use-action";
+import { Pause, Play, XCircle, Loader2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
-
-function ConfirmDialog({
-  open,
-  onOpenChange,
-  trigger,
-  title,
-  description,
-  confirmLabel,
-  confirmVariant = "destructive",
-  loading,
-  onConfirm,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  trigger: React.ReactElement;
-  title: string;
-  description: React.ReactNode;
-  confirmLabel: string;
-  confirmVariant?: "destructive" | "default";
-  loading: boolean;
-  onConfirm: () => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={trigger} />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="flex justify-end gap-2 pt-4">
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            Never mind
-          </Button>
-          <Button variant={confirmVariant} onClick={onConfirm} disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {confirmLabel}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 interface SubscriptionActionsProps {
   subscriptionId: string;
@@ -76,55 +23,30 @@ export function SubscriptionActions({
   status,
   payfastToken,
 }: SubscriptionActionsProps) {
-  const [loading, setLoading] = useState<string | null>(null);
-  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
-  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
-
-  async function handlePause() {
-    setLoading("pause");
-    try {
-      const result = await pauseSubscriptionAction(subscriptionId);
-      if (!result.ok) throw new Error(result.message || "Failed to pause.");
-      toast.success("Subscription paused.");
-      setPauseConfirmOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to pause.");
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  async function handleResume() {
-    setLoading("resume");
-    try {
-      const result = await resumeSubscriptionAction(subscriptionId);
-      if (!result.ok) throw new Error(result.message || "Failed to resume.");
-      toast.success("Subscription resumed.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resume.");
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  async function handleCancel() {
-    setLoading("cancel");
-    try {
-      const result = await cancelSubscriptionAction(subscriptionId);
-      if (!result.ok) throw new Error(result.message || "Failed to cancel.");
-      toast.success("Subscription cancelled.");
-      setCancelConfirmOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel.");
-    } finally {
-      setLoading(null);
-    }
-  }
+  const resume = useAction(resumeSubscriptionAction, {
+    successMessage: "Subscription resumed.",
+  });
+  // Retry redirects to PayFast on success, so it only resolves here on error.
+  const retry = useAction(retrySubscriptionCheckout);
 
   if (status === "pending") {
     return (
-      <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-        Waiting for first payment. Complete checkout to activate your subscription.
+      <div className="rounded-lg border border-dashed p-4 space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Payment pending — complete checkout to activate your subscription.
+        </p>
+        <Button
+          size="sm"
+          onClick={() => retry.run(subscriptionId)}
+          disabled={retry.isPending}
+        >
+          {retry.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <CreditCard className="h-4 w-4 mr-2" />
+          )}
+          Retry payment
+        </Button>
       </div>
     );
   }
@@ -134,50 +56,38 @@ export function SubscriptionActions({
       {status === "active" && (
         <>
           <ConfirmDialog
-            open={pauseConfirmOpen}
-            onOpenChange={setPauseConfirmOpen}
-            trigger={
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={loading !== null || !payfastToken}
-              >
-                {loading === "pause" ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Pause className="h-4 w-4 mr-2" />
-                )}
-                Pause
-              </Button>
-            }
             title="Pause subscription?"
             description="Pausing will skip the next billing cycle. Your menu will stay visible until the end of the current billing period."
             confirmLabel="Yes, pause"
             confirmVariant="default"
-            loading={loading === "pause"}
-            onConfirm={handlePause}
-          />
+            onConfirm={async () => {
+              const result = await pauseSubscriptionAction(subscriptionId);
+              if (!result.ok) throw new Error(result.message || "Failed to pause.");
+              toast.success("Subscription paused.");
+            }}
+          >
+            <Button variant="outline" size="sm" disabled={!payfastToken}>
+              <Pause className="h-4 w-4 mr-2" />
+              Pause
+            </Button>
+          </ConfirmDialog>
 
           <ConfirmDialog
-            open={cancelConfirmOpen}
-            onOpenChange={setCancelConfirmOpen}
-            trigger={
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={loading !== null || !payfastToken}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
-            }
             title="Cancel subscription?"
             description="This will cancel your recurring billing. You can re-subscribe later, but you may lose any promotional pricing."
             confirmLabel="Yes, cancel"
             confirmVariant="destructive"
-            loading={loading === "cancel"}
-            onConfirm={handleCancel}
-          />
+            onConfirm={async () => {
+              const result = await cancelSubscriptionAction(subscriptionId);
+              if (!result.ok) throw new Error(result.message || "Failed to cancel.");
+              toast.success("Subscription cancelled.");
+            }}
+          >
+            <Button variant="destructive" size="sm" disabled={!payfastToken}>
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+          </ConfirmDialog>
         </>
       )}
 
@@ -185,10 +95,10 @@ export function SubscriptionActions({
         <Button
           variant="outline"
           size="sm"
-          onClick={handleResume}
-          disabled={loading !== null || !payfastToken}
+          onClick={() => resume.run(subscriptionId)}
+          disabled={resume.isPending || !payfastToken}
         >
-          {loading === "resume" ? (
+          {resume.isPending ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           ) : (
             <Play className="h-4 w-4 mr-2" />

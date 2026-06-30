@@ -54,7 +54,12 @@ export function RecommendedCard({
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 p-3">
-        <h3 className="text-sm font-semibold leading-tight text-white">
+        {/* Inline color beats the .branding-scope heading rule so the title
+            stays white/readable over the image gradient. */}
+        <h3
+          className="text-sm font-semibold leading-tight text-white"
+          style={{ color: "#fff" }}
+        >
           {item.name}
         </h3>
         <p className="mt-0.5 text-xs font-medium text-white/90">

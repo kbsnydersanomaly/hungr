@@ -11,6 +11,12 @@ interface MobileNavProps {
   currentMenuSlug: string;
   menus: Array<{ id: string; name: string; slug: string }>;
   categories: Array<{ id: string; name: string }>;
+  /**
+   * Called when a category is tapped while already on the menu page. When
+   * omitted (e.g. on the item detail page), categories render as Links that
+   * navigate back to the menu with `?category=<id>` applied.
+   */
+  onCategorySelect?: (id: string) => void;
 }
 
 export function MobileNav({
@@ -19,6 +25,7 @@ export function MobileNav({
   currentMenuSlug,
   menus,
   categories,
+  onCategorySelect,
 }: MobileNavProps) {
   const [open, setOpen] = useState(false);
 
@@ -67,19 +74,29 @@ export function MobileNav({
                 Categories
               </p>
               <div className="space-y-1">
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => {
-                      setOpen(false);
-                      const el = document.getElementById(`category-${category.id}`);
-                      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                    className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors"
-                  >
-                    {category.name}
-                  </button>
-                ))}
+                {categories.map((category) =>
+                  onCategorySelect ? (
+                    <button
+                      key={category.id}
+                      onClick={() => {
+                        setOpen(false);
+                        onCategorySelect(category.id);
+                      }}
+                      className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    >
+                      {category.name}
+                    </button>
+                  ) : (
+                    <Link
+                      key={category.id}
+                      href={`/m/${restaurantSlug}/${currentMenuSlug}?category=${category.id}`}
+                      onClick={() => setOpen(false)}
+                      className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors"
+                    >
+                      {category.name}
+                    </Link>
+                  )
+                )}
               </div>
             </div>
           )}

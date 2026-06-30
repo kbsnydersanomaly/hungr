@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { loadRestaurantById } from "@/lib/data/restaurants";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { loadAboutPage } from "@/lib/data/about-actions";
 import { PageHeader } from "@/components/PageHeader";
 import { AboutEditor } from "@/components/dashboard/AboutEditor";
@@ -17,6 +18,7 @@ export default async function AboutPage({
   } catch {
     notFound();
   }
+  await requireRestaurantManagement(restaurant);
 
   const about = await loadAboutPage(restaurantId);
 

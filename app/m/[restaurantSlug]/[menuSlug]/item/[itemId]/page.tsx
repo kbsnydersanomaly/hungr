@@ -1,11 +1,22 @@
 import { notFound } from "next/navigation";
-import { loadMenuBySlug } from "@/lib/data/menus";
+import { loadMenuBySlug, loadCategoriesForMenu, loadSubcategoriesForMenu, buildCategoryTree } from "@/lib/data/menus";
 import { loadRestaurantBySlug } from "@/lib/data/restaurants";
 import Image from "next/image";
 import { loadApprovedReviewsForItem, loadReviewStatsForItem } from "@/lib/data/reviews";
-import { loadCombosForItem, loadRecommendedItems } from "@/lib/data/item-detail-actions";
+import {
+  loadCombosForItem,
+  loadPairedItems,
+  loadRecommendedItems,
+} from "@/lib/data/item-detail-actions";
 import { loadActiveSpecialsForRestaurant } from "@/lib/data/specials";
 import { loadBranding } from "@/lib/data/branding";
+import { loadPublishedMenusForRestaurant } from "@/lib/data/menu-switcher-actions";
+import {
+  applicableItemDiscount,
+  currentScheduleContext,
+  filterActiveSpecials,
+} from "@/lib/utils/specials";
+import { formatZar } from "@/lib/utils/money";
 import { Header } from "@/components/menu/Header";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ImageCarousel } from "@/components/menu/ImageCarousel";
@@ -50,14 +61,27 @@ export default async function ItemDetailPage({
         ? [rawItem.image_url]
         : [];
 
-  const [reviews, stats, combos, recommended, branding, specials] = await Promise.all([
+  const [reviews, stats, combos, paired, recommended, branding, specials, topCategories, subCategories, menus] = await Promise.all([
     loadApprovedReviewsForItem(itemId),
     loadReviewStatsForItem(itemId),
     loadCombosForItem(itemId),
+    loadPairedItems(menu.id, (rawItem.pairing_ids ?? []) as string[]),
     loadRecommendedItems(menu.id, itemId, 4),
     loadBranding(restaurant.id),
     loadActiveSpecialsForRestaurant(restaurant.id),
+    loadCategoriesForMenu(menu.id),
+    loadSubcategoriesForMenu(menu.id),
+    loadPublishedMenusForRestaurant(restaurant.id),
   ]);
+  const categories = buildCategoryTree(topCategories, subCategories).map((c) => ({
+    id: c.id,
+    name: c.name,
+  }));
+
+  const discount = applicableItemDiscount(
+    { id: item.id, category_id: rawItem.category_id, price_cents: item.price_cents },
+    filterActiveSpecials(specials, currentScheduleContext())
+  );
 
   const itemDiscount = getItemDiscount(rawItem, specials, { menuId: menu.id });
 
@@ -68,6 +92,8 @@ export default async function ItemDetailPage({
         logoUrl={branding?.logo_url}
         restaurantSlug={restaurantSlug}
         currentMenuSlug={menuSlug}
+        menus={menus}
+        categories={categories}
       />
 
       <div className="flex-1 px-4 py-6 space-y-6">
@@ -267,7 +293,27 @@ export default async function ItemDetailPage({
           </div>
         )}
 
-        {recommended.length > 0 && (
+        {paired.length > 0 && (
+          <div className="border-t pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h2 className="text-lg font-semibold font-heading">Pairs well with</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {paired.map((pairItem) => (
+                <RecommendedCard
+                  key={pairItem.id}
+                  item={pairItem}
+                  restaurantSlug={restaurantSlug}
+                  menuSlug={menuSlug}
+                  menuId={menu.id}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {paired.length === 0 && recommended.length > 0 && (
           <div className="border-t pt-6">
             <h2 className="text-lg font-semibold font-heading mb-4">You might also like</h2>
             <div className="grid grid-cols-2 gap-3">

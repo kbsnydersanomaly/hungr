@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/server";
 import { loadRestaurantById } from "@/lib/data/restaurants";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/link-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MenuCard } from "@/components/menu/MenuCard";
 import { Plus, UtensilsCrossed } from "lucide-react";
@@ -14,6 +14,7 @@ export default async function MenusPage({
 }) {
   const { restaurantId } = await params;
   const restaurant = await loadRestaurantById(restaurantId);
+  await requireRestaurantManagement(restaurant);
 
   const supabase = await createServerClient();
   const { data: menus } = await supabase
@@ -28,12 +29,9 @@ export default async function MenusPage({
         title="Menus"
         description={`Menus for ${restaurant.name}`}
         action={
-          <Button asChild>
-            <Link href={`/restaurants/${restaurantId}/menus/new`}>
-              <Plus className="h-4 w-4 mr-2" />
-              New menu
-            </Link>
-          </Button>
+          <LinkButton href={`/restaurants/${restaurantId}/menus/new`} icon={<Plus />}>
+            New menu
+          </LinkButton>
         }
       />
 
@@ -51,12 +49,13 @@ export default async function MenusPage({
             <p className="text-sm text-muted-foreground mt-1">
               Create your first menu for this restaurant.
             </p>
-            <Button asChild className="mt-4">
-              <Link href={`/restaurants/${restaurantId}/menus/new`}>
-                <Plus className="h-4 w-4 mr-2" />
-                New menu
-              </Link>
-            </Button>
+            <LinkButton
+              href={`/restaurants/${restaurantId}/menus/new`}
+              icon={<Plus />}
+              className="mt-4"
+            >
+              New menu
+            </LinkButton>
           </CardContent>
         </Card>
       )}

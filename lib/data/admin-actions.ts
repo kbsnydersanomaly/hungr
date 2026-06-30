@@ -2,6 +2,7 @@
 
 import { ValidationError, safeAction, NotFoundError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/auth/role";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/database.types";
 import { paginatedQuery, type PaginationResult } from "@/lib/data/admin-pagination";
 import { parsePaginationParams } from "@/lib/utils/pagination";
@@ -9,6 +10,10 @@ import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
 
 type OrganizationListRow = Database["public"]["Tables"]["organizations"]["Row"] & {
   profiles: { email: string; display_name: string | null } | null;
+};
+
+type RestaurantListRow = Database["public"]["Tables"]["restaurants"]["Row"] & {
+  organizations: { name: string; slug: string } | null;
 };
 
 type PlanInsert = Database["public"]["Tables"]["plans"]["Insert"];
@@ -439,10 +444,142 @@ export async function updateOrganization(orgId: string, formData: FormData) {
   });
 }
 
+// ── Restaurants ──────────────────────────────────────────────────────────
+
+export async function listRestaurants(
+  searchParams: { [key: string]: string | string[] | undefined }
+): Promise<PaginationResult<RestaurantListRow>> {
+  const { supabase } = await requireSuperAdmin();
+  const { page, pageSize } = parsePaginationParams(searchParams);
+  const search = typeof searchParams?.search === "string" ? searchParams.search : undefined;
+
+  let query = supabase
+    .from("restaurants")
+    .select("*, organizations(name, slug)", { count: "exact" })
+    .order("created_at", { ascending: false });
+
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
+  }
+
+  const typedQuery = query as unknown as PostgrestFilterBuilder<
+    never,
+    never,
+    RestaurantListRow,
+    RestaurantListRow[],
+    unknown
+  >;
+
+  return paginatedQuery(typedQuery, { page, pageSize });
+}
+
+export async function getRestaurant(restaurantId: string) {
+  const { supabase } = await requireSuperAdmin();
+
+  const { data, error } = await supabase
+    .from("restaurants")
+    .select("*, organizations(name, slug)")
+    .eq("id", restaurantId)
+    .single();
+
+  if (error || !data) {
+    console.error("getRestaurant error:", error);
+    throw new NotFoundError("Restaurant not found.");
+  }
+
+  return data;
+}
+
+export async function getRestaurantStorageUsageAdmin(
+  restaurantId: string
+): Promise<{ usedBytes: number; limitBytes: number }> {
+  const { supabase } = await requireSuperAdmin();
+
+  const [{ data: rows }, { data: restaurant }] = await Promise.all([
+    supabase.from("media").select("size").eq("restaurant_id", restaurantId),
+    supabase
+      .from("restaurants")
+      .select("storage_limit_mb")
+      .eq("id", restaurantId)
+      .maybeSingle(),
+  ]);
+
+  const usedBytes = (rows ?? []).reduce((sum, row) => sum + (row.size ?? 0), 0);
+  const limitBytes = (restaurant?.storage_limit_mb ?? 500) * 1024 * 1024;
+
+  return { usedBytes, limitBytes };
+}
+
+export async function updateRestaurantStorageLimit(
+  restaurantId: string,
+  formData: FormData
+) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const storageLimitMb = parseInt(String(formData.get("storage_limit_mb") ?? ""), 10);
+
+    if (!Number.isFinite(storageLimitMb) || storageLimitMb < 1) {
+      throw new ValidationError("Storage limit must be a whole number of at least 1 MB.");
+    }
+
+    const { error } = await supabase
+      .from("restaurants")
+      .update({
+        storage_limit_mb: storageLimitMb,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", restaurantId);
+
+    if (error) {
+      console.error("updateRestaurantStorageLimit error:", error);
+      throw new ValidationError("Failed to update storage limit.");
+    }
+
+    return { updated: true };
+  });
+}
+
 // ── Deletions ────────────────────────────────────────────────────────────
+
+/**
+ * Removes the storage objects backing the given media rows. FK cascades
+ * (media.org_id / media.owner_user_id `on delete cascade`) clean up the DB
+ * rows when an org or user is deleted, but those cascades never touch Supabase
+ * storage — without this the underlying files are orphaned. Best-effort: a
+ * storage failure is logged but does not abort the surrounding deletion.
+ */
+async function purgeMediaStorage(
+  media: { bucket: string; path: string }[] | null | undefined
+) {
+  if (!media || media.length === 0) return;
+
+  const byBucket = new Map<string, string[]>();
+  for (const { bucket, path } of media) {
+    const paths = byBucket.get(bucket) ?? [];
+    paths.push(path);
+    byBucket.set(bucket, paths);
+  }
+
+  const admin = createAdminClient();
+  for (const [bucket, paths] of byBucket) {
+    const { error } = await admin.storage.from(bucket).remove(paths);
+    if (error) {
+      console.error(`purgeMediaStorage error on bucket ${bucket}:`, error);
+    }
+  }
+}
 
 async function deleteOrganizationUnsafe(orgId: string) {
   const { supabase } = await requireSuperAdmin();
+
+  // Remove the storage files behind this org's media before the FK cascade
+  // drops the rows (the cascade only deletes rows, not storage objects).
+  const { data: orgMedia } = await supabase
+    .from("media")
+    .select("bucket, path")
+    .eq("org_id", orgId);
+  await purgeMediaStorage(orgMedia);
 
   // Delete dependent data in FK-safe order.
   // Adjust order based on actual schema constraints.
@@ -595,10 +732,19 @@ export async function deleteUser(userId: string) {
       throw new ValidationError("Failed to lookup user organizations.");
     }
 
-    // Cascade-delete each owned organization.
+    // Cascade-delete each owned organization (also purges its media storage).
     for (const org of ownedOrgs ?? []) {
       await deleteOrganizationUnsafe(org.id);
     }
+
+    // Remove storage for any remaining media owned by this user (e.g. uploaded
+    // into an org they don't own). Deleting the auth user cascades these rows
+    // via media.owner_user_id, but not the underlying storage objects.
+    const { data: userMedia } = await supabase
+      .from("media")
+      .select("bucket, path")
+      .eq("owner_user_id", userId);
+    await purgeMediaStorage(userMedia);
 
     const { error } = await supabase.auth.admin.deleteUser(userId);
     if (error) {

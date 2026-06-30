@@ -3,6 +3,7 @@
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { FormField } from "@/components/forms/FormField";
+import { HelpMediaPicker } from "@/components/help/HelpMediaPicker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -67,7 +68,13 @@ export function HelpArticleForm({
               defaultValue={article?.category_id ?? ""}
             >
               <SelectTrigger id="category_id" className="w-full">
-                <SelectValue placeholder="No category" />
+                <SelectValue placeholder="No category">
+                  {(value) => {
+                    if (!value) return "No category";
+                    const category = categories.find((c) => c.id === value);
+                    return category?.name ?? value;
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">No category</SelectItem>
@@ -97,12 +104,11 @@ export function HelpArticleForm({
             disabled={isPending}
           />
 
-          <FormField
-            as="textarea"
-            label="Screenshots"
+          <HelpMediaPicker
             name="screenshots"
-            hint="One image URL per line"
-            defaultValue={article?.screenshots.join("\n") ?? ""}
+            label="Screenshots"
+            hint="Upload or reuse images from the help media library."
+            defaultValue={article?.screenshots ?? []}
             disabled={isPending}
           />
 

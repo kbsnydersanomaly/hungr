@@ -113,18 +113,14 @@ export function TransactionHistoryCard({
                       <InvoiceDownloadButton
                         invoiceId={tx.invoice.id}
                         invoiceNumber={tx.invoice.number}
+                        variant="link"
                       />
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <p className="text-sm font-medium">
-                      {formatZar(tx.amount_gross_cents)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Fee: {formatZar(tx.amount_fee_cents)}
-                    </p>
+                  <TableCell className="text-right text-sm font-medium">
+                    {formatZar(tx.amount_gross_cents)}
                   </TableCell>
                 </TableRow>
               ))}

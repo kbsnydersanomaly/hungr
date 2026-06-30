@@ -17,12 +17,15 @@ interface MediaUploadDialogProps {
   restaurantId: string;
   children?: React.ReactNode;
   onUpload?: () => void;
+  /** Remaining storage for this restaurant, in bytes (for upload preflight). */
+  remainingBytes?: number;
 }
 
 export function MediaUploadDialog({
   restaurantId,
   children,
   onUpload,
+  remainingBytes,
 }: MediaUploadDialogProps) {
   const [open, setOpen] = useState(false);
 
@@ -46,6 +49,7 @@ export function MediaUploadDialog({
 
         <MediaUploadZone
           restaurantId={restaurantId}
+          remainingBytes={remainingBytes}
           onUploaded={() => {
             setOpen(false);
             onUpload?.();

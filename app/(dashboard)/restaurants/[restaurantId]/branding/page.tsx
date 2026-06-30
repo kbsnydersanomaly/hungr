@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { loadRestaurantById } from "@/lib/data/restaurants";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { loadBranding, loadBrandingDraft } from "@/lib/data/branding";
 import { BrandingEditor } from "@/components/branding/BrandingEditor";
 import { PageHeader } from "@/components/PageHeader";
@@ -17,6 +18,7 @@ export default async function BrandingPage({
   } catch {
     notFound();
   }
+  await requireRestaurantManagement(restaurant);
 
   const [live, draft] = await Promise.all([
     loadBranding(restaurantId),
@@ -24,14 +26,15 @@ export default async function BrandingPage({
   ]);
 
   return (
-    <div className="space-y-4 h-[calc(100vh-140px)]">
-      <PageHeader title="Branding" description="Customize your menu appearance" />
+    <div className="h-[calc(100vh-140px)]">
       <BrandingEditor
         restaurantId={restaurantId}
         restaurantSlug={restaurant.slug}
         live={live}
         draft={draft}
-      />
+      >
+        <PageHeader title="Branding" description="Customize your menu appearance" />
+      </BrandingEditor>
     </div>
   );
 }

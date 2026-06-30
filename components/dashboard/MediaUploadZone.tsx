@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { recordMediaUpload } from "@/lib/data/media-actions";
+import { formatBytes } from "@/lib/utils/bytes";
 import { Progress } from "@/components/ui/progress";
 import { ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +21,12 @@ interface MediaUploadZoneProps {
   restaurantId: string;
   /** Called after a successful upload with the new media record. */
   onUploaded?: (item: UploadedMediaItem) => void;
+  /**
+   * Remaining storage for this restaurant, in bytes. When set, uploads larger
+   * than this are blocked client-side before hitting storage. The server still
+   * enforces the quota authoritatively in `recordMediaUpload`.
+   */
+  remainingBytes?: number;
 }
 
 /**
@@ -27,7 +34,11 @@ interface MediaUploadZoneProps {
  * embedded inline (e.g. inside the media picker) or wrapped in a dialog
  * (see MediaUploadDialog) without nesting modals.
  */
-export function MediaUploadZone({ restaurantId, onUploaded }: MediaUploadZoneProps) {
+export function MediaUploadZone({
+  restaurantId,
+  onUploaded,
+  remainingBytes,
+}: MediaUploadZoneProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
@@ -36,6 +47,15 @@ export function MediaUploadZone({ restaurantId, onUploaded }: MediaUploadZonePro
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
         toast.error("Only image files are allowed.");
+        return;
+      }
+
+      if (remainingBytes != null && file.size > remainingBytes) {
+        toast.error(
+          `Not enough storage. This file is ${formatBytes(file.size)} but only ${formatBytes(
+            Math.max(remainingBytes, 0)
+          )} remains.`
+        );
         return;
       }
 
@@ -89,7 +109,7 @@ export function MediaUploadZone({ restaurantId, onUploaded }: MediaUploadZonePro
         setProgress(0);
       }
     },
-    [restaurantId, onUploaded]
+    [restaurantId, onUploaded, remainingBytes]
   );
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

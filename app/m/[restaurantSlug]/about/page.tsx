@@ -1,10 +1,11 @@
 import Image from "next/image";
+import Link from "next/link";
 import { loadRestaurantBySlug } from "@/lib/data/restaurants";
 import { loadPublishedMenusForRestaurant } from "@/lib/data/menu-switcher-actions";
 import { loadBranding } from "@/lib/data/branding";
 import { createServerClient } from "@/lib/supabase/server";
 import { Header } from "@/components/menu/Header";
-import { MapPin, Clock, Mail, Phone } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Mail, Phone } from "lucide-react";
 
 export default async function AboutPage({
   params,
@@ -37,6 +38,18 @@ export default async function AboutPage({
       />
 
       <div className="flex-1 px-4 py-6 space-y-6">
+        <Link
+          href={
+            defaultMenu?.slug
+              ? `/m/${restaurantSlug}/${defaultMenu.slug}`
+              : `/m/${restaurantSlug}`
+          }
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to menu
+        </Link>
+
         {about?.main_image_url && (
           <div className="relative aspect-video w-full overflow-hidden rounded-xl">
             <Image

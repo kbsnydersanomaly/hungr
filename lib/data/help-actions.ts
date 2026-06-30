@@ -36,6 +36,33 @@ const articleFormSchema = z.object({
   published: z.boolean().default(false),
 });
 
+const categoryFormSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+  slug: z.string().max(200),
+  sort_order: z.coerce.number().int().default(0),
+});
+
+function parseCategoryForm(formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim();
+  const slugInput = String(formData.get("slug") ?? "").trim();
+  const sortOrder = Number(formData.get("sort_order") ?? 0);
+
+  const slug = slugify(name, slugInput);
+
+  const parsed = categoryFormSchema.safeParse({
+    name,
+    slug,
+    sort_order: sortOrder,
+  });
+
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new ValidationError(issue?.message ?? "Invalid category data.");
+  }
+
+  return parsed.data;
+}
+
 function parseArticleForm(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const slugInput = String(formData.get("slug") ?? "").trim();
@@ -350,5 +377,89 @@ export async function toggleHelpArticlePublished(id: string, published: boolean)
     }
 
     return { updated: true };
+  });
+}
+
+export async function createHelpCategory(formData: FormData) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+    const fields = parseCategoryForm(formData);
+
+    const { data, error } = await supabase
+      .from("help_categories")
+      .insert({
+        name: fields.name,
+        slug: fields.slug,
+        sort_order: fields.sort_order,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("createHelpCategory error:", error);
+      if (error.code === "23505") {
+        throw new ValidationError("A category with that slug already exists.");
+      }
+      throw new ValidationError("Failed to create category.");
+    }
+
+    return { id: data?.id };
+  });
+}
+
+export async function updateHelpCategory(id: string, formData: FormData) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+    const fields = parseCategoryForm(formData);
+
+    const { error, data } = await supabase
+      .from("help_categories")
+      .update({
+        name: fields.name,
+        slug: fields.slug,
+        sort_order: fields.sort_order,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("id");
+
+    if (error) {
+      console.error("updateHelpCategory error:", error);
+      if (error.code === "23505") {
+        throw new ValidationError("A category with that slug already exists.");
+      }
+      throw new ValidationError("Failed to update category.");
+    }
+
+    if (!data || data.length === 0) {
+      throw new NotFoundError("Category not found.");
+    }
+
+    return { updated: true };
+  });
+}
+
+export async function deleteHelpCategory(id: string) {
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+
+    const { count, error: countError } = await supabase
+      .from("help_articles")
+      .select("id", { count: "exact", head: true })
+      .eq("category_id", id);
+
+    if (countError) {
+      console.error("deleteHelpCategory count error:", countError);
+      throw new ValidationError("Failed to delete category.");
+    }
+
+    const { error } = await supabase.from("help_categories").delete().eq("id", id);
+
+    if (error) {
+      console.error("deleteHelpCategory error:", error);
+      throw new ValidationError("Failed to delete category.");
+    }
+
+    return { deleted: true, affectedArticles: count ?? 0 };
   });
 }

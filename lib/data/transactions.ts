@@ -48,6 +48,73 @@ function escapeForOr(value: string): string {
   return value.replace(/[(),]/g, " ").trim();
 }
 
+type InvoiceMatchRow = {
+  id: string;
+  number: string;
+  subscription_id: string;
+  period_start: string;
+  period_end: string;
+  paid_at: string | null;
+  created_at: string;
+};
+
+/** Match invoices to transactions (no direct FK — use period, then paid_at proximity). */
+export function attachInvoicesToTransactions(
+  transactions: TransactionRow[],
+  invoices: InvoiceMatchRow[]
+): TransactionWithInvoice[] {
+  const invoicesBySub = new Map<string, InvoiceMatchRow[]>();
+  for (const inv of invoices) {
+    const list = invoicesBySub.get(inv.subscription_id) ?? [];
+    list.push(inv);
+    invoicesBySub.set(inv.subscription_id, list);
+  }
+
+  const usedInvoiceIds = new Set<string>();
+
+  return transactions.map((tx) => {
+    if (!tx.subscription_id) return { ...tx, invoice: null };
+
+    const candidates = (invoicesBySub.get(tx.subscription_id) ?? []).filter(
+      (inv) => !usedInvoiceIds.has(inv.id)
+    );
+    if (candidates.length === 0) return { ...tx, invoice: null };
+
+    const occurred = new Date(tx.occurred_at).getTime();
+
+    const periodMatch = candidates.find(
+      (inv) =>
+        occurred >= new Date(inv.period_start).getTime() &&
+        occurred <= new Date(inv.period_end).getTime()
+    );
+    if (periodMatch) {
+      usedInvoiceIds.add(periodMatch.id);
+      return {
+        ...tx,
+        invoice: { id: periodMatch.id, number: periodMatch.number },
+      };
+    }
+
+    let best: InvoiceMatchRow | null = null;
+    let bestDelta = Infinity;
+    for (const inv of candidates) {
+      const invTime = new Date(inv.paid_at ?? inv.created_at).getTime();
+      const delta = Math.abs(invTime - occurred);
+      if (delta < bestDelta && delta <= 48 * 60 * 60 * 1000) {
+        bestDelta = delta;
+        best = inv;
+      }
+    }
+
+    if (best) {
+      usedInvoiceIds.add(best.id);
+      return { ...tx, invoice: { id: best.id, number: best.number } };
+    }
+
+    return { ...tx, invoice: null };
+  });
+}
+
 async function loadPage(
   supabase: SupabaseClient<Database>,
   scope: { column: "restaurant_id" | "org_id"; id: string },
@@ -89,38 +156,20 @@ async function loadPage(
     ...new Set(transactions.map((t) => t.subscription_id).filter(Boolean)),
   ] as string[];
 
-  let invoices: {
-    id: string;
-    number: string;
-    subscription_id: string;
-    period_start: string;
-    period_end: string;
-  }[] = [];
+  let invoices: InvoiceMatchRow[] = [];
 
   if (subscriptionIds.length > 0) {
     const { data: invoiceRows } = await supabase
       .from("invoices")
-      .select("id, number, subscription_id, period_start, period_end")
+      .select("id, number, subscription_id, period_start, period_end, paid_at, created_at")
       .in("subscription_id", subscriptionIds);
     invoices = invoiceRows ?? [];
   }
 
-  const withInvoices: TransactionWithInvoice[] = transactions.map((tx) => {
-    const occurred = new Date(tx.occurred_at).getTime();
-    const invoice =
-      invoices.find(
-        (inv) =>
-          inv.subscription_id === tx.subscription_id &&
-          occurred >= new Date(inv.period_start).getTime() &&
-          occurred <= new Date(inv.period_end).getTime()
-      ) ?? null;
-    return {
-      ...tx,
-      invoice: invoice ? { id: invoice.id, number: invoice.number } : null,
-    };
-  });
-
-  return { transactions: withInvoices, total: count ?? 0 };
+  return {
+    transactions: attachInvoicesToTransactions(transactions, invoices),
+    total: count ?? 0,
+  };
 }
 
 export async function loadTransactionsPageForRestaurant(

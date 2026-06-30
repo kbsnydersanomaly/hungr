@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadRestaurantById } from "@/lib/data/restaurants";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { PageHeader } from "@/components/PageHeader";
 import { CreateMenuForm } from "@/components/menu/CreateMenuForm";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ export default async function NewMenuPage({
 }) {
   const { restaurantId } = await params;
   const restaurant = await loadRestaurantById(restaurantId);
+  await requireRestaurantManagement(restaurant);
 
   return (
     <div className="space-y-6 max-w-xl">

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Check, X, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SortableItem } from "./SortableItem";
+import { SortableSubcategory } from "./SortableSubcategory";
 import { ItemEditSheet } from "./ItemEditSheet";
-
-interface Category {
-  id: string;
-  name: string;
-}
+import { AddCategoryForm } from "./AddCategoryForm";
+import type { CategoryNode } from "@/lib/types/menu";
 
 interface Item {
   id: string;
@@ -37,25 +36,34 @@ interface Item {
   variations: { name: string; price_cents?: number }[];
   sides: { name: string; price_cents?: number }[];
   sauces: { name: string; price_cents?: number }[];
+  pairing_ids?: string[];
 }
 
 interface SortableCategoryProps {
-  category: Category;
+  category: CategoryNode;
+  /** All items in the menu; this component partitions them by category. */
   items: Item[];
+  /** All items in the menu, used to pick pairings. */
+  menuItems: { id: string; name: string }[];
   menuId: string;
   restaurantId: string;
   onUpdateCategoryName: (id: string, name: string) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
+  onUpdateSubcategoryName: (id: string, name: string) => Promise<void>;
+  onDeleteSubcategory: (id: string) => Promise<void>;
   onDeleteItem: (id: string) => Promise<void>;
 }
 
 export function SortableCategory({
   category,
   items,
+  menuItems,
   menuId,
   restaurantId,
   onUpdateCategoryName,
   onDeleteCategory,
+  onUpdateSubcategoryName,
+  onDeleteSubcategory,
   onDeleteItem,
 }: SortableCategoryProps) {
   const [editingName, setEditingName] = useState(false);
@@ -79,6 +87,12 @@ export function SortableCategory({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const directItems = items.filter((i) => i.category_id === category.id);
+  const subcategories = category.children;
+  const totalItemCount =
+    directItems.length +
+    subcategories.reduce((sum, s) => sum + items.filter((i) => i.category_id === s.id).length, 0);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -165,8 +179,8 @@ export function SortableCategory({
               <DialogHeader>
                 <DialogTitle>Delete “{category.name}”?</DialogTitle>
                 <DialogDescription>
-                  {items.length > 0
-                    ? `This will permanently delete the category and its ${items.length} item${items.length === 1 ? "" : "s"}. This cannot be undone.`
+                  {totalItemCount > 0
+                    ? `This will permanently delete the category, its ${subcategories.length} sub-categor${subcategories.length === 1 ? "y" : "ies"}, and ${totalItemCount} item${totalItemCount === 1 ? "" : "s"}. This cannot be undone.`
                     : "This will permanently delete the category. This cannot be undone."}
                 </DialogDescription>
               </DialogHeader>
@@ -200,16 +214,21 @@ export function SortableCategory({
           </Dialog>
         </CardHeader>
 
-        <CardContent className="space-y-2">
-          {items.map((item) => (
-            <SortableItem
-              key={item.id}
-              item={item}
-              menuId={menuId}
-              restaurantId={restaurantId}
-              onDelete={onDeleteItem}
-            />
-          ))}
+        <CardContent className="space-y-3">
+          <SortableContext items={directItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {directItems.map((item) => (
+                <SortableItem
+                  key={item.id}
+                  item={item}
+                  menuItems={menuItems}
+                  menuId={menuId}
+                  restaurantId={restaurantId}
+                  onDelete={onDeleteItem}
+                />
+              ))}
+            </div>
+          </SortableContext>
 
           <Button
             variant="ghost"
@@ -228,11 +247,39 @@ export function SortableCategory({
             categoryId={category.id}
             restaurantId={restaurantId}
             item={null}
+            menuItems={menuItems}
+          />
+
+          {subcategories.length > 0 && (
+            <SortableContext items={subcategories.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2 pt-2">
+                {subcategories.map((sub) => (
+                  <SortableSubcategory
+                    key={sub.id}
+                    subcategory={sub}
+                    parentId={category.id}
+                    items={items.filter((i) => i.category_id === sub.id)}
+                    menuItems={menuItems}
+                    menuId={menuId}
+                    restaurantId={restaurantId}
+                    onUpdateName={onUpdateSubcategoryName}
+                    onDelete={onDeleteSubcategory}
+                    onDeleteItem={onDeleteItem}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          )}
+
+          <AddCategoryForm
+            menuId={menuId}
+            parentId={category.id}
+            inline
+            buttonLabel="Add sub-category"
+            placeholder="Sub-category name"
           />
         </CardContent>
       </Card>
     </div>
   );
 }
-
-

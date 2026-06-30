@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { loadRestaurantById } from "@/lib/data/restaurants";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { listSpecialsForRestaurant } from "@/lib/data/special-actions";
 import { PageHeader } from "@/components/PageHeader";
 import { SpecialsList } from "@/components/dashboard/SpecialsList";
@@ -19,6 +20,7 @@ export default async function SpecialsPage({
   } catch {
     notFound();
   }
+  await requireRestaurantManagement(restaurant);
 
   const supabase = await createServerClient();
 

@@ -4,7 +4,11 @@ import { getSession } from "@/lib/auth/session";
 import { loadRestaurantsForUser } from "@/lib/data/restaurants";
 import { getTotalMenuViewsForRestaurant } from "@/lib/data/analytics-actions";
 import { createServerClient } from "@/lib/supabase/server";
+import { getRestaurantBillingContext } from "@/lib/billing/pricing";
+import type { OrgRole } from "@/lib/auth/role";
 import { PageHeader } from "@/components/PageHeader";
+import { AddRestaurantButton } from "@/components/dashboard/AddRestaurantButton";
+import { LinkButton } from "@/components/ui/link-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UtensilsCrossed, TrendingUp, Users, Star, Plus, CheckCircle2, Circle } from "lucide-react";
@@ -14,6 +18,7 @@ export default async function DashboardPage() {
   const orgId = org?.orgId;
   const userId = session?.user.id;
   const restaurants = orgId && userId ? await loadRestaurantsForUser(userId, orgId) : [];
+  const billing = orgId ? await getRestaurantBillingContext(orgId) : null;
 
   if (restaurants.length === 0) {
     return (
@@ -29,12 +34,9 @@ export default async function DashboardPage() {
             <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
               Create a restaurant to start building menus, generating QR codes, and managing your brand.
             </p>
-            <Button asChild size="lg">
-              <Link href="/restaurants/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Add restaurant
-              </Link>
-            </Button>
+            <LinkButton href="/restaurants/new" icon={<Plus />} size="lg">
+              Add restaurant
+            </LinkButton>
           </CardContent>
         </Card>
       </div>
@@ -115,9 +117,7 @@ export default async function DashboardPage() {
         title="Dashboard"
         description="Overview of your restaurant performance"
         action={
-          <Button asChild>
-            <Link href="/restaurants/new">Add restaurant</Link>
-          </Button>
+          <AddRestaurantButton role={(org?.role as OrgRole) ?? "staff"} billing={billing} />
         }
       />
 

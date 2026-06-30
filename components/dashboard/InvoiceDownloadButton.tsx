@@ -2,18 +2,20 @@
 
 import { useState } from "react";
 import { getInvoiceDownloadUrl } from "@/lib/data/billing-actions";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface InvoiceDownloadButtonProps {
   invoiceId: string;
   invoiceNumber: string;
+  variant?: ButtonProps["variant"];
 }
 
 export function InvoiceDownloadButton({
   invoiceId,
   invoiceNumber,
+  variant = "ghost",
 }: InvoiceDownloadButtonProps) {
   const [loading, setLoading] = useState(false);
 
@@ -33,17 +35,17 @@ export function InvoiceDownloadButton({
 
   return (
     <Button
-      variant="ghost"
+      variant={variant}
       size="sm"
       onClick={handleClick}
       disabled={loading}
-      className="h-7 px-2 text-xs"
+      className={variant === "link" ? "h-auto p-0 text-xs" : "h-7 px-2 text-xs"}
       title={`Invoice ${invoiceNumber}`}
     >
       {loading ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
       ) : (
-        <FileText className="h-3.5 w-3.5" />
+        variant !== "link" && <FileText className="h-3.5 w-3.5" />
       )}
       {invoiceNumber}
     </Button>

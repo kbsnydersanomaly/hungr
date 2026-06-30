@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeSouthAfricanPhone,
   isValidSouthAfricanPhone,
+  sanitizePhoneInput,
 } from "@/lib/utils/phone";
 
 describe("normalizeSouthAfricanPhone", () => {
@@ -25,6 +26,14 @@ describe("normalizeSouthAfricanPhone", () => {
     expect(normalizeSouthAfricanPhone("2751234567")).toBeNull();
     expect(normalizeSouthAfricanPhone("0951234567")).toBeNull();
     expect(normalizeSouthAfricanPhone("08212345678")).toBeNull();
+  });
+});
+
+describe("sanitizePhoneInput", () => {
+  it("removes letters and keeps valid phone characters", () => {
+    expect(sanitizePhoneInput("082abc123")).toBe("082123");
+    expect(sanitizePhoneInput("+27 (0)82 123-4567")).toBe("+27 (0)82 123-4567");
+    expect(sanitizePhoneInput("hello")).toBe("");
   });
 });
 

@@ -3,6 +3,7 @@ import { getSubscription, updateSubscription, listTransactionsForSubscription } 
 import { PageHeader } from "@/components/PageHeader";
 import { SubscriptionDeleteButton } from "@/components/admin/SubscriptionDeleteButton";
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
+import { FormFieldset } from "@/components/forms/FormFieldset";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -104,8 +105,7 @@ export default async function AdminSubscriptionDetailPage({
               }}
               successMessage="Subscription updated."
             >
-              {({ isPending }) => (
-                <div className="space-y-4">
+              <FormFieldset className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="status">Status</Label>
@@ -113,7 +113,6 @@ export default async function AdminSubscriptionDetailPage({
                         id="status"
                         name="status"
                         defaultValue={sub.status}
-                        disabled={isPending}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <option value="pending">Pending</option>
@@ -131,7 +130,6 @@ export default async function AdminSubscriptionDetailPage({
                         name="amount_cents"
                         type="number"
                         defaultValue={sub.amount_cents}
-                        disabled={isPending}
                       />
                     </div>
 
@@ -141,7 +139,6 @@ export default async function AdminSubscriptionDetailPage({
                         id="billing_period"
                         name="billing_period"
                         defaultValue={sub.billing_period}
-                        disabled={isPending}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <option value="monthly">Monthly</option>
@@ -160,7 +157,6 @@ export default async function AdminSubscriptionDetailPage({
                             ? new Date(sub.next_billing_date).toISOString().split("T")[0]
                             : ""
                         }
-                        disabled={isPending}
                       />
                     </div>
 
@@ -175,7 +171,6 @@ export default async function AdminSubscriptionDetailPage({
                             ? new Date(sub.current_period_end).toISOString().split("T")[0]
                             : ""
                         }
-                        disabled={isPending}
                       />
                     </div>
 
@@ -185,7 +180,6 @@ export default async function AdminSubscriptionDetailPage({
                         id="payfast_token"
                         name="payfast_token"
                         defaultValue={sub.payfast_token ?? ""}
-                        disabled={isPending}
                       />
                     </div>
 
@@ -195,7 +189,6 @@ export default async function AdminSubscriptionDetailPage({
                         id="payfast_subscription_id"
                         name="payfast_subscription_id"
                         defaultValue={sub.payfast_subscription_id ?? ""}
-                        disabled={isPending}
                       />
                     </div>
                   </div>
@@ -204,8 +197,7 @@ export default async function AdminSubscriptionDetailPage({
                     <SubscriptionDeleteButton subscriptionId={sub.id} />
                     <SubmitButton>Save changes</SubmitButton>
                   </div>
-                </div>
-              )}
+              </FormFieldset>
             </ServerActionForm>
           </CardContent>
         </Card>

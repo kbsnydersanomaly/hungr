@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { updateProfile } from "@/lib/data/profile-actions";
 import { PageHeader } from "@/components/PageHeader";
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
+import { FormFieldset } from "@/components/forms/FormFieldset";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,59 +28,53 @@ export default async function ProfileSettingsPage() {
             action={updateProfile}
             successMessage="Profile updated."
           >
-            {({ isPending }) => (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" value={user.email ?? ""} disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="display_name">Display name</Label>
-                  <Input
-                    id="display_name"
-                    name="display_name"
-                    defaultValue={profile?.display_name ?? ""}
-                    placeholder="Your display name"
-                    required
-                    disabled={isPending}
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="first_name">First name</Label>
-                    <Input
-                      id="first_name"
-                      name="first_name"
-                      defaultValue={profile?.first_name ?? ""}
-                      placeholder="First name"
-                      disabled={isPending}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="last_name">Last name</Label>
-                    <Input
-                      id="last_name"
-                      name="last_name"
-                      defaultValue={profile?.last_name ?? ""}
-                      placeholder="Last name"
-                      disabled={isPending}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Cellphone</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    defaultValue={profile?.phone ?? ""}
-                    placeholder="082 123 4567"
-                    disabled={isPending}
-                  />
-                </div>
-                <SubmitButton>Save changes</SubmitButton>
+            <FormFieldset className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" value={user.email ?? ""} disabled />
               </div>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="display_name">Display name</Label>
+                <Input
+                  id="display_name"
+                  name="display_name"
+                  defaultValue={profile?.display_name ?? ""}
+                  placeholder="Your display name"
+                  required
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="first_name">First name</Label>
+                  <Input
+                    id="first_name"
+                    name="first_name"
+                    defaultValue={profile?.first_name ?? ""}
+                    placeholder="First name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="last_name">Last name</Label>
+                  <Input
+                    id="last_name"
+                    name="last_name"
+                    defaultValue={profile?.last_name ?? ""}
+                    placeholder="Last name"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Cellphone</Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  defaultValue={profile?.phone ?? ""}
+                  placeholder="082 123 4567"
+                />
+              </div>
+              <SubmitButton>Save changes</SubmitButton>
+            </FormFieldset>
           </ServerActionForm>
         </CardContent>
       </Card>

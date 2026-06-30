@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/forms/PhoneInput";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { signUpAction } from "@/lib/auth/actions";
@@ -86,10 +87,9 @@ export default function SignUpForm({ onSwitchToSignIn }: SignUpFormProps) {
 
         <div className="space-y-2">
           <Label htmlFor="phone">Cellphone</Label>
-          <Input
+          <PhoneInput
             id="phone"
             name="phone"
-            type="tel"
             placeholder="082 123 4567"
             required
           />

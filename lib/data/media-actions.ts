@@ -5,6 +5,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NotFoundError, ValidationError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
+import { formatBytes } from "@/lib/utils/bytes";
 
 export async function listMediaForRestaurant(restaurantId: string) {
   const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
@@ -21,6 +22,67 @@ export async function listMediaForRestaurant(restaurantId: string) {
   }
 
   return data ?? [];
+}
+
+/**
+ * Returns the restaurant's media storage usage and limit, in bytes. Usage is the
+ * sum of `media.size` for the restaurant; the limit comes from the per-restaurant
+ * `storage_limit_mb` quota (editable by super admins).
+ */
+export async function getRestaurantStorageUsage(
+  restaurantId: string
+): Promise<{ usedBytes: number; limitBytes: number }> {
+  const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
+
+  const [{ data: rows, error: mediaError }, { data: restaurant, error: restaurantError }] =
+    await Promise.all([
+      supabase.from("media").select("size").eq("restaurant_id", restaurantId),
+      supabase
+        .from("restaurants")
+        .select("storage_limit_mb")
+        .eq("id", restaurantId)
+        .maybeSingle(),
+    ]);
+
+  if (mediaError || restaurantError) {
+    console.error("getRestaurantStorageUsage error:", mediaError ?? restaurantError);
+    throw new ValidationError("Failed to load storage usage.");
+  }
+
+  const usedBytes = (rows ?? []).reduce((sum, row) => sum + (row.size ?? 0), 0);
+  const limitBytes = (restaurant?.storage_limit_mb ?? 500) * 1024 * 1024;
+
+  return { usedBytes, limitBytes };
+}
+
+/**
+ * Returns a display name that is unique among the restaurant's existing media.
+ * The stored file path is already collision-free (it uses a random UUID), so an
+ * upload never overwrites another in storage — but a duplicate `name` makes it
+ * look like the original was replaced. When a name is already taken we prepend
+ * an incrementing prefix (e.g. "photo.png" -> "1-photo.png") so both files
+ * remain distinguishable in the library.
+ */
+async function uniqueMediaName(
+  supabase: Awaited<ReturnType<typeof requireRestaurantAccess>>["supabase"],
+  restaurantId: string,
+  name: string
+): Promise<string> {
+  const { data: existing } = await supabase
+    .from("media")
+    .select("name")
+    .eq("restaurant_id", restaurantId);
+
+  const taken = new Set((existing ?? []).map((m) => m.name));
+  if (!taken.has(name)) return name;
+
+  let n = 1;
+  let candidate = `${n}-${name}`;
+  while (taken.has(candidate)) {
+    n += 1;
+    candidate = `${n}-${name}`;
+  }
+  return candidate;
 }
 
 export async function recordMediaUpload(
@@ -43,11 +105,38 @@ export async function recordMediaUpload(
 
     const { data: restaurant } = await supabase
       .from("restaurants")
-      .select("org_id")
+      .select("org_id, storage_limit_mb")
       .eq("id", restaurantId)
       .maybeSingle();
 
     const orgId = restaurant?.org_id ?? null;
+
+    // Enforce the per-restaurant storage quota. The file is already in storage at
+    // this point (the client uploads first, then records), so if it would exceed
+    // the limit we remove the just-uploaded object to avoid leaving an orphan.
+    const limitBytes = (restaurant?.storage_limit_mb ?? 500) * 1024 * 1024;
+    const { data: existing } = await supabase
+      .from("media")
+      .select("size")
+      .eq("restaurant_id", restaurantId);
+    const usedBytes = (existing ?? []).reduce((sum, row) => sum + (row.size ?? 0), 0);
+
+    if (usedBytes + size > limitBytes) {
+      const remaining = Math.max(limitBytes - usedBytes, 0);
+      const adminClient = createAdminClient();
+      await adminClient.storage.from(bucket).remove([path]);
+      throw new ValidationError(
+        `Not enough storage. This file is ${formatBytes(size)} but only ${formatBytes(
+          remaining
+        )} of ${formatBytes(limitBytes)} remains.`
+      );
+    }
+
+    const displayName = await uniqueMediaName(
+      supabase,
+      restaurantId,
+      name || path.split("/").pop() || "untitled"
+    );
 
     const { data: inserted, error } = await supabase
       .from("media")
@@ -58,7 +147,7 @@ export async function recordMediaUpload(
         bucket,
         path,
         url,
-        name: name || path.split("/").pop() || "untitled",
+        name: displayName,
         mime,
         size,
       })

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { loadRestaurantById } from "@/lib/data/restaurants";
-import { listMediaForRestaurant } from "@/lib/data/media-actions";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
+import { listMediaForRestaurant, getRestaurantStorageUsage } from "@/lib/data/media-actions";
 import { PageHeader } from "@/components/PageHeader";
 import { MediaLibrary } from "@/components/dashboard/MediaLibrary";
 
@@ -17,8 +18,12 @@ export default async function MediaPage({
   } catch {
     notFound();
   }
+  await requireRestaurantManagement(restaurant);
 
-  const media = await listMediaForRestaurant(restaurantId);
+  const [media, usage] = await Promise.all([
+    listMediaForRestaurant(restaurantId),
+    getRestaurantStorageUsage(restaurantId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -29,6 +34,8 @@ export default async function MediaPage({
       <MediaLibrary
         restaurantId={restaurantId}
         media={media}
+        usedBytes={usage.usedBytes}
+        limitBytes={usage.limitBytes}
       />
     </div>
   );

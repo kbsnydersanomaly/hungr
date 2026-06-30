@@ -38,6 +38,10 @@ describe("Header", () => {
     render(<Header {...baseProps} logoUrl="https://example.com/logo.png" />);
     const logo = screen.getByAltText("Testaurant");
     expect(logo).toHaveAttribute("src", "https://example.com/logo.png");
+    expect(logo).toHaveClass("max-h-8", "w-auto", "object-contain");
+    expect(
+      screen.queryByRole("heading", { name: "Testaurant" })
+    ).not.toBeInTheDocument();
   });
 
   it("falls back to a letter avatar without a logo", () => {

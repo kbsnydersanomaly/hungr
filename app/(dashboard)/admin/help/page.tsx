@@ -4,10 +4,11 @@ import { AdminListLayout } from "@/components/admin/AdminListLayout";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { StatusFilter } from "@/components/admin/StatusFilter";
 import { AdminArticleActions } from "@/components/help/AdminArticleActions";
+import { HelpCategoryManager } from "@/components/help/HelpCategoryManager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, ImageIcon } from "lucide-react";
 
 const PUBLISHED_OPTIONS = [
   { value: "true", label: "Published" },
@@ -26,6 +27,9 @@ export default async function AdminHelpPage({
     await Promise.all([listHelpCategories(), listHelpArticlesAdmin(sp)]);
 
   const categories = categoriesRes.ok ? categoriesRes.data ?? [] : [];
+  if (!categoriesRes.ok) {
+    console.error("Failed to load help categories:", categoriesRes.message);
+  }
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
 
   return (
@@ -48,7 +52,14 @@ export default async function AdminHelpPage({
         </>
       }
     >
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <HelpCategoryManager categories={categories} />
+        <Button asChild size="sm" variant="outline">
+          <Link href="/admin/help/media">
+            <ImageIcon className="h-4 w-4 mr-2" />
+            Manage media
+          </Link>
+        </Button>
         <Button asChild size="sm">
           <Link href="/admin/help/new">
             <Plus className="h-4 w-4 mr-2" />

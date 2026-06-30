@@ -4,10 +4,13 @@ import { notFound } from "next/navigation";
 import {
   loadMenuById,
   loadCategoriesForMenu,
+  loadSubcategoriesForMenu,
   loadMenuItemsForMenu,
+  buildCategoryTree,
 } from "@/lib/data/menus";
 import { updateMenuStatus } from "@/lib/data/menu-actions";
 import { loadRestaurantById } from "@/lib/data/restaurants";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { PageHeader } from "@/components/PageHeader";
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
 import { SubmitButton } from "@/components/forms/SubmitButton";
@@ -34,7 +37,12 @@ export default async function MenuWorkspacePage({
   }
 
   const restaurant = await loadRestaurantById(restaurantId);
-  const categories = await loadCategoriesForMenu(menuId);
+  await requireRestaurantManagement(restaurant);
+  const [topCategories, subCategories] = await Promise.all([
+    loadCategoriesForMenu(menuId),
+    loadSubcategoriesForMenu(menuId),
+  ]);
+  const categories = buildCategoryTree(topCategories, subCategories);
   const rawItems = await loadMenuItemsForMenu(menuId);
   const items = rawItems.map((item) => ({
     ...item,
@@ -84,21 +92,19 @@ export default async function MenuWorkspacePage({
           )}
 
           <ServerActionForm action={updateMenuStatus.bind(null, menuId, menu.status === "published" ? "draft" : "published")}>
-            {() => (
-              <SubmitButton type="submit" size="sm" variant={isPublished ? "outline" : "default"}>
-                {isPublished ? (
-                  <>
-                    <EyeOff className="h-4 w-4 mr-2" />
-                    Unpublish
-                  </>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Publish
-                  </>
-                )}
-              </SubmitButton>
-            )}
+            <SubmitButton type="submit" size="sm" variant={isPublished ? "outline" : "default"}>
+              {isPublished ? (
+                <>
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  Unpublish
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Publish
+                </>
+              )}
+            </SubmitButton>
           </ServerActionForm>
         </div>
       </div>

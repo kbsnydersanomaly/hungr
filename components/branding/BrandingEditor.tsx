@@ -13,6 +13,11 @@ import {
 } from "@/components/ui/select";
 import { MediaPicker } from "@/components/dashboard/MediaPicker";
 import { MultiImagePicker } from "@/components/dashboard/MultiImagePicker";
+import {
+  saveDraftAction,
+  publishAction,
+  discardAction,
+} from "@/lib/data/branding-actions";
 import { brandingToCssVars, brandingFontFamilies } from "@/lib/theme/cssVars";
 import { GOOGLE_FONT_OPTIONS } from "@/lib/theme/fonts";
 import {
@@ -52,6 +57,7 @@ interface BrandingEditorProps {
   restaurantSlug: string;
   live: BrandingData | null;
   draft: BrandingData | null;
+  children?: React.ReactNode;
 }
 
 type Page = "menu" | "about";
@@ -131,7 +137,13 @@ function isValidHex(value: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
-export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: BrandingEditorProps) {
+export function BrandingEditor({
+  restaurantId,
+  restaurantSlug,
+  live,
+  draft,
+  children,
+}: BrandingEditorProps) {
   const [page, setPage] = useState<Page>("menu");
   const [draftState, setDraftState] = useState<BrandingData>(
     draft ?? live ?? {}
@@ -206,7 +218,6 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
     const snapshot = serializedDraft;
     setSaving(true);
     try {
-      const { saveDraftAction } = await import("@/lib/data/branding-actions");
       const result = await saveDraftAction(
         restaurantId,
         draftState as Record<string, unknown>
@@ -239,7 +250,6 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
       // Make sure the latest edits are in the draft before publishing.
       if (dirty) {
         const snapshot = serializedDraft;
-        const { saveDraftAction } = await import("@/lib/data/branding-actions");
         const saveResult = await saveDraftAction(
           restaurantId,
           draftState as Record<string, unknown>
@@ -250,7 +260,6 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
         }
         setSavedSnapshot(snapshot);
       }
-      const { publishAction } = await import("@/lib/data/branding-actions");
       const publishResult = await publishAction(restaurantId);
       if (publishResult && !publishResult.ok) {
         toast.error(publishResult.message ?? "Failed to publish");
@@ -267,7 +276,6 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
   const handleDiscard = async () => {
     setDiscarding(true);
     try {
-      const { discardAction } = await import("@/lib/data/branding-actions");
       const result = await discardAction(restaurantId);
       if (result && !result.ok) {
         toast.error(result.message ?? "Failed to reset branding");
@@ -376,14 +384,14 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
               type="color"
               value={isValidHex(value) ? value : role.fallback}
               onChange={(e) => setRoleValue(role, e.target.value)}
-              className="h-8 w-8 cursor-pointer rounded-md border-0 bg-transparent p-0"
+              className="h-10 w-10 cursor-pointer rounded-md border-0 bg-transparent p-0"
               aria-label={`${role.label} color`}
             />
             <Input
               value={value}
               onChange={(e) => setRoleValue(role, e.target.value)}
               placeholder={role.fallback}
-              className="w-24 h-7 text-xs"
+              className="w-28 h-7 text-xs"
             />
           </div>
         </div>
@@ -393,9 +401,11 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
   };
 
   return (
-    <div className="grid grid-cols-[300px_1fr] gap-4 h-full">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-6 h-full min-h-0">
       {/* Controls */}
-      <div className="space-y-5 overflow-y-auto pr-2">
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-2 pb-20 lg:pb-4">
+        {children}
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
             {saving ? "Saving..." : dirty ? "Unsaved changes" : "All changes saved"}
@@ -477,7 +487,9 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
         {/* Colors */}
         <div className="space-y-3">
           <Label className="text-xs font-semibold uppercase tracking-wider">Colors</Label>
-          {GENERAL_COLOR_ROLES.map(renderColorRow)}
+          <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:space-y-0 lg:gap-y-3">
+            {GENERAL_COLOR_ROLES.map(renderColorRow)}
+          </div>
         </div>
 
         {/* Typography */}
@@ -524,26 +536,33 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
           </div>
           {renderColorRow(TYPOGRAPHY_COLOR_ROLES[1])}
         </div>
+        </div>
 
-        <div className="pt-4 border-t space-y-2">
-          <Button onClick={handlePublish} className="w-full" disabled={publishing || discarding}>
-            {publishing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Publish changes
-          </Button>
-          <Button
-            onClick={() => setConfirmResetOpen(true)}
-            variant="outline"
-            className="w-full"
-            disabled={publishing || discarding}
-          >
-            {discarding && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Reset to published
-          </Button>
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 py-3 backdrop-blur lg:static lg:z-auto lg:shrink-0 lg:border-t lg:bg-background lg:px-0 lg:py-0 lg:pt-3 lg:backdrop-blur-none">
+          <div className="flex gap-2">
+            <Button
+              onClick={handlePublish}
+              className="flex-1"
+              disabled={publishing || discarding}
+            >
+              {publishing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Publish changes
+            </Button>
+            <Button
+              onClick={() => setConfirmResetOpen(true)}
+              variant="outline"
+              className="flex-1"
+              disabled={publishing || discarding}
+            >
+              {discarding && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Reset to published
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Preview */}
-      <div className="flex flex-col h-full min-h-0">
+      <div className="flex flex-col lg:sticky lg:top-0 lg:self-start shrink-0">
         <div className="flex items-center justify-end mb-3">
           <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
             {(["menu", "about"] as Page[]).map((p) => (
@@ -560,19 +579,21 @@ export function BrandingEditor({ restaurantId, restaurantSlug, live, draft }: Br
           </div>
         </div>
 
-        <div className="flex flex-col flex-1 min-h-0 rounded-lg border bg-muted/30">
+        <div className="rounded-lg border bg-muted/30">
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <span className="text-xs font-medium text-muted-foreground">Preview</span>
             <span className="text-xs text-muted-foreground">{previewUrl}</span>
           </div>
-          <div className="flex-1 overflow-auto p-4 flex justify-center">
-            <div style={{ width: PREVIEW_WIDTH, maxWidth: "100%", height: "100%" }}>
+          <div className="p-4 flex justify-center">
+            <div
+              className="max-w-full aspect-9/16 overflow-hidden rounded-lg border bg-white shadow-sm"
+              style={{ width: PREVIEW_WIDTH }}
+            >
               <iframe
                 ref={iframeRef}
                 src={previewUrl}
                 title="Menu preview"
-                className="w-full h-full rounded-lg border bg-white"
-                style={{ minHeight: "600px" }}
+                className="h-full w-full border-0"
                 onLoad={() => postPreview(draftState)}
               />
             </div>

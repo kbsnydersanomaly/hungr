@@ -1,5 +1,6 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { NotFoundError } from "@/lib/errors";
+import type { CategoryNode } from "@/lib/types/menu";
 
 export async function loadMenuBySlug(restaurantSlug: string, menuSlug: string) {
   const supabase = await createServerClient();
@@ -67,6 +68,58 @@ export async function loadCategoriesForMenu(menuId: string) {
 
   if (error) throw error;
   return data ?? [];
+}
+
+export async function loadSubcategoriesForMenu(menuId: string) {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from("categories")
+    .select("*")
+    .eq("menu_id", menuId)
+    .not("parent_id", "is", null)
+    .order("sort_order", { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+type CategoryRow = {
+  id: string;
+  name: string;
+  sort_order: number;
+  parent_id: string | null;
+};
+
+/**
+ * Assemble a one-level-deep category tree from top-level categories and their
+ * sub-categories. Rows are assumed to already be sorted by `sort_order`.
+ */
+export function buildCategoryTree(
+  topLevel: CategoryRow[],
+  subcategories: CategoryRow[]
+): CategoryNode[] {
+  const childrenByParent = new Map<string, CategoryRow[]>();
+  for (const sub of subcategories) {
+    const parentId = sub.parent_id;
+    if (!parentId) continue;
+    const siblings = childrenByParent.get(parentId);
+    if (siblings) siblings.push(sub);
+    else childrenByParent.set(parentId, [sub]);
+  }
+
+  return topLevel.map((cat) => ({
+    id: cat.id,
+    name: cat.name,
+    sort_order: cat.sort_order,
+    parent_id: cat.parent_id,
+    children: (childrenByParent.get(cat.id) ?? []).map((sub) => ({
+      id: sub.id,
+      name: sub.name,
+      sort_order: sub.sort_order,
+      parent_id: sub.parent_id,
+      children: [],
+    })),
+  }));
 }
 
 export async function loadMenuItemsForMenu(menuId: string) {

@@ -99,7 +99,7 @@ export default async function AdminSubscriptionsPage({
                       </div>
 
                       <div className="flex gap-2 shrink-0">
-                        <Button size="sm" variant="ghost" asChild>
+                        <Button size="sm" variant="link" asChild>
                           <Link href={`/admin/subscriptions/${sub.id}`}>
                             Edit
                             <ArrowRight className="h-3.5 w-3.5 ml-1" />

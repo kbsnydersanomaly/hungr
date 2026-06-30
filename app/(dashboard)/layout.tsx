@@ -1,16 +1,13 @@
 import { redirect } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/server";
 import { getActiveOrg } from "@/lib/auth/active-org";
 import { getActiveRestaurant } from "@/lib/auth/active-restaurant";
 import { loadRestaurantsForOrg } from "@/lib/data/restaurants";
 import { RestaurantBreadcrumb } from "@/components/dashboard/RestaurantBreadcrumb";
-import { OrgSwitcher } from "@/components/dashboard/OrgSwitcher";
 import { AvatarMenu } from "@/components/dashboard/AvatarMenu";
 import { NotificationBellServer } from "@/components/dashboard/NotificationBellServer";
-
-import { SidebarNavLink } from "@/components/dashboard/SidebarNavLink";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { ImpersonationBanner } from "@/components/dashboard/ImpersonationBanner";
 import { SubscriptionInvalidBanner } from "@/components/dashboard/SubscriptionInvalidBanner";
 import { getImpersonationState } from "@/lib/auth/impersonation";
@@ -27,7 +24,6 @@ import {
   Users,
   CreditCard,
   Settings,
-  Plus,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -130,99 +126,74 @@ export default async function DashboardLayout({
 
   const impersonation = await getImpersonationState();
 
+  const resolvedMainNavItems = mainNavItems.map((item) => ({
+    ...item,
+    href:
+      item.label === "Overview" && effectiveRestaurant
+        ? `/restaurants/${effectiveRestaurant.id}`
+        : item.href,
+  }));
+
+  const resolvedRestaurantNavItems = effectiveRestaurant
+    ? restaurantNavItems
+        .filter((item) => hasMinRole(effectiveRestaurantRole, item.minRole))
+        .map((item) => ({
+          href: `/restaurants/${effectiveRestaurant.id}${item.href}`,
+          label: item.label,
+          icon: item.icon,
+        }))
+    : [];
+
+  const sidebar = (
+    <DashboardSidebar
+      mainNavItems={resolvedMainNavItems}
+      restaurantNavItems={resolvedRestaurantNavItems}
+      showAddRestaurant={restaurants.length === 0 && hasMinRole(orgRole, "owner")}
+      memberships={memberships}
+      activeOrgId={activeOrgId ?? null}
+      canManageOrg={hasMinRole(orgRole, "owner")}
+    />
+  );
+
+  const header = (
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+      <RestaurantBreadcrumb
+        restaurants={restaurants.map((r) => ({ id: r.id, name: r.name, slug: r.slug }))}
+        activeRestaurant={activeRestaurant}
+        orgName={orgName}
+        canAddRestaurant={hasMinRole(orgRole, "owner")}
+      />
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <NotificationBellServer />
+        <AvatarMenu email={user.email ?? undefined} />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="grid grid-cols-[260px_1fr] min-h-screen">
-      {impersonation?.isImpersonating && impersonation.targetUser && (
-        <div className="col-span-2">
+    <DashboardShell
+      impersonationBanner={
+        impersonation?.isImpersonating && impersonation.targetUser ? (
           <ImpersonationBanner
             targetName={impersonation.targetUser.display_name}
             targetEmail={impersonation.targetUser.email}
           />
-        </div>
-      )}
-      <aside className="border-r bg-muted/30 px-4 py-6 flex flex-col">
-        <div className="mb-8 px-2">
-          <Link href="/" className="inline-block">
-            <Image src="/Logo.svg" alt="Hungr" width={150} height={50} className="h-10 w-auto" priority />
-          </Link>
-        </div>
-
-        <nav className="flex-1 space-y-1 overflow-y-auto min-h-0">
-          {mainNavItems.map((item) => {
-            const href =
-              item.label === "Overview" && effectiveRestaurant
-                ? `/restaurants/${effectiveRestaurant.id}`
-                : item.href;
-            const Icon = item.icon;
-            return (
-              <SidebarNavLink key={href} href={href} label={item.label} exact>
-                <Icon className="h-4 w-4" />
-              </SidebarNavLink>
-            );
-          })}
-
-          {effectiveRestaurant &&
-            restaurantNavItems
-              .filter((item) => hasMinRole(effectiveRestaurantRole, item.minRole))
-              .map((item) => {
-                const href = `/restaurants/${effectiveRestaurant.id}${item.href}`;
-                const Icon = item.icon;
-                return (
-                  <SidebarNavLink key={href} href={href} label={item.label}>
-                    <Icon className="h-4 w-4" />
-                  </SidebarNavLink>
-                );
-              })}
-
-          {restaurants.length === 0 && hasMinRole(orgRole, "owner") && (
-            <div className="pt-4 px-3">
-              <Link
-                href="/restaurants/new"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <Plus className="h-4 w-4" />
-                Add restaurant
-              </Link>
-            </div>
-          )}
-        </nav>
-
-        <div className="mt-auto pt-6 border-t">
-          <div className="px-3">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Organization
-            </p>
-            <OrgSwitcher
-              memberships={memberships}
-              activeOrgId={activeOrgId ?? null}
-              canManageOrg={hasMinRole(orgRole, "owner")}
-            />
-          </div>
-        </div>
-      </aside>
-
-      <div className="flex flex-col min-h-screen">
-        {effectiveRestaurant && activeOrgId && hasMinRole(orgRole, "owner") && (
+        ) : undefined
+      }
+      sidebar={sidebar}
+      header={header}
+      banners={
+        effectiveRestaurant && activeOrgId && hasMinRole(orgRole, "owner") ? (
           <SubscriptionInvalidBanner
             restaurantId={effectiveRestaurant.id}
             orgId={activeOrgId}
             billingHref={`/restaurants/${effectiveRestaurant.id}/billing`}
           />
-        )}
-        <header className="border-b px-6 py-3 flex items-center justify-between bg-background/95 backdrop-blur sticky top-0 z-10">
-          <RestaurantBreadcrumb
-            restaurants={restaurants.map((r) => ({ id: r.id, name: r.name, slug: r.slug }))}
-            activeRestaurant={activeRestaurant}
-            orgName={orgName}
-          />
-          <div className="flex items-center gap-2">
-            <NotificationBellServer />
-            <AvatarMenu email={user.email ?? undefined} />
-          </div>
-        </header>
-        <main className="flex-1 p-6">{children}</main>
-      </div>
-    </div>
+        ) : undefined
+      }
+    >
+      {children}
+    </DashboardShell>
   );
 }
 

@@ -505,6 +505,50 @@ export type Database = {
         }
         Relationships: []
       }
+      help_media: {
+        Row: {
+          bucket: string
+          created_at: string
+          id: string
+          mime: string
+          name: string
+          owner_user_id: string | null
+          path: string
+          size: number
+          url: string
+        }
+        Insert: {
+          bucket?: string
+          created_at?: string
+          id?: string
+          mime: string
+          name: string
+          owner_user_id?: string | null
+          path: string
+          size?: number
+          url: string
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          id?: string
+          mime?: string
+          name?: string
+          owner_user_id?: string | null
+          path?: string
+          size?: number
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_media_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -1212,6 +1256,7 @@ export type Database = {
           setup_completed_at: string | null
           slug: string
           status: string
+          storage_limit_mb: number
           street: string | null
           table_count: number | null
           updated_at: string
@@ -1228,6 +1273,7 @@ export type Database = {
           setup_completed_at?: string | null
           slug: string
           status?: string
+          storage_limit_mb?: number
           street?: string | null
           table_count?: number | null
           updated_at?: string
@@ -1244,6 +1290,7 @@ export type Database = {
           setup_completed_at?: string | null
           slug?: string
           status?: string
+          storage_limit_mb?: number
           street?: string | null
           table_count?: number | null
           updated_at?: string

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getActiveOrg } from "@/lib/auth/active-org";
 import { loadRestaurantsForOrg } from "@/lib/data/restaurants";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/link-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UtensilsCrossed, Plus, MapPin } from "lucide-react";
@@ -18,12 +18,9 @@ export default async function RestaurantsPage() {
         title="Restaurants"
         description="Manage your restaurant locations"
         action={
-          <Button asChild>
-            <Link href="/restaurants/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Add restaurant
-            </Link>
-          </Button>
+          <LinkButton href="/restaurants/new" icon={<Plus />}>
+            Add restaurant
+          </LinkButton>
         }
       />
 
@@ -35,12 +32,9 @@ export default async function RestaurantsPage() {
             <p className="text-sm text-muted-foreground mt-1">
               Create your first restaurant to get started.
             </p>
-            <Button asChild className="mt-4">
-              <Link href="/restaurants/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Add restaurant
-              </Link>
-            </Button>
+            <LinkButton href="/restaurants/new" icon={<Plus />} className="mt-4">
+              Add restaurant
+            </LinkButton>
           </CardContent>
         </Card>
       ) : (

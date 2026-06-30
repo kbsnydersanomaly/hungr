@@ -22,7 +22,11 @@ import { normalizeSouthAfricanPhone } from "@/lib/utils/phone";
 export async function signUpAction(formData: FormData) {
   return safeAction(async () => {
     const raw = Object.fromEntries(formData);
-    const parsed = SignUpSchema.parse(raw);
+    const parsedResult = SignUpSchema.safeParse(raw);
+    if (!parsedResult.success) {
+      throw new ValidationError(parsedResult.error.issues[0].message);
+    }
+    const parsed = parsedResult.data;
 
     const adminClient = createAdminClient();
     const metadata = {
@@ -65,7 +69,11 @@ export async function signUpAction(formData: FormData) {
 export async function signInAction(formData: FormData) {
   return safeAction(async () => {
     const raw = Object.fromEntries(formData);
-    const parsed = SignInSchema.parse(raw);
+    const parsedResult = SignInSchema.safeParse(raw);
+    if (!parsedResult.success) {
+      throw new ValidationError(parsedResult.error.issues[0].message);
+    }
+    const parsed = parsedResult.data;
 
     const supabase = await createServerClient();
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -88,7 +96,11 @@ export async function signOutAction() {
 export async function forgotPasswordAction(formData: FormData) {
   return safeAction(async () => {
     const raw = Object.fromEntries(formData);
-    const parsed = ForgotPasswordSchema.parse(raw);
+    const parsedResult = ForgotPasswordSchema.safeParse(raw);
+    if (!parsedResult.success) {
+      throw new ValidationError(parsedResult.error.issues[0].message);
+    }
+    const parsed = parsedResult.data;
 
     await sendPasswordResetEmail(parsed.email);
 
@@ -99,7 +111,11 @@ export async function forgotPasswordAction(formData: FormData) {
 export async function resetPasswordAction(formData: FormData) {
   return safeAction(async () => {
     const raw = Object.fromEntries(formData);
-    const parsed = ResetPasswordSchema.parse(raw);
+    const parsedResult = ResetPasswordSchema.safeParse(raw);
+    if (!parsedResult.success) {
+      throw new ValidationError(parsedResult.error.issues[0].message);
+    }
+    const parsed = parsedResult.data;
 
     const supabase = await createServerClient();
     const { error } = await supabase.auth.updateUser({
@@ -113,8 +129,22 @@ export async function resetPasswordAction(formData: FormData) {
 
 export async function resendVerificationEmail(email: string, password: string) {
   return safeAction(async () => {
-    const parsedEmail = z.string().email("Please enter a valid email address").parse(email);
-    const parsedPassword = z.string().min(1, "Password is required").parse(password);
+    const parsedEmailResult = z
+      .string()
+      .email("Please enter a valid email address")
+      .safeParse(email);
+    if (!parsedEmailResult.success) {
+      throw new ValidationError(parsedEmailResult.error.issues[0].message);
+    }
+    const parsedPasswordResult = z
+      .string()
+      .min(1, "Password is required")
+      .safeParse(password);
+    if (!parsedPasswordResult.success) {
+      throw new ValidationError(parsedPasswordResult.error.issues[0].message);
+    }
+    const parsedEmail = parsedEmailResult.data;
+    const parsedPassword = parsedPasswordResult.data;
     await sendVerificationEmail(parsedEmail, parsedPassword);
     return { sent: true };
   });

@@ -1,6 +1,7 @@
 "use client";
 
 import { ItemCard } from "./ItemCard";
+import { applicableItemDiscount, type DiscountableSpecial } from "@/lib/utils/specials";
 
 interface MenuItemsGridProps {
   items: Array<{
@@ -20,9 +21,11 @@ interface MenuItemsGridProps {
   menuSlug: string;
   menuId: string;
   variant?: "default" | "small-grid" | "compact";
+  /** Schedule-active specials, used to surface item/category discounts on cards. */
+  specials?: DiscountableSpecial[];
 }
 
-export function MenuItemsGrid({ items, restaurantSlug, menuSlug, menuId, variant = "default" }: MenuItemsGridProps) {
+export function MenuItemsGrid({ items, restaurantSlug, menuSlug, menuId, variant = "default", specials = [] }: MenuItemsGridProps) {
   if (items.length === 0) {
     return (
       <div className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -48,6 +51,7 @@ export function MenuItemsGrid({ items, restaurantSlug, menuSlug, menuId, variant
           menuSlug={menuSlug}
           menuId={menuId}
           compact={variant === "compact"}
+          discount={applicableItemDiscount(item, specials)}
         />
       ))}
     </div>

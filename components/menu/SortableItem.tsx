@@ -21,16 +21,19 @@ interface Item {
   variations: { name: string; price_cents?: number }[];
   sides: { name: string; price_cents?: number }[];
   sauces: { name: string; price_cents?: number }[];
+  pairing_ids?: string[];
 }
 
 interface SortableItemProps {
   item: Item;
+  /** All items in the menu, used to pick pairings. */
+  menuItems: { id: string; name: string }[];
   menuId: string;
   restaurantId: string;
   onDelete: (id: string) => Promise<void>;
 }
 
-export function SortableItem({ item, menuId, restaurantId, onDelete }: SortableItemProps) {
+export function SortableItem({ item, menuItems, menuId, restaurantId, onDelete }: SortableItemProps) {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -113,6 +116,7 @@ export function SortableItem({ item, menuId, restaurantId, onDelete }: SortableI
         categoryId={item.category_id}
         restaurantId={restaurantId}
         item={item}
+        menuItems={menuItems}
       />
     </>
   );

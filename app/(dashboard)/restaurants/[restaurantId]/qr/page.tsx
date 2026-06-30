@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { loadRestaurantById } from "@/lib/data/restaurants";
+import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { PageHeader } from "@/components/PageHeader";
 import { QrManager } from "@/components/dashboard/QrManager";
 
@@ -17,6 +18,7 @@ export default async function QrPage({
   } catch {
     notFound();
   }
+  await requireRestaurantManagement(restaurant);
 
   const supabase = await createServerClient();
   const { data: menus } = await supabase

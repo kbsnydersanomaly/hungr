@@ -14,6 +14,7 @@ import {
   Shield,
   User,
   Users,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const icons = {
   shield: Shield,
   user: User,
   users: Users,
+  "utensils-crossed": UtensilsCrossed,
 } satisfies Record<string, LucideIcon>;
 
 export type TabNavIcon = keyof typeof icons;

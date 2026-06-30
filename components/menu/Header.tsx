@@ -11,6 +11,8 @@ interface HeaderProps {
   currentMenuSlug: string;
   menus?: Array<{ id: string; name: string; slug: string }>;
   categories?: Array<{ id: string; name: string }>;
+  /** Forwarded to MobileNav for in-page category filtering. */
+  onCategorySelect?: (id: string) => void;
 }
 
 export function Header({
@@ -21,6 +23,7 @@ export function Header({
   currentMenuSlug,
   menus = [],
   categories = [],
+  onCategorySelect,
 }: HeaderProps) {
   return (
     <header
@@ -34,29 +37,34 @@ export function Header({
     >
       <div className="flex items-center gap-3">
         {logoUrl ? (
-          <Image
-            src={logoUrl}
-            alt={restaurantName}
-            width={32}
-            height={32}
-            className="h-8 w-8 rounded-full object-cover"
-          />
-        ) : (
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-            {restaurantName.charAt(0)}
+          <div className="flex items-center gap-2">
+            <Image
+              src={logoUrl}
+              alt={restaurantName}
+              width={160}
+              height={32}
+              className="max-h-8 w-auto object-contain"
+            />
+            {children && <div className="text-xs">{children}</div>}
           </div>
+        ) : (
+          <>
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+              {restaurantName.charAt(0)}
+            </div>
+            <div className="flex flex-col">
+              {/* Inline color beats the .branding-scope heading rule so the name
+                  stays readable against the chosen nav bar color. */}
+              <h1
+                className="text-base font-semibold font-heading leading-tight"
+                style={{ color: "inherit" }}
+              >
+                {restaurantName}
+              </h1>
+              {children && <div className="text-xs">{children}</div>}
+            </div>
+          </>
         )}
-        <div className="flex flex-col">
-          {/* Inline color beats the .branding-scope heading rule so the name
-              stays readable against the chosen nav bar color. */}
-          <h1
-            className="text-base font-semibold font-heading leading-tight"
-            style={{ color: "inherit" }}
-          >
-            {restaurantName}
-          </h1>
-          {children && <div className="text-xs">{children}</div>}
-        </div>
       </div>
       <div className="flex items-center gap-2">
         <Link
@@ -72,6 +80,7 @@ export function Header({
           currentMenuSlug={currentMenuSlug}
           menus={menus}
           categories={categories}
+          onCategorySelect={onCategorySelect}
         />
       </div>
     </header>

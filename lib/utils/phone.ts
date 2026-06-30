@@ -1,5 +1,14 @@
 const DIGITS_ONLY = /\D/g;
 const SA_PHONE_RE = /^27[6-8]\d{8}$/;
+const DISALLOWED_PHONE_CHARS = /[^\d\s+\-()]/g;
+
+/**
+ * Strips characters that are not valid in a phone number field (digits,
+ * spaces, +, parentheses, and hyphens).
+ */
+export function sanitizePhoneInput(value: string): string {
+  return value.replace(DISALLOWED_PHONE_CHARS, "");
+}
 
 /**
  * Normalizes a South African phone number to E.164 format.

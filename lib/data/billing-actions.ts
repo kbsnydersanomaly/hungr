@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,6 +13,7 @@ import {
   cancelSubscription as payfastCancel,
   unpauseSubscription as payfastUnpause,
   nextBillingDate,
+  buildPayFastCheckout,
 } from "@/lib/billing/payfast";
 import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
@@ -120,12 +122,17 @@ async function notifySubscriptionEvent(
 export async function loadSubscriptionForRestaurant(restaurantId: string) {
   const { supabase } = await requireRestaurantAccess(restaurantId, "staff");
 
+  // A restaurant can accumulate more than one subscription row over its
+  // lifetime (e.g. cancel then re-subscribe). Take the most recent so
+  // `.maybeSingle()` never trips the "multiple rows" error.
   const { data, error } = await supabase
     .from("subscriptions")
     .select("*, plans(*)")
     .eq("scope", "restaurant")
     .eq("scope_id", restaurantId)
     .in("status", ["pending", "active", "paused", "cancelled"])
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -185,24 +192,42 @@ export async function loadOrgBillingSummary(orgId: string) {
   };
 }
 
+/**
+ * Load a subscription and authorize the current user against its scope
+ * (restaurant manager or org admin). Shared by the pause/cancel/resume/retry
+ * actions so the fetch + scope-branching auth lives in one place.
+ */
+async function loadAuthorizedSubscription(subscriptionId: string) {
+  const { user } = await requireSession();
+  const supabase = await createServerClient();
+
+  const { data: sub } = await supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("id", subscriptionId)
+    .single();
+
+  if (!sub) throw new NotFoundError("Subscription not found");
+
+  if (sub.scope === "restaurant") {
+    await requireRestaurantAccess(sub.scope_id, "manager");
+  } else {
+    await requireOrgAccess(sub.org_id, "admin");
+  }
+
+  return { user, supabase, sub };
+}
+
+function revalidateBilling(sub: { scope: string; scope_id: string }) {
+  if (sub.scope === "restaurant") {
+    revalidatePath(`/restaurants/${sub.scope_id}/billing`);
+  }
+  revalidatePath("/settings/billing");
+}
+
 export async function pauseSubscriptionAction(subscriptionId: string) {
   return safeAction(async () => {
-    const { user } = await requireSession();
-    const supabase = await createServerClient();
-
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("id", subscriptionId)
-      .single();
-
-    if (!sub) throw new NotFoundError("Subscription not found");
-
-    if (sub.scope === "restaurant") {
-      await requireRestaurantAccess(sub.scope_id, "manager");
-    } else {
-      await requireOrgAccess(sub.org_id, "admin");
-    }
+    const { user, supabase, sub } = await loadAuthorizedSubscription(subscriptionId);
 
     if (!sub.payfast_token) {
       throw new ValidationError("No PayFast token available for this subscription.");
@@ -236,30 +261,14 @@ export async function pauseSubscriptionAction(subscriptionId: string) {
 
     await notifySubscriptionEvent(sub as SubscriptionRow, "paused", user.id);
 
-    revalidatePath(`/restaurants/${sub.scope_id}/billing`);
-    revalidatePath("/settings/billing");
+    revalidateBilling(sub);
     return { paused: true };
   });
 }
 
 export async function cancelSubscriptionAction(subscriptionId: string) {
   return safeAction(async () => {
-    const { user } = await requireSession();
-    const supabase = await createServerClient();
-
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("id", subscriptionId)
-      .single();
-
-    if (!sub) throw new NotFoundError("Subscription not found");
-
-    if (sub.scope === "restaurant") {
-      await requireRestaurantAccess(sub.scope_id, "manager");
-    } else {
-      await requireOrgAccess(sub.org_id, "admin");
-    }
+    const { user, supabase, sub } = await loadAuthorizedSubscription(subscriptionId);
 
     if (sub.payfast_token) {
       await payfastCancel(sub.payfast_token);
@@ -291,30 +300,14 @@ export async function cancelSubscriptionAction(subscriptionId: string) {
 
     await notifySubscriptionEvent(sub as SubscriptionRow, "cancelled", user.id);
 
-    revalidatePath(`/restaurants/${sub.scope_id}/billing`);
-    revalidatePath("/settings/billing");
+    revalidateBilling(sub);
     return { cancelled: true };
   });
 }
 
 export async function resumeSubscriptionAction(subscriptionId: string) {
   return safeAction(async () => {
-    const { user } = await requireSession();
-    const supabase = await createServerClient();
-
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("id", subscriptionId)
-      .single();
-
-    if (!sub) throw new NotFoundError("Subscription not found");
-
-    if (sub.scope === "restaurant") {
-      await requireRestaurantAccess(sub.scope_id, "manager");
-    } else {
-      await requireOrgAccess(sub.org_id, "admin");
-    }
+    const { user, supabase, sub } = await loadAuthorizedSubscription(subscriptionId);
 
     if (!sub.payfast_token) {
       throw new ValidationError("No PayFast token available for this subscription.");
@@ -338,9 +331,60 @@ export async function resumeSubscriptionAction(subscriptionId: string) {
 
     await notifySubscriptionEvent(sub as SubscriptionRow, "resumed", user.id);
 
-    revalidatePath(`/restaurants/${sub.scope_id}/billing`);
-    revalidatePath("/settings/billing");
+    revalidateBilling(sub);
     return { resumed: true };
+  });
+}
+
+/**
+ * Re-launch PayFast checkout for a subscription stuck in `pending` (the user
+ * abandoned or failed the initial checkout). Rebuilds the checkout URL from the
+ * existing subscription and redirects the browser to PayFast.
+ */
+export async function retrySubscriptionCheckout(subscriptionId: string) {
+  return safeAction(async () => {
+    const { supabase, sub } = await loadAuthorizedSubscription(subscriptionId);
+
+    if (sub.status !== "pending") {
+      throw new ValidationError("This subscription is not awaiting payment.");
+    }
+
+    const isRestaurant = sub.scope === "restaurant";
+    const baseUrl = env.NEXT_PUBLIC_APP_URL;
+    const context = await getSubscriptionContext(supabase, sub as SubscriptionRow);
+
+    // Reuse the original m_payment_id so the webhook/return page can reconcile;
+    // generate one only if it was never set.
+    let mPaymentId = sub.m_payment_id;
+    if (!mPaymentId) {
+      mPaymentId = `${sub.org_id}-${sub.scope}-${Date.now()}`;
+      await supabase
+        .from("subscriptions")
+        .update({ m_payment_id: mPaymentId })
+        .eq("id", sub.id);
+    }
+
+    const returnBase = isRestaurant
+      ? `${baseUrl}/restaurants/${sub.scope_id}/billing`
+      : `${baseUrl}/settings/billing`;
+
+    const checkoutUrl = buildPayFastCheckout({
+      m_payment_id: mPaymentId,
+      amount_cents: sub.amount_cents,
+      item_name: isRestaurant
+        ? `Hungr — ${context.name}`
+        : `Hungr — ${context.name} Plan`,
+      subscription_type: 1,
+      frequency: 3,
+      cycles: 0,
+      return_url: `${returnBase}/return?m_payment_id=${encodeURIComponent(mPaymentId)}`,
+      cancel_url: `${returnBase}?status=cancel`,
+      notify_url: `${baseUrl}/api/webhooks/payfast`,
+      custom_str1: isRestaurant ? sub.scope_id : sub.org_id,
+      custom_str2: isRestaurant ? sub.org_id : "org",
+    });
+
+    redirect(checkoutUrl);
   });
 }
 

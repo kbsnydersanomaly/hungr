@@ -4,6 +4,7 @@ import { TabNav, type TabNavItem } from "@/components/dashboard/TabNav";
 
 const adminNav: TabNavItem[] = [
   { href: "/admin/orgs", label: "Organizations", icon: "building" },
+  { href: "/admin/restaurants", label: "Restaurants", icon: "utensils-crossed" },
   { href: "/admin/users", label: "Users", icon: "users" },
   { href: "/admin/plans", label: "Plans", icon: "credit-card" },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: "receipt" },

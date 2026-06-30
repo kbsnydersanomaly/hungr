@@ -248,6 +248,88 @@ export async function createCategory(page: Page, name: string) {
   });
 }
 
+/**
+ * Adds a sub-category to a top-level category card on the menu workspace.
+ */
+export async function createSubcategory(
+  page: Page,
+  parentCategoryName: string,
+  name: string
+) {
+  const card = page
+    .locator('[data-slot="card"]')
+    .filter({
+      has: page.getByRole("heading", { name: parentCategoryName, exact: true }),
+    });
+
+  await card.getByRole("button", { name: "Add sub-category" }).click();
+  const input = card.getByPlaceholder("Sub-category name");
+  await input.fill(name);
+  await input.locator("xpath=following-sibling::button").first().click();
+  await expect(card.getByRole("heading", { name, exact: true })).toBeVisible({
+    timeout: 10000,
+  });
+}
+
+/**
+ * Adds a menu item into a sub-category block on the menu workspace.
+ */
+export async function createSubcategoryItem(
+  page: Page,
+  subcategoryName: string,
+  item: NewItem
+) {
+  const block = page
+    .locator("div.rounded-lg")
+    .filter({
+      has: page.getByRole("heading", { name: subcategoryName, exact: true }),
+    })
+    .first();
+
+  await block.getByRole("button", { name: "Add item" }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByText("Fill in the item details below.")).toBeVisible();
+
+  await page.locator("#item-name").fill(item.name);
+  await page.locator("#item-price").fill(item.price);
+  if (item.description) {
+    await page.locator("#item-desc").fill(item.description);
+  }
+
+  await sheet.getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(sheet).not.toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(item.name).first()).toBeVisible({ timeout: 10000 });
+}
+
+/**
+ * Adds a menu item directly into a top-level category card on the workspace.
+ */
+export async function createCategoryItem(
+  page: Page,
+  categoryName: string,
+  item: NewItem
+) {
+  const card = page
+    .locator('[data-slot="card"]')
+    .filter({
+      has: page.getByRole("heading", { name: categoryName, exact: true }),
+    });
+
+  await card.getByRole("button", { name: "Add item" }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByText("Fill in the item details below.")).toBeVisible();
+
+  await page.locator("#item-name").fill(item.name);
+  await page.locator("#item-price").fill(item.price);
+  if (item.description) {
+    await page.locator("#item-desc").fill(item.description);
+  }
+
+  await sheet.getByRole("button", { name: "Add item", exact: true }).click();
+  await expect(sheet).not.toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(item.name).first()).toBeVisible({ timeout: 10000 });
+}
+
 interface NewItem {
   name: string;
   price: string;

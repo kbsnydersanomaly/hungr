@@ -6,6 +6,7 @@ import { Pagination, Autoplay } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
 import { Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SpecialsSliderProps {
   specials: Array<{
@@ -24,29 +25,36 @@ interface SpecialsSliderProps {
 export function SpecialsSlider({ specials }: SpecialsSliderProps) {
   if (specials.length === 0) return null;
 
+  const multipleSpecials = specials.length > 1;
+
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="py-3">
+      <div className="flex items-center gap-2 mb-3 px-4">
         <Sparkles className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Specials
         </h2>
       </div>
       <Swiper
-        modules={[Pagination, Autoplay]}
-        pagination={{ clickable: true, dynamicBullets: true }}
-        autoplay={{ delay: 5000, disableOnInteraction: false }}
-        spaceBetween={12}
-        slidesPerView={1.2}
-        breakpoints={{
-          640: { slidesPerView: 2.2 },
-          1024: { slidesPerView: 3 },
-        }}
-        className="!pb-8"
+        modules={multipleSpecials ? [Pagination, Autoplay] : []}
+        pagination={
+          multipleSpecials ? { clickable: true, dynamicBullets: true } : false
+        }
+        autoplay={
+          multipleSpecials
+            ? { delay: 5000, disableOnInteraction: false }
+            : undefined
+        }
+        spaceBetween={0}
+        slidesPerView={1}
+        className={cn(
+          multipleSpecials && "!pb-8",
+          "[--swiper-theme-color:var(--primary)] [--swiper-pagination-bullet-inactive-color:var(--primary)]"
+        )}
       >
         {specials.map((special) => (
           <SwiperSlide key={special.id}>
-            <div className="relative overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
+            <div className="relative overflow-hidden bg-card">
               <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted">
                 {special.image_url ? (
                   <Image
@@ -54,7 +62,7 @@ export function SpecialsSlider({ specials }: SpecialsSliderProps) {
                     alt={special.title}
                     fill
                     className="object-cover"
-                    sizes="(max-width: 640px) 80vw, 400px"
+                    sizes="100vw"
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-gradient-to-br from-muted to-muted/50">
@@ -81,7 +89,14 @@ export function SpecialsSlider({ specials }: SpecialsSliderProps) {
                       </span>
                     ) : null}
                   </div>
-                  <h3 className="text-sm font-bold text-white drop-shadow">{special.title}</h3>
+                  {/* Inline color beats the .branding-scope heading rule so the
+                      title stays white/readable over the image gradient. */}
+                  <h3
+                    className="text-sm font-bold text-white drop-shadow"
+                    style={{ color: "#fff" }}
+                  >
+                    {special.title}
+                  </h3>
                 </div>
               </div>
               {special.description && (

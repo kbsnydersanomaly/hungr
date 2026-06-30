@@ -79,11 +79,27 @@ export async function upsertCategory(menuId: string, formData: FormData) {
 
     const id = String(formData.get("id") ?? "").trim() || undefined;
     const name = String(formData.get("name") ?? "").trim();
+    const parentId = String(formData.get("parent_id") ?? "").trim() || null;
     if (!name) throw new ValidationError("Category name is required.");
+
+    // Enforce a single level of nesting: a sub-category's parent must itself be
+    // a top-level category (parent_id is null) within this menu.
+    if (parentId) {
+      const { data: parent, error: parentError } = await supabase
+        .from("categories")
+        .select("id, parent_id, menu_id")
+        .eq("id", parentId)
+        .maybeSingle();
+      if (parentError || !parent) throw new ValidationError("Parent category not found.");
+      if (parent.menu_id !== menuId) throw new ValidationError("Parent category not found.");
+      if (parent.parent_id !== null) {
+        throw new ValidationError("Sub-categories can only be added to top-level categories.");
+      }
+    }
 
     const { error } = await supabase
       .from("categories")
-      .upsert({ id, menu_id: menuId, name })
+      .upsert({ id, menu_id: menuId, name, parent_id: parentId })
       .select()
       .single();
 
@@ -176,6 +192,15 @@ export async function upsertItem(menuId: string, formData: FormData) {
       String(formData.get("sauces") ?? ""),
       []
     );
+    // Pairings: ids of other items in this menu that go well with this one.
+    // Dedupe and never let an item pair with itself.
+    const pairingIds = [
+      ...new Set(
+        safeJsonParse<string[]>(String(formData.get("pairing_ids") ?? ""), []).filter(
+          (pid) => typeof pid === "string" && pid && pid !== id
+        )
+      ),
+    ];
     const { error } = await supabase
       .from("menu_items")
       .upsert({
@@ -193,6 +218,7 @@ export async function upsertItem(menuId: string, formData: FormData) {
         variations,
         sides,
         sauces,
+        pairing_ids: pairingIds,
       })
       .select()
       .single();

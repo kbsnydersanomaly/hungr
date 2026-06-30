@@ -15,6 +15,30 @@ import {
   findCategoryDiscount,
   formatDiscountLabel,
 } from "@/lib/specials/discounts";
+import type { CategoryNode } from "@/lib/types/menu";
+
+/** Find a category's display name anywhere in a one-level-deep tree. */
+function findCategoryName(categories: CategoryNode[], id: string): string | undefined {
+  for (const cat of categories) {
+    if (cat.id === id) return cat.name;
+    const child = cat.children.find((s) => s.id === id);
+    if (child) return child.name;
+  }
+  return undefined;
+}
+
+/** Collect a category id and all of its descendant ids (one level deep). */
+function collectCategoryAndDescendantIds(
+  categories: CategoryNode[],
+  id: string
+): Set<string> {
+  const node = categories.find((c) => c.id === id);
+  if (node) {
+    return new Set([node.id, ...node.children.map((c) => c.id)]);
+  }
+  // `id` may itself be a sub-category — match it directly.
+  return new Set([id]);
+}
 
 interface MenuViewProps {
   restaurant: {
@@ -27,7 +51,7 @@ interface MenuViewProps {
     name: string;
     slug: string;
   };
-  categories: Array<{ id: string; name: string }>;
+  categories: CategoryNode[];
   items: Array<{
     id: string;
     name: string;
@@ -64,11 +88,23 @@ interface MenuViewProps {
   menus?: Array<{ id: string; name: string; slug: string; is_default?: boolean | null }>;
   logoUrl?: string | null;
   bannerImageUrls?: string[];
+  /** Initial category filter (e.g. from a `?category=` query param). */
+  initialCategoryId?: string | null;
 }
 
-export function MenuView({ restaurant, menu, categories, items, specials, menus = [], logoUrl, bannerImageUrls = [] }: MenuViewProps) {
+export function MenuView({
+  restaurant,
+  menu,
+  categories,
+  items,
+  specials,
+  menus = [],
+  logoUrl,
+  bannerImageUrls = [],
+  initialCategoryId = null,
+}: MenuViewProps) {
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(initialCategoryId);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track page view
@@ -92,11 +128,11 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
   const handleCategorySelect = (id: string | null) => {
     setActiveCategory(id);
     if (id) {
-      const category = categories.find((c) => c.id === id);
+      const name = findCategoryName(categories, id);
       trackEvent({
         menuId: menu.id,
         eventType: "filter",
-        metadata: { category_id: id, category_name: category?.name },
+        metadata: { category_id: id, category_name: name },
       });
     }
   };
@@ -132,7 +168,8 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
     let result = itemsWithDiscounts;
 
     if (activeCategory) {
-      result = result.filter((item) => item.category_id === activeCategory);
+      const ids = collectCategoryAndDescendantIds(categories, activeCategory);
+      result = result.filter((item) => ids.has(item.category_id));
     }
 
     if (search.trim()) {
@@ -145,7 +182,7 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
     }
 
     return result;
-  }, [itemsWithDiscounts, activeCategory, search]);
+  }, [itemsWithDiscounts, categories, activeCategory, search]);
 
   const categoriesWithDiscounts = useMemo(
     () =>
@@ -164,7 +201,8 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
         restaurantSlug={restaurant.slug}
         currentMenuSlug={menu.slug}
         menus={menus}
-        categories={categories}
+        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+        onCategorySelect={handleCategorySelect}
       >
         <MenuSwitcher
           restaurantSlug={restaurant.slug}
@@ -196,6 +234,7 @@ export function MenuView({ restaurant, menu, categories, items, specials, menus 
             restaurantSlug={restaurant.slug}
             menuSlug={menu.slug}
             menuId={menu.id}
+            specials={specials}
           />
         ) : (
           <div className="text-center py-12 text-sm text-muted-foreground">

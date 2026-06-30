@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatZar } from "@/lib/utils/money";
-import { CreditCard, Calendar } from "lucide-react";
+import { CreditCard, Calendar, Lock } from "lucide-react";
 import { SubscriptionActions } from "@/components/dashboard/SubscriptionActions";
 import { PaymentStatusBanner } from "@/components/dashboard/PaymentStatusBanner";
 import { TransactionHistoryCard } from "@/components/dashboard/TransactionHistoryCard";
@@ -36,6 +36,7 @@ export default async function RestaurantBillingPage({
 
   const sp = await searchParams;
   const status = sp?.status;
+  const blocked = sp?.blocked === "1";
   const filters = parseTransactionFilters(sp);
 
   let restaurant;
@@ -70,6 +71,18 @@ export default async function RestaurantBillingPage({
         status={status}
         cancelMessage="Payment was cancelled. You can try again below."
       />
+
+      {blocked && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="py-4 flex items-center gap-3">
+            <Lock className="h-5 w-5 text-amber-600 shrink-0" aria-hidden="true" />
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+              Menu and content management is locked until this restaurant has an
+              active subscription. Complete or resume payment below to unlock it.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subscription Card */}
       <Card>

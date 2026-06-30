@@ -74,7 +74,7 @@ export default async function AdminOrgsPage({
                           </div>
                         )}
                       </div>
-                      <Button size="sm" variant="ghost" asChild>
+                      <Button size="sm" variant="link" asChild>
                         <Link href={`/admin/orgs/${org.id}`}>
                           Details
                           <ArrowRight className="h-3.5 w-3.5 ml-1" />

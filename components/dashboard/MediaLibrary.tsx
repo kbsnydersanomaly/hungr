@@ -3,13 +3,15 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import { deleteMedia } from "@/lib/data/media-actions";
+import { useAction } from "@/lib/hooks/use-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import { formatBytes } from "@/lib/utils/bytes";
 import { MediaUploadDialog } from "./MediaUploadDialog";
 import { Trash2, ImageIcon, Search, X, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 interface MediaItem {
   id: string;
@@ -33,14 +35,10 @@ interface MediaLibraryProps {
    * avoid stacking dialogs.
    */
   showUpload?: boolean;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  /** Bytes of storage already used by this restaurant. */
+  usedBytes?: number;
+  /** Total storage quota for this restaurant, in bytes. */
+  limitBytes?: number;
 }
 
 export function MediaLibrary({
@@ -51,9 +49,20 @@ export function MediaLibrary({
   onSelect,
   onRefresh,
   showUpload = true,
+  usedBytes,
+  limitBytes,
 }: MediaLibraryProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const showUsage = usedBytes != null && limitBytes != null && limitBytes > 0;
+  const remainingBytes = showUsage ? Math.max(limitBytes - usedBytes, 0) : undefined;
+  const usagePct = showUsage ? Math.min((usedBytes / limitBytes) * 100, 100) : 0;
+
+  const deleteAction = useAction(deleteMedia, {
+    successMessage: "Image deleted.",
+    onSuccess: () => onRefresh?.(),
+  });
 
   const filteredMedia = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -61,29 +70,39 @@ export function MediaLibrary({
     return media.filter((item) => item.name.toLowerCase().includes(query));
   }, [media, searchQuery]);
 
+  const usageBar = showUsage ? (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {formatBytes(usedBytes)} of {formatBytes(limitBytes)} used
+        </span>
+        <span>{formatBytes(remainingBytes ?? 0)} left</span>
+      </div>
+      <Progress value={usagePct} className="h-2" />
+    </div>
+  ) : null;
+
   async function handleDelete(item: MediaItem, e: React.MouseEvent) {
     e.stopPropagation();
     if (!confirm(`Delete "${item.name}"?`)) return;
 
     setDeletingId(item.id);
-    try {
-      await deleteMedia(item.id);
-      toast.success("Image deleted.");
-      onRefresh?.();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete.");
-    } finally {
-      setDeletingId(null);
-    }
+    await deleteAction.execute(item.id);
+    setDeletingId(null);
   }
 
   if (media.length === 0) {
     return (
       <div className="space-y-4">
+        {usageBar}
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted-foreground">0 images</h3>
           {showUpload && (
-            <MediaUploadDialog restaurantId={restaurantId} onUpload={onRefresh} />
+            <MediaUploadDialog
+              restaurantId={restaurantId}
+              onUpload={onRefresh}
+              remainingBytes={remainingBytes}
+            />
           )}
         </div>
         <Card>
@@ -100,12 +119,17 @@ export function MediaLibrary({
 
   return (
     <div className="space-y-4">
+      {usageBar}
       <div className="flex items-center justify-between gap-4">
         <h3 className="text-sm font-medium text-muted-foreground">
           {filteredMedia.length} image{filteredMedia.length === 1 ? "" : "s"}
         </h3>
         {showUpload && (
-          <MediaUploadDialog restaurantId={restaurantId} onUpload={onRefresh} />
+          <MediaUploadDialog
+            restaurantId={restaurantId}
+            onUpload={onRefresh}
+            remainingBytes={remainingBytes}
+          />
         )}
       </div>
 

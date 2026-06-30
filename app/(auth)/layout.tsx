@@ -7,17 +7,19 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
-      <div className="relative hidden md:block">
-        <Image
-          src="/login.webp"
-          alt="Hungr dashboard and mobile menu preview"
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 0vw, 50vw"
-          priority
-        />
+      <div className="hidden md:block">
+        <div className="sticky top-5 h-[calc(100dvh-40px)] max-h-[calc(100dvh-40px)]">
+          <Image
+            src="/login.webp"
+            alt="Hungr dashboard and mobile menu preview"
+            fill
+            className="object-contain object-top"
+            sizes="(max-width: 768px) 0vw, 50vw"
+            priority
+          />
+        </div>
       </div>
-      <div className="flex flex-col items-center justify-center px-6 py-12 bg-background">
+      <div className="flex min-h-screen flex-col items-center justify-center px-6 py-12 bg-background">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
             <Image
