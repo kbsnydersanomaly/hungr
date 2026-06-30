@@ -70,33 +70,26 @@ export function SpecialsSlider({ specials }: SpecialsSliderProps) {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-3">
+                <div className="text-on-image absolute bottom-0 left-0 right-0 p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="inline-flex items-center rounded-md bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground uppercase">
                       {special.kind === "combo" ? "Combo" : "Special"}
                     </span>
                     {special.kind === "combo" && special.combo_price_cents ? (
-                      <span className="text-xs font-bold text-white drop-shadow">
+                      <span className="text-xs font-bold drop-shadow">
                         R {(special.combo_price_cents / 100).toFixed(2)}
                       </span>
                     ) : special.discount_pct ? (
-                      <span className="text-xs font-bold text-white drop-shadow">
+                      <span className="text-xs font-bold drop-shadow">
                         {special.discount_pct}% off
                       </span>
                     ) : special.discount_amount_cents ? (
-                      <span className="text-xs font-bold text-white drop-shadow">
+                      <span className="text-xs font-bold drop-shadow">
                         R {(special.discount_amount_cents / 100).toFixed(2)} off
                       </span>
                     ) : null}
                   </div>
-                  {/* Inline color beats the .branding-scope heading rule so the
-                      title stays white/readable over the image gradient. */}
-                  <h3
-                    className="text-sm font-bold text-white drop-shadow"
-                    style={{ color: "#fff" }}
-                  >
-                    {special.title}
-                  </h3>
+                  <h3 className="text-sm font-bold drop-shadow">{special.title}</h3>
                 </div>
               </div>
               {special.description && (

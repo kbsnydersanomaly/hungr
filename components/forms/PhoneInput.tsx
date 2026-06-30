@@ -18,7 +18,7 @@ export function PhoneInput({ onChange, onInput, ...props }: PhoneInputProps) {
     onChange?.(e);
   }
 
-  function handleInput(e: React.FormEvent<HTMLInputElement>) {
+  function handleInput(e: React.InputEvent<HTMLInputElement>) {
     const input = e.currentTarget;
     const sanitized = sanitizePhoneInput(input.value);
     if (sanitized !== input.value) {

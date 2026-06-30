@@ -155,3 +155,13 @@
   font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
   color: var(--color-main-heading, inherit);
 }
+/* Labels over image gradients must stay white regardless of branding tokens. */
+.branding-scope .text-on-image :is(h1, h2, h3, h4, h5, h6, p) {
+  color: #fff;
+}
+.branding-scope .text-on-image span:not([class*="bg-"]) {
+  color: #fff;
+}
+.branding-scope .text-on-image-muted {
+  color: rgb(255 255 255 / 0.9);
+}
