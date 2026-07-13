@@ -22,7 +22,7 @@ vi.mock("@/lib/data/menus", () => ({ loadMenuById }));
 vi.mock("@/lib/qr/generate", () => ({ generateAndStoreMenuQr: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 
-import { renameMenu } from "@/lib/data/menu-actions";
+import { renameMenu, createMenu } from "@/lib/data/menu-actions";
 import { ForbiddenError } from "@/lib/errors";
 
 const MENU_ID = "33333333-3333-4333-8333-333333333333";
@@ -127,5 +127,24 @@ describe("renameMenu", () => {
     expect(result.ok).toBe(false);
     expect(result.message).toContain("Failed to rename menu");
     expect(result.message).toContain("boom");
+  });
+});
+
+describe("createMenu", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects names longer than 80 characters (parity with rename)", async () => {
+    const { builder } = makeSupabase();
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const formData = new FormData();
+    formData.append("name", "x".repeat(81));
+
+    const result = await createMenu(RESTAURANT_ID, formData);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("80");
   });
 });

@@ -28,6 +28,7 @@ export function MenuNameEditor({ menuId, name, className }: MenuNameEditorProps)
   const [value, setValue] = useState(name);
 
   async function handleSave() {
+    if (saving) return;
     const trimmed = value.trim();
     if (!trimmed || trimmed === name) {
       setValue(name);

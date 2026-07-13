@@ -28,6 +28,9 @@ export async function createMenu(restaurantId: string, formData: FormData) {
 
     const name = String(formData.get("name") ?? "").trim();
     if (!name) throw new ValidationError("Menu name is required.");
+    // Same cap as RenameMenuSchema so a menu can always be renamed to its
+    // current name.
+    if (name.length > 80) throw new ValidationError("Menu name must be 80 characters or fewer.");
 
     const slug = await ensureUniqueSlug(name, async (s) => {
       const { data } = await supabase

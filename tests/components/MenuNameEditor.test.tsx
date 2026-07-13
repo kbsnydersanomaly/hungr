@@ -56,10 +56,19 @@ describe("MenuNameEditor", () => {
     expect(screen.getByText("Dinner")).toBeInTheDocument();
   });
 
-  it("does not call the action when the name is unchanged or empty", async () => {
+  it("does not call the action when the name is empty", async () => {
     render(<MenuNameEditor menuId="menu-1" name="Dinner" />);
     const input = openEditor();
     fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(renameMenu).not.toHaveBeenCalled();
+  });
+
+  it("does not call the action when the name is unchanged", async () => {
+    render(<MenuNameEditor menuId="menu-1" name="Dinner" />);
+    const input = openEditor();
+    fireEvent.change(input, { target: { value: "Dinner" } });
     fireEvent.submit(input.closest("form")!);
 
     expect(renameMenu).not.toHaveBeenCalled();
