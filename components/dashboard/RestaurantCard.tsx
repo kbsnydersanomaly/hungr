@@ -26,10 +26,8 @@ export function RestaurantCard({ restaurant }: { restaurant: RestaurantCardData 
       <Link
         href={base}
         aria-label={`View ${restaurant.name}`}
-        className="absolute inset-0 rounded-xl"
-      >
-        <span className="sr-only">View restaurant</span>
-      </Link>
+        className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      />
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base font-semibold">{restaurant.name}</CardTitle>
