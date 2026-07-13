@@ -143,6 +143,26 @@ export async function updateSpecial(specialId: string, formData: FormData) {
   });
 }
 
+export async function setSpecialActive(specialId: string, active: boolean) {
+  return safeAction(async () => {
+    const restaurantId = await loadSpecialRestaurantId(specialId);
+    const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
+
+    const { error } = await supabase
+      .from("specials")
+      .update({ active, updated_at: new Date().toISOString() })
+      .eq("id", specialId);
+
+    if (error) {
+      console.error("setSpecialActive error:", error);
+      throw actionError("Failed to update special", error);
+    }
+
+    revalidatePath(`/restaurants/${restaurantId}/specials`);
+    return { updated: true };
+  });
+}
+
 export async function deleteSpecial(specialId: string) {
   return safeAction(async () => {
     const restaurantId = await loadSpecialRestaurantId(specialId);
