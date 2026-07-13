@@ -146,7 +146,7 @@ describe("MediaUploadZone", () => {
     expect(screen.getByText(/Corrupt image data\./)).toBeInTheDocument();
     // The batch still completed and the good files uploaded.
     expect(toast.error).toHaveBeenCalledWith("1 of 3 uploads failed.");
-    expect(onUploadComplete).toHaveBeenCalledTimes(1);
+    expect(onUploadComplete).toHaveBeenCalledWith({ succeeded: 2, failed: 1 });
   });
 
   it("does not call onUploadComplete when every file fails", async () => {
@@ -217,5 +217,91 @@ describe("MediaUploadZone", () => {
 
     expect(await screen.findByText("1 of 1 uploaded")).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Image uploaded successfully.");
+  });
+
+  it("toasts the actual error message for a single failed upload", async () => {
+    uploadMock.mockResolvedValue({ error: { message: "Payload too large." } });
+    render(<MediaUploadZone restaurantId="r1" />);
+
+    pickFiles([imageFile("solo.png")]);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Payload too large.")
+    );
+  });
+
+  it("toasts an error when every file in the batch is a non-image", async () => {
+    render(<MediaUploadZone restaurantId="r1" />);
+
+    const text = new File(["hello"], "notes.txt", { type: "text/plain" });
+    const csv = new File(["a,b"], "data.csv", { type: "text/csv" });
+    pickFiles([text, csv]);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Only image files are allowed.")
+    );
+    expect(uploadMock).not.toHaveBeenCalled();
+    // Both files still show their per-file errors in the queue.
+    expect(screen.getByText("notes.txt")).toBeInTheDocument();
+    expect(screen.getByText("data.csv")).toBeInTheDocument();
+  });
+
+  it("clears the previous queue when a batch is blocked by the storage pre-check", async () => {
+    render(<MediaUploadZone restaurantId="r1" remainingBytes={150} />);
+
+    // First batch succeeds and shows results in the queue.
+    pickFiles([imageFile("a.png", 100)]);
+    expect(await screen.findByText("1 of 1 uploaded")).toBeInTheDocument();
+
+    // Second batch exceeds the quota: it must not leave the old results behind.
+    pickFiles([imageFile("b.png", 100), imageFile("c.png", 100)]);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("Not enough storage")
+      )
+    );
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/of \d+ uploaded/)).not.toBeInTheDocument();
+    expect(screen.queryByText("a.png")).not.toBeInTheDocument();
+  });
+
+  it("uses a .png extension when the file name has no dot", async () => {
+    render(<MediaUploadZone restaurantId="r1" />);
+
+    pickFiles([imageFile("photo")]);
+
+    await waitFor(() => expect(recordMediaUploadMock).toHaveBeenCalledTimes(1));
+    const formData = recordMediaUploadMock.mock.calls[0][1] as FormData;
+    expect(String(formData.get("path"))).toMatch(/\.png$/);
+  });
+
+  it("ignores a second batch while one is already in flight", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    recordMediaUploadMock.mockImplementation((_restaurantId: string, formData: FormData) => {
+      const name = String(formData.get("name"));
+      if (name === "first.png") {
+        return new Promise((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return Promise.resolve({ ok: true, data: { media: mediaFor(name) } });
+    });
+
+    render(<MediaUploadZone restaurantId="r1" />);
+
+    pickFiles([imageFile("first.png")]);
+    // Wait until the first file is actually in flight.
+    await waitFor(() => expect(recordMediaUploadMock).toHaveBeenCalledTimes(1));
+    // Mid-flight: the input is disabled, but even if a change slips through
+    // the busy guard must drop it instead of clobbering the queue.
+    pickFiles([imageFile("second.png")]);
+
+    resolveFirst({ ok: true, data: { media: mediaFor("first.png") } });
+
+    expect(await screen.findByText("1 of 1 uploaded")).toBeInTheDocument();
+    expect(recordMediaUploadMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("first.png")).toBeInTheDocument();
+    expect(screen.queryByText("second.png")).not.toBeInTheDocument();
   });
 });

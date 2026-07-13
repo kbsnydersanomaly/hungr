@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { recordMediaUpload } from "@/lib/data/media-actions";
 import { formatBytes } from "@/lib/utils/bytes";
@@ -32,10 +32,11 @@ interface MediaUploadZoneProps {
   onUploaded?: (item: UploadedMediaItem) => void;
   /**
    * Called once when the whole batch finishes and at least one file uploaded
-   * successfully. Use this to close dialogs / refresh, so a multi-file batch
-   * isn't cut short after the first file.
+   * successfully, with the success/failure counts. Use this to close dialogs /
+   * refresh, so a multi-file batch isn't cut short after the first file — and
+   * keep the dialog open when `failed > 0` so per-file errors stay visible.
    */
-  onUploadComplete?: () => void;
+  onUploadComplete?: (result: { succeeded: number; failed: number }) => void;
   /**
    * Remaining storage for this restaurant, in bytes. When set, a batch whose
    * total size exceeds this is blocked client-side before hitting storage.
@@ -62,14 +63,19 @@ export function MediaUploadZone({
   const [uploading, setUploading] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  // Guards against a second batch starting mid-flight (the drop handler's
+  // `uploading` state check has a render-tick window).
+  const busyRef = useRef(false);
 
   const uploadOne = useCallback(
-    async (file: File): Promise<UploadedMediaItem> => {
-      const ext = file.name.split(".").pop() || "png";
+    async (
+      supabase: ReturnType<typeof createBrowserClient>,
+      file: File
+    ): Promise<UploadedMediaItem> => {
+      const dotIndex = file.name.lastIndexOf(".");
+      const ext = dotIndex > 0 ? file.name.slice(dotIndex + 1) : "png";
       const path = `${restaurantId}/${crypto.randomUUID()}.${ext}`;
       const bucket = "menu-media";
-
-      const supabase = createBrowserClient();
 
       const { error: uploadError } = await supabase.storage
         .from(bucket)
@@ -110,94 +116,104 @@ export function MediaUploadZone({
     async (fileList: FileList | File[]) => {
       const files = Array.from(fileList);
       if (files.length === 0) return;
+      if (busyRef.current) return;
+      busyRef.current = true;
 
-      // Per-file type check, same rule as the single-file path. Invalid files
-      // enter the queue as failed so the user sees a per-file error, while the
-      // valid ones still upload.
-      const entries: { id: string; name: string; file: File | null; error?: string }[] =
-        files.map((file) => {
-          const id = crypto.randomUUID();
-          if (!file.type.startsWith("image/")) {
-            return { id, name: file.name, file: null, error: "Only image files are allowed." };
+      try {
+        // Per-file type check, same rule as the single-file path. Invalid files
+        // enter the queue as failed so the user sees a per-file error, while the
+        // valid ones still upload.
+        const entries: { id: string; name: string; file: File | null; error?: string }[] =
+          files.map((file) => {
+            const id = crypto.randomUUID();
+            if (!file.type.startsWith("image/")) {
+              return { id, name: file.name, file: null, error: "Only image files are allowed." };
+            }
+            return { id, name: file.name, file };
+          });
+
+        const valid = entries.filter((e) => e.file != null);
+
+        // Batch storage pre-check: fail fast before uploading anything if the
+        // whole batch would exceed the restaurant's remaining quota.
+        if (valid.length > 0 && remainingBytes != null) {
+          const totalBytes = valid.reduce((sum, e) => sum + (e.file?.size ?? 0), 0);
+          if (totalBytes > remainingBytes) {
+            // Clear any results from a previous batch so they don't linger.
+            setQueue([]);
+            toast.error(
+              `Not enough storage. ${valid.length === 1 ? "This file is" : `These ${valid.length} files are`} ${formatBytes(
+                totalBytes
+              )} but only ${formatBytes(Math.max(remainingBytes, 0))} remains.`
+            );
+            return;
           }
-          return { id, name: file.name, file };
-        });
+        }
 
-      const valid = entries.filter((e) => e.file != null);
+        setQueue(
+          entries.map((e) => ({
+            id: e.id,
+            name: e.name,
+            state: e.file ? "pending" : "failed",
+            error: e.error,
+          }))
+        );
 
-      // Batch storage pre-check: fail fast before uploading anything if the
-      // whole batch would exceed the restaurant's remaining quota.
-      if (valid.length > 0 && remainingBytes != null) {
-        const totalBytes = valid.reduce((sum, e) => sum + (e.file?.size ?? 0), 0);
-        if (totalBytes > remainingBytes) {
-          toast.error(
-            `Not enough storage. ${valid.length === 1 ? "This file is" : `These ${valid.length} files are`} ${formatBytes(
-              totalBytes
-            )} but only ${formatBytes(Math.max(remainingBytes, 0))} remains.`
-          );
+        if (valid.length === 0) {
+          toast.error("Only image files are allowed.");
           return;
         }
-      }
 
-      setQueue(
-        entries.map((e) => ({
-          id: e.id,
-          name: e.name,
-          state: e.file ? "pending" : "failed",
-          error: e.error,
-        }))
-      );
-
-      if (valid.length === 0) return;
-
-      const setItemState = (id: string, state: QueueItemState, error?: string) =>
-        setQueue((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, state, error } : item))
-        );
-
-      setUploading(true);
-
-      let succeeded = 0;
-      let failedCount = entries.length - valid.length;
-
-      // Sequential uploads: simple and avoids hammering storage with a burst.
-      for (const entry of valid) {
-        if (!entry.file) continue;
-        setItemState(entry.id, "uploading");
-        try {
-          const media = await uploadOne(entry.file);
-          setItemState(entry.id, "done");
-          succeeded += 1;
-          onUploaded?.(media);
-        } catch (err) {
-          console.error("Upload failed:", err);
-          setItemState(
-            entry.id,
-            "failed",
-            err instanceof Error ? err.message : "Upload failed."
+        const setItemState = (id: string, state: QueueItemState, error?: string) =>
+          setQueue((prev) =>
+            prev.map((item) => (item.id === id ? { ...item, state, error } : item))
           );
-          failedCount += 1;
+
+        setUploading(true);
+
+        const supabase = createBrowserClient();
+        let succeeded = 0;
+        let failedCount = entries.length - valid.length;
+        let lastError: string | undefined;
+
+        // Sequential uploads: simple and avoids hammering storage with a burst.
+        for (const entry of valid) {
+          if (!entry.file) continue;
+          setItemState(entry.id, "uploading");
+          try {
+            const media = await uploadOne(supabase, entry.file);
+            setItemState(entry.id, "done");
+            succeeded += 1;
+            onUploaded?.(media);
+          } catch (err) {
+            console.error("Upload failed:", err);
+            lastError = err instanceof Error ? err.message : "Upload failed.";
+            setItemState(entry.id, "failed", lastError);
+            failedCount += 1;
+          }
         }
+
+        setUploading(false);
+
+        const total = entries.length;
+        if (failedCount > 0) {
+          toast.error(
+            total === 1
+              ? lastError ?? "Upload failed."
+              : `${failedCount} of ${total} uploads failed.`
+          );
+        } else {
+          toast.success(
+            total === 1
+              ? "Image uploaded successfully."
+              : `${total} images uploaded successfully.`
+          );
+        }
+
+        if (succeeded > 0) onUploadComplete?.({ succeeded, failed: failedCount });
+      } finally {
+        busyRef.current = false;
       }
-
-      setUploading(false);
-
-      const total = entries.length;
-      if (failedCount > 0) {
-        toast.error(
-          total === 1
-            ? "Upload failed."
-            : `${failedCount} of ${total} uploads failed.`
-        );
-      } else {
-        toast.success(
-          total === 1
-            ? "Image uploaded successfully."
-            : `${total} images uploaded successfully.`
-        );
-      }
-
-      if (succeeded > 0) onUploadComplete?.();
     },
     [uploadOne, onUploaded, onUploadComplete, remainingBytes]
   );

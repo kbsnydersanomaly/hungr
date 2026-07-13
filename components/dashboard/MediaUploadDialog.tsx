@@ -50,7 +50,12 @@ export function MediaUploadDialog({
         <MediaUploadZone
           restaurantId={restaurantId}
           remainingBytes={remainingBytes}
-          onUploadComplete={() => {
+          onUploadComplete={({ failed }) => {
+            // Keep the dialog open when some files failed so the per-file
+            // errors stay readable; the user can close it manually. Succeeded
+            // files already refreshed the grid via revalidatePath in
+            // recordMediaUpload.
+            if (failed > 0) return;
             setOpen(false);
             onUpload?.();
           }}
