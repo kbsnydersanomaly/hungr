@@ -123,7 +123,7 @@ export default async function ItemDetailPage({
         </div>
 
         {item.description && (
-          <p className="text-sm text-muted-foreground">{item.description}</p>
+          <p className="text-sm menu-description">{item.description}</p>
         )}
 
         {item.allergens && item.allergens.length > 0 && (
@@ -273,7 +273,7 @@ export default async function ItemDetailPage({
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-semibold">{combo.title}</h3>
                     {combo.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                      <p className="text-xs menu-description line-clamp-2 mt-0.5">
                         {combo.description}
                       </p>
                     )}

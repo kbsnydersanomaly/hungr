@@ -126,7 +126,7 @@ const TYPOGRAPHY_COLOR_ROLES: ColorRole[] = [
   {
     key: "body_color",
     label: "Body text color",
-    description: "Descriptions and general text",
+    description: "Item descriptions and general menu text",
     fallback: "#181818",
   },
 ];

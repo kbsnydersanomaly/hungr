@@ -74,7 +74,7 @@ export function ItemCard({ item, restaurantSlug, menuSlug, menuId, compact, disc
           </div>
         </div>
         {item.description && (
-          <p className="line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
+          <p className="line-clamp-2 text-xs menu-description">{item.description}</p>
         )}
         {(item.labels.length > 0 || item.discount_label) && (
           <div className="flex flex-wrap gap-1 pt-1">

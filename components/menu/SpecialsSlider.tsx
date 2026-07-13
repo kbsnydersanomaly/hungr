@@ -94,7 +94,7 @@ export function SpecialsSlider({ specials }: SpecialsSliderProps) {
               </div>
               {special.description && (
                 <div className="p-3">
-                  <p className="text-xs text-muted-foreground line-clamp-2">
+                  <p className="text-xs menu-description line-clamp-2">
                     {special.description}
                   </p>
                 </div>

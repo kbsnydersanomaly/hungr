@@ -70,6 +70,13 @@ describe("ItemCard", () => {
     expect(image.parentElement?.className).toContain("overflow-hidden");
   });
 
+  it("styles the description via menu-description so branding body colour applies", () => {
+    render(<ItemCard {...baseProps} />);
+    const description = screen.getByText("Tomato, mozzarella, basil");
+    expect(description.className).toContain("menu-description");
+    expect(description.className).not.toContain("text-muted-foreground");
+  });
+
   it("does not render the image in compact mode", () => {
     render(<ItemCard {...baseProps} compact />);
     expect(screen.queryByTestId("item-image")).not.toBeInTheDocument();

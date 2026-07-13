@@ -151,6 +151,11 @@
   color: var(--color-body, var(--foreground));
   background-color: var(--background);
 }
+/* Body text (item/special descriptions): follows the restaurant's body text
+   colour, falling back to muted when none is set. */
+.branding-scope .menu-description {
+  color: var(--color-body, var(--muted-foreground));
+}
 .branding-scope :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
   color: var(--color-main-heading, inherit);
