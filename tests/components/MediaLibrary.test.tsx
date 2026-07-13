@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MediaLibrary } from "@/components/dashboard/MediaLibrary";
+import { renameMedia } from "@/lib/data/media-actions";
 
 vi.mock("@/lib/data/media-actions", () => ({
   deleteMedia: vi.fn().mockResolvedValue({ deleted: true }),
+  renameMedia: vi.fn().mockResolvedValue({ ok: true, data: { name: "tasty-burger.jpg" } }),
 }));
 
 vi.mock("next/image", () => ({
@@ -96,5 +98,53 @@ describe("MediaLibrary", () => {
     fireEvent.change(searchInput, { target: { value: "  bur  " } });
 
     expect(screen.getByAltText("burger.jpg")).toBeInTheDocument();
+  });
+
+  it("opens an inline rename input prefilled with the current name", () => {
+    render(<MediaLibrary restaurantId="r1" media={media} />);
+
+    fireEvent.click(screen.getByLabelText("Rename burger.jpg"));
+
+    expect(screen.getByLabelText("Rename media")).toHaveValue("burger.jpg");
+  });
+
+  it("saves the new name and shows the server-returned name immediately", async () => {
+    render(<MediaLibrary restaurantId="r1" media={media} />);
+
+    fireEvent.click(screen.getByLabelText("Rename burger.jpg"));
+    fireEvent.change(screen.getByLabelText("Rename media"), {
+      target: { value: "tasty-burger.jpg" },
+    });
+    fireEvent.click(screen.getByLabelText("Save name"));
+
+    await waitFor(() => {
+      expect(renameMedia).toHaveBeenCalledWith("1", "tasty-burger.jpg");
+    });
+    expect(await screen.findByText("tasty-burger.jpg")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Rename media")).not.toBeInTheDocument();
+  });
+
+  it("does not call the action when the name is unchanged", async () => {
+    render(<MediaLibrary restaurantId="r1" media={media} />);
+
+    fireEvent.click(screen.getByLabelText("Rename burger.jpg"));
+    fireEvent.click(screen.getByLabelText("Save name"));
+
+    expect(renameMedia).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Rename media")).not.toBeInTheDocument();
+  });
+
+  it("cancels the rename on Escape without calling the action", () => {
+    render(<MediaLibrary restaurantId="r1" media={media} />);
+
+    fireEvent.click(screen.getByLabelText("Rename burger.jpg"));
+    fireEvent.change(screen.getByLabelText("Rename media"), {
+      target: { value: "something-else.jpg" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Rename media"), { key: "Escape" });
+
+    expect(renameMedia).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Rename media")).not.toBeInTheDocument();
+    expect(screen.getByText("burger.jpg")).toBeInTheDocument();
   });
 });

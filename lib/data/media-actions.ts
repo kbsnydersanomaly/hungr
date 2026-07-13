@@ -61,19 +61,24 @@ export async function getRestaurantStorageUsage(
  * upload never overwrites another in storage — but a duplicate `name` makes it
  * look like the original was replaced. When a name is already taken we prepend
  * an incrementing prefix (e.g. "photo.png" -> "1-photo.png") so both files
- * remain distinguishable in the library.
+ * remain distinguishable in the library. Pass `excludeMediaId` when renaming
+ * so the item being renamed does not count as taking its own current name
+ * (renaming "logo.png" to "logo.png" stays "logo.png", not "1-logo.png").
  */
 async function uniqueMediaName(
   supabase: Awaited<ReturnType<typeof requireRestaurantAccess>>["supabase"],
   restaurantId: string,
-  name: string
+  name: string,
+  excludeMediaId?: string
 ): Promise<string> {
   const { data: existing } = await supabase
     .from("media")
-    .select("name")
+    .select("id, name")
     .eq("restaurant_id", restaurantId);
 
-  const taken = new Set((existing ?? []).map((m) => m.name));
+  const taken = new Set(
+    (existing ?? []).filter((m) => m.id !== excludeMediaId).map((m) => m.name)
+  );
   if (!taken.has(name)) return name;
 
   let n = 1;
@@ -161,6 +166,58 @@ export async function recordMediaUpload(
 
     revalidatePath(`/restaurants/${restaurantId}/media`);
     return { media: inserted };
+  });
+}
+
+export async function renameMedia(mediaId: string, name: string) {
+  return safeAction(async () => {
+    const supabase = await createServerClient();
+
+    const { data: media, error: mediaError } = await supabase
+      .from("media")
+      .select("id, restaurant_id")
+      .eq("id", mediaId)
+      .maybeSingle();
+
+    if (mediaError || !media) throw new NotFoundError("Media not found");
+
+    const { supabase: authed } = await requireRestaurantAccess(
+      media.restaurant_id ?? "",
+      "manager"
+    );
+
+    const trimmed = name.trim();
+    if (!trimmed) throw new ValidationError("Media name is required.");
+    if (trimmed.length > 120) {
+      throw new ValidationError("Media name must be 120 characters or fewer.");
+    }
+
+    const finalName = await uniqueMediaName(
+      authed,
+      media.restaurant_id ?? "",
+      trimmed,
+      mediaId
+    );
+
+    // Only the display `name` column is updated. The storage object key
+    // (`path`) and `url` are intentionally left untouched — `name` is purely
+    // a display name, so renaming must never break the file or any existing
+    // references to its URL.
+    const { error } = await authed
+      .from("media")
+      .update({ name: finalName })
+      .eq("id", mediaId);
+
+    if (error) {
+      console.error("renameMedia error:", error);
+      throw actionError("Failed to rename media", error);
+    }
+
+    if (media.restaurant_id) {
+      revalidatePath(`/restaurants/${media.restaurant_id}/media`);
+    }
+    // Return the final (possibly deduped) name so the UI shows what saved.
+    return { name: finalName };
   });
 }
 

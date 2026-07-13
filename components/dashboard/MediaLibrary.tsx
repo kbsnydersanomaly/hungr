@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { deleteMedia } from "@/lib/data/media-actions";
+import { deleteMedia, renameMedia } from "@/lib/data/media-actions";
 import { useAction } from "@/lib/hooks/use-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { formatBytes } from "@/lib/utils/bytes";
 import { MediaUploadDialog } from "./MediaUploadDialog";
-import { Trash2, ImageIcon, Search, X, Loader2 } from "lucide-react";
+import { Trash2, ImageIcon, Search, X, Loader2, Pencil, Check } from "lucide-react";
 
 interface MediaItem {
   id: string;
@@ -54,6 +54,12 @@ export function MediaLibrary({
 }: MediaLibraryProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  // New names returned by the server, shown immediately without waiting for
+  // the parent to refresh the `media` prop.
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
 
   const showUsage = usedBytes != null && limitBytes != null && limitBytes > 0;
   const remainingBytes = showUsage ? Math.max(limitBytes - usedBytes, 0) : undefined;
@@ -64,11 +70,20 @@ export function MediaLibrary({
     onSuccess: () => onRefresh?.(),
   });
 
+  const renameAction = useAction(renameMedia, {
+    successMessage: "Image renamed.",
+  });
+
+  const displayMedia = useMemo(
+    () => media.map((item) => (nameOverrides[item.id] ? { ...item, name: nameOverrides[item.id] } : item)),
+    [media, nameOverrides]
+  );
+
   const filteredMedia = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return media;
-    return media.filter((item) => item.name.toLowerCase().includes(query));
-  }, [media, searchQuery]);
+    if (!query) return displayMedia;
+    return displayMedia.filter((item) => item.name.toLowerCase().includes(query));
+  }, [displayMedia, searchQuery]);
 
   const usageBar = showUsage ? (
     <div className="space-y-1.5">
@@ -89,6 +104,36 @@ export function MediaLibrary({
     setDeletingId(item.id);
     await deleteAction.execute(item.id);
     setDeletingId(null);
+  }
+
+  function startRename(item: MediaItem, e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditingId(item.id);
+    setDraftName(item.name);
+  }
+
+  function cancelRename() {
+    setEditingId(null);
+    setDraftName("");
+  }
+
+  async function handleRenameSave(item: MediaItem) {
+    const next = draftName.trim();
+    if (!next || next === item.name) {
+      cancelRename();
+      return;
+    }
+
+    setRenamingId(item.id);
+    const result = await renameAction.execute(item.id, next);
+    setRenamingId(null);
+
+    if (result.ok && result.data) {
+      // Show the final (possibly deduped) name the server actually saved.
+      setNameOverrides((prev) => ({ ...prev, [item.id]: result.data!.name }));
+      cancelRename();
+      onRefresh?.();
+    }
   }
 
   if (media.length === 0) {
@@ -194,20 +239,82 @@ export function MediaLibrary({
                   <p className="text-[10px] text-white/70">{formatBytes(item.size)}</p>
                 </div>
 
-                {!selectable && (
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => handleDelete(item, e)}
-                    disabled={deletingId === item.id}
+                {!selectable && editingId === item.id ? (
+                  <div
+                    className="absolute inset-x-2 top-2 flex items-center gap-1 rounded-md bg-background/95 p-1 shadow-sm"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {deletingId === item.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
+                    <Input
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleRenameSave(item);
+                        } else if (e.key === "Escape") {
+                          cancelRename();
+                        }
+                      }}
+                      maxLength={120}
+                      autoFocus
+                      disabled={renamingId === item.id}
+                      aria-label="Rename media"
+                      className="h-7 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => handleRenameSave(item)}
+                      disabled={renamingId === item.id || !draftName.trim()}
+                      aria-label="Save name"
+                    >
+                      {renamingId === item.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={cancelRename}
+                      disabled={renamingId === item.id}
+                      aria-label="Cancel rename"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  !selectable && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="absolute top-2 left-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => startRename(item, e)}
+                        aria-label={`Rename ${item.name}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => handleDelete(item, e)}
+                        disabled={deletingId === item.id}
+                      >
+                        {deletingId === item.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </>
+                  )
                 )}
 
                 {isSelected && (
