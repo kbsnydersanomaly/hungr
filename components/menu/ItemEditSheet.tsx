@@ -159,6 +159,7 @@ export function ItemEditSheet({
       !form.pairingIds.includes(m.id) &&
       m.name.toLowerCase().includes(pairingSearch.trim().toLowerCase())
   );
+  const customAllergenList = customAllergens(form.allergens);
 
   // Re-derive form state every time the sheet opens so stale values never
   // leak between items (state adjustment during render, per React docs).
@@ -385,9 +386,9 @@ export function ItemEditSheet({
                 </label>
               ))}
             </div>
-            {customAllergens(form.allergens).length > 0 && (
+            {customAllergenList.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-3">
-                {customAllergens(form.allergens).map((a) => (
+                {customAllergenList.map((a) => (
                   <Badge key={a} variant="secondary" className="gap-1 pr-1 capitalize">
                     {a}
                     <button
@@ -413,6 +414,7 @@ export function ItemEditSheet({
                   }
                 }}
                 placeholder="Add another allergen…"
+                aria-label="Add another allergen"
                 className="flex-1"
               />
               <Button
