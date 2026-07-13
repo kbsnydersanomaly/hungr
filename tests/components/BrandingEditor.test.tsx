@@ -137,6 +137,30 @@ describe("BrandingEditor", () => {
     expect(lastCall.vars["--color-nav-bar-foreground"]).toBe("#181818");
   });
 
+  it("includes the draft logo URL in preview messages", async () => {
+    render(
+      <BrandingEditor
+        {...baseProps}
+        draft={{ ...baseProps.draft, logo_url: "https://cdn.test/logo.png" }}
+      />
+    );
+    const iframe = screen.getByTitle("Menu preview") as HTMLIFrameElement;
+    const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage");
+
+    const hexInput = screen.getByDisplayValue("#FE1B54");
+    fireEvent.change(hexInput, { target: { value: "#00FF00" } });
+
+    await waitFor(() => {
+      expect(postMessage).toHaveBeenCalled();
+    });
+    const lastCall = postMessage.mock.calls.at(-1)![0] as {
+      type: string;
+      logoUrl: string | null;
+    };
+    expect(lastCall.type).toBe("hungr-branding-preview");
+    expect(lastCall.logoUrl).toBe("https://cdn.test/logo.png");
+  });
+
   it("publishes via the publish action", async () => {
     render(<BrandingEditor {...baseProps} />);
     fireEvent.click(screen.getByRole("button", { name: "Publish changes" }));

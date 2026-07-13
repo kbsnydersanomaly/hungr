@@ -10,6 +10,7 @@ interface PreviewMessage {
   type: typeof BRANDING_PREVIEW_MESSAGE;
   vars: Record<string, string>;
   fonts: string[];
+  logoUrl?: string | null;
 }
 
 /**
@@ -53,6 +54,43 @@ export function BrandingPreviewBridge() {
         if (link.href !== href) link.href = href;
       } else if (link) {
         link.remove();
+      }
+
+      // Swap the header logo live. The server-rendered header has either a
+      // logo ([data-branding-logo]) or a letter avatar ([data-branding-avatar]),
+      // so handle both directions: update an existing logo's src, inject a
+      // logo element when there was none, or revert to the avatar on removal.
+      if ("logoUrl" in data) {
+        const logoWrap = document.querySelector<HTMLElement>(
+          "[data-branding-logo]"
+        );
+        const avatarWrap = document.querySelector<HTMLElement>(
+          "[data-branding-avatar]"
+        );
+        if (data.logoUrl) {
+          if (logoWrap) {
+            const img = logoWrap.querySelector("img");
+            if (img) {
+              // Next Image sets srcset, which would win over src — drop it.
+              img.removeAttribute("srcset");
+              img.src = data.logoUrl;
+            }
+            logoWrap.hidden = false;
+          } else if (avatarWrap) {
+            const wrap = document.createElement("div");
+            wrap.className = "flex items-center gap-2";
+            wrap.setAttribute("data-branding-logo", "");
+            const img = document.createElement("img");
+            img.className = "max-h-8 w-auto object-contain";
+            img.src = data.logoUrl;
+            wrap.appendChild(img);
+            avatarWrap.before(wrap);
+            avatarWrap.hidden = true;
+          }
+        } else {
+          if (logoWrap) logoWrap.hidden = true;
+          if (avatarWrap) avatarWrap.hidden = false;
+        }
       }
     }
 

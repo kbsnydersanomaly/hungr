@@ -182,6 +182,7 @@ export function BrandingEditor({
           type: BRANDING_PREVIEW_MESSAGE,
           vars: brandingToCssVars(state as Record<string, unknown>),
           fonts: brandingFontFamilies(state as Record<string, unknown>),
+          logoUrl: state.logo_url ?? null,
         },
         window.location.origin
       );

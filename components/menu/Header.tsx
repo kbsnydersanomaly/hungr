@@ -37,7 +37,7 @@ export function Header({
     >
       <div className="flex items-center gap-3">
         {logoUrl ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-branding-logo>
             <Image
               src={logoUrl}
               alt={restaurantName}
@@ -48,7 +48,9 @@ export function Header({
             {children && <div className="text-xs">{children}</div>}
           </div>
         ) : (
-          <>
+          // data-branding-* hooks let the branding editor's preview bridge
+          // swap the avatar for a logo (and back) live, without a reload.
+          <div className="flex items-center gap-3" data-branding-avatar>
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
               {restaurantName.charAt(0)}
             </div>
@@ -63,7 +65,7 @@ export function Header({
               </h1>
               {children && <div className="text-xs">{children}</div>}
             </div>
-          </>
+          </div>
         )}
       </div>
       <div className="flex items-center gap-2">
