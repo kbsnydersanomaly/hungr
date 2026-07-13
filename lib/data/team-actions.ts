@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import crypto from "node:crypto";
 import { createServerClient } from "@/lib/supabase/server";
 import { requireOrgAccess, requireRestaurantAccess } from "@/lib/auth/role";
-import { safeAction, ValidationError } from "@/lib/errors";
+import { safeAction, ValidationError, actionError } from "@/lib/errors";
+import * as Sentry from "@sentry/nextjs";
 import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
 import { writeAudit } from "@/lib/utils/audit";
@@ -96,6 +97,7 @@ export async function inviteMember(formData: FormData) {
       });
     } catch (err) {
       console.error("invitation email failed:", err);
+      Sentry.captureException(err);
       throw new ValidationError(
         "Invite saved, but the email failed to send. Use Resend to try again."
       );
@@ -191,7 +193,7 @@ export async function resendInvitation(invitationId: string) {
       });
     } catch (err) {
       console.error("invitation email failed:", err);
-      throw new ValidationError("Failed to send the invitation email. Please try again.");
+      throw actionError("Failed to send the invitation email", err);
     }
 
     await writeAudit({

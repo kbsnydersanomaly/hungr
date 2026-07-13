@@ -52,7 +52,15 @@ function main() {
     .sort();
 
   // Pass the password via PGPASSWORD instead of on the command line.
-  const dbUrl = new URL(process.env.SUPABASE_DB_URL ?? DEFAULT_DB_URL);
+  let dbUrl: URL;
+  try {
+    dbUrl = new URL(process.env.SUPABASE_DB_URL ?? DEFAULT_DB_URL);
+  } catch {
+    console.error(
+      `db:check: invalid SUPABASE_DB_URL ("${process.env.SUPABASE_DB_URL}"). Expected a postgres connection string like ${DEFAULT_DB_URL}.`
+    );
+    process.exit(1);
+  }
   const password = decodeURIComponent(dbUrl.password);
   dbUrl.password = "";
 
