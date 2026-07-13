@@ -128,7 +128,9 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
         toast.error(result.message ?? "Bulk upload failed.");
         return;
       }
-      const data = result.data;
+      // Normalize: a stale server action (deploy/version skew) may return a
+      // summary without the newer warnings field.
+      const data = { ...result.data, warnings: result.data.warnings ?? [] };
       setSummary(data);
       toast.success(
         `Done — ${data.added} added, ${data.updated} updated, ${data.skipped} skipped, ${data.failed} failed` +
