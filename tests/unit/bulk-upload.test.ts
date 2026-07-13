@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateRows,
   buildSampleCsv,
+  buildErrorReportCsv,
   parseSpreadsheet,
   parseOptionList,
   serializeOptionList,
@@ -330,6 +331,44 @@ describe("id column", () => {
     expect(errors).toContainEqual(
       expect.objectContaining({ row: 2, field: "id" })
     );
+  });
+});
+
+describe("buildErrorReportCsv", () => {
+  it("emits the row,column,message header and one line per error", () => {
+    const csv = buildErrorReportCsv([
+      { row: 2, field: "name", reason: "Item name is required." },
+      { row: 3, field: "price", reason: "Price must be a number." },
+    ]);
+    expect(csv.split(/\r?\n/)).toEqual([
+      "row,column,message",
+      "2,name,Item name is required.",
+      "3,price,Price must be a number.",
+    ]);
+  });
+
+  it("quotes messages containing commas or quotes", () => {
+    const csv = buildErrorReportCsv([
+      {
+        row: 5,
+        field: "pairings",
+        reason: 'Unknown item "Steak, large" — no item with that name exists on this menu.',
+      },
+    ]);
+    expect(csv).toContain(
+      '5,pairings,"Unknown item ""Steak, large"" — no item with that name exists on this menu."'
+    );
+  });
+
+  it("serializes 150 errors without truncation", () => {
+    const errors = Array.from({ length: 150 }, (_, i) => ({
+      row: i + 2,
+      field: "name",
+      reason: "Item name is required.",
+    }));
+    const lines = buildErrorReportCsv(errors).split(/\r?\n/);
+    expect(lines).toHaveLength(151);
+    expect(lines[150]).toBe("151,name,Item name is required.");
   });
 });
 

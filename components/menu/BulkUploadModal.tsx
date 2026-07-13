@@ -34,6 +34,7 @@ import {
   parseSpreadsheet,
   validateRows,
   buildSampleCsv,
+  buildErrorReportCsv,
   BULK_COLUMNS,
   type BulkUploadMode,
   type ParsedRow,
@@ -379,18 +380,63 @@ function PreviewTable({ rows }: { rows: ParsedRow[] }) {
   );
 }
 
+/**
+ * Group errors by row for display. Errors arrive in row order, so consecutive
+ * same-row errors are merged under one "Row N" header.
+ */
+function groupErrorsByRow(errors: RowError[]): { row: number; errors: RowError[] }[] {
+  const groups: { row: number; errors: RowError[] }[] = [];
+  for (const err of errors) {
+    const last = groups[groups.length - 1];
+    if (last && last.row === err.row) {
+      last.errors.push(err);
+    } else {
+      groups.push({ row: err.row, errors: [err] });
+    }
+  }
+  return groups;
+}
+
 function ErrorList({ errors }: { errors: RowError[] }) {
-  const shown = errors.slice(0, 20);
+  const groups = groupErrorsByRow(errors);
+
+  function handleDownloadReport() {
+    const blob = new Blob([buildErrorReportCsv(errors)], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "upload-errors.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   return (
-    <div className="max-h-40 space-y-1 overflow-auto rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {shown.map((err, i) => (
-        <div key={i}>
-          Row {err.row} · {err.field} · {err.reason}
-        </div>
-      ))}
-      {errors.length > shown.length && (
-        <div className="text-xs">…and {errors.length - shown.length} more.</div>
-      )}
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-destructive">
+          {errors.length} error{errors.length === 1 ? "" : "s"} found
+        </p>
+        <Button variant="outline" size="sm" onClick={handleDownloadReport}>
+          <Download className="h-4 w-4 mr-2" />
+          Download error report
+        </Button>
+      </div>
+      <div className="max-h-64 space-y-2 overflow-auto rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        {groups.map((group) => (
+          <div key={group.row}>
+            <div className="text-xs font-medium">Row {group.row}</div>
+            {group.errors.map((err, i) => (
+              <div key={i} className="pl-3">
+                {err.field} · {err.reason}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

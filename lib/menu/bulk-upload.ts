@@ -407,6 +407,18 @@ export function buildSampleCsv(): string {
 }
 
 /**
+ * Serialize validation errors to a CSV report (`row,column,message`) for the
+ * "Download error report" button in the upload modal. `Papa.unparse` handles
+ * quoting of commas, quotes, and newlines in messages.
+ */
+export function buildErrorReportCsv(errors: RowError[]): string {
+  return Papa.unparse({
+    fields: ["row", "column", "message"],
+    data: errors.map((err) => [err.row, err.field, err.reason]),
+  });
+}
+
+/**
  * Column order for the menu export: the importer's columns plus a leading
  * `id` (the item UUID) so a downloaded → edited → re-uploaded file updates
  * rows in place even when names change.

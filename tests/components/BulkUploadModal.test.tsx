@@ -54,9 +54,73 @@ describe("BulkUploadModal", () => {
     uploadCsv("name,price,category\n,89,Mains\nSalad,55,Starters\n");
 
     // The first data row (file row 2) is missing a name.
-    expect(await screen.findByText(/Row 2 · name ·/i)).toBeInTheDocument();
+    expect(await screen.findByText("Row 2")).toBeInTheDocument();
+    expect(
+      screen.getByText(/name · Item name is required\./i)
+    ).toBeInTheDocument();
     // The valid row is still previewed.
     expect(screen.getByText("Salad")).toBeInTheDocument();
+  });
+
+  it("renders every validation error (no 20-item slice) with a count header", async () => {
+    openModal();
+    const badRows = Array.from({ length: 25 }, () => ",89,Mains").join("\n");
+    uploadCsv(`name,price,category\n${badRows}\n`);
+
+    expect(await screen.findByText("25 errors found")).toBeInTheDocument();
+    // First and last rows are both visible — nothing was sliced off.
+    expect(screen.getByText("Row 2")).toBeInTheDocument();
+    expect(screen.getByText("Row 26")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/name · Item name is required\./i)
+    ).toHaveLength(25);
+    expect(screen.queryByText(/…and \d+ more\./)).not.toBeInTheDocument();
+  });
+
+  it("groups multiple errors for the same row under one row header", async () => {
+    openModal();
+    // Row 2 is missing both name and price → two errors, one header.
+    uploadCsv("name,price,category\n,,Mains\n");
+
+    expect(await screen.findByText("2 errors found")).toBeInTheDocument();
+    expect(screen.getAllByText("Row 2")).toHaveLength(1);
+    expect(
+      screen.getByText(/name · Item name is required\./i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/price · Price is required\./i)
+    ).toBeInTheDocument();
+  });
+
+  it("downloads an error report CSV with the failing rows", async () => {
+    const createObjectURL = vi.fn(() => "blob:mock");
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = vi.fn();
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    openModal();
+    uploadCsv("name,price,category\n,89,Mains\nSalad,,Starters\n");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /download error report/i })
+    );
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalled();
+    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    const csv = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(blob);
+    });
+    expect(csv).toBe(
+      "row,column,message\r\n" +
+        "2,name,Item name is required.\r\n" +
+        "3,price,Price is required."
+    );
+    click.mockRestore();
   });
 
   it("submits raw rows to the server action and shows a summary", async () => {
