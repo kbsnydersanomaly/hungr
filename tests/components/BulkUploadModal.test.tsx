@@ -105,7 +105,7 @@ describe("BulkUploadModal", () => {
   });
 
   it("downloads an error report CSV with the failing rows", async () => {
-    const createObjectURL = vi.fn(() => "blob:mock");
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:mock");
     URL.createObjectURL = createObjectURL;
     URL.revokeObjectURL = vi.fn();
     const click = vi
