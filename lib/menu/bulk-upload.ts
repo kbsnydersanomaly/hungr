@@ -462,8 +462,14 @@ export function buildMenuCsv(rows: MenuExportRow[]): string {
 export interface PairingRow {
   /** 1-based file row (incl. header), used in warnings. */
   fileRow: number;
-  /** The row's own item name (to find its id and exclude self-pairing). */
+  /** The row's own item name (fallback for finding its id). */
   name: string;
+  /**
+   * The item's UUID when the row carried an explicit `id` — preferred over
+   * the name lookup, so a rename that collides with another item's name
+   * can't misroute pairings.
+   */
+  ownId?: string;
   /** Pairing names as entered in the `pairings` column. */
   pairings: string[];
 }
@@ -478,10 +484,11 @@ export interface PairingUpdate {
 
 /**
  * Resolve pairing names to item ids against a map of every item now on the
- * menu (keyed by lowercased, trimmed name). Mirrors the safety rules of
- * `upsertItem`: ids are deduped and an item never pairs with itself.
- * Unresolvable names become warnings (row number + unknown name), never
- * hard failures. A row that declared pairing names but resolved zero ids
+ * menu (keyed by lowercased, trimmed name). A row's own item is identified by
+ * its explicit `ownId` when present, otherwise by name lookup. Mirrors the
+ * safety rules of `upsertItem`: ids are deduped and an item never pairs with
+ * itself. Unresolvable names become warnings (row number + unknown name),
+ * never hard failures. A row that declared pairing names but resolved zero ids
  * produces no update, so its existing pairings are left untouched (the
  * warnings already tell the user); an empty `pairings` cell means "no change".
  */
@@ -494,7 +501,9 @@ export function resolvePairings(
 
   for (const row of rows) {
     if (row.pairings.length === 0) continue;
-    const ownId = nameToId.get(row.name.trim().toLowerCase());
+    // Rows that carried an explicit item id already know their own UUID;
+    // no-id rows fall back to resolving their (possibly renamed) name.
+    const ownId = row.ownId ?? nameToId.get(row.name.trim().toLowerCase());
     // Defensive: the action only feeds rows whose item exists on the menu
     // (written rows, plus existing items matched in add mode).
     if (!ownId) continue;

@@ -535,4 +535,38 @@ describe("resolvePairings", () => {
     expect(updates).toHaveLength(0);
     expect(warnings).toHaveLength(0);
   });
+
+  it("prefers an explicit ownId over the name lookup (rename collision)", () => {
+    // The row was renamed to a name that belongs to another item in the map;
+    // without ownId the update would misroute to that item.
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 2,
+          name: "House Merlot",
+          ownId: ID.brownie,
+          pairings: ["Tiramisu"],
+        },
+      ],
+      nameToId
+    );
+    expect(warnings).toHaveLength(0);
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.tiramisu], fileRow: 2 }]);
+  });
+
+  it("excludes self-pairing when ownId is given explicitly", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 2,
+          name: "Renamed Brownie",
+          ownId: ID.brownie,
+          pairings: ["Chocolate Brownie", "Tiramisu"],
+        },
+      ],
+      nameToId
+    );
+    expect(warnings).toHaveLength(0);
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.tiramisu], fileRow: 2 }]);
+  });
 });

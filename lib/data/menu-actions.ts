@@ -513,13 +513,26 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
 
       const inserts: ReturnType<typeof toItemRow>[] = [];
       const updates: { id: string; data: ReturnType<typeof toItemRow> }[] = [];
+      // id -> file row of its first occurrence, to reject duplicate ids.
+      const seenIds = new Map<string, number>();
 
       for (const { row, categoryId } of resolved) {
         if (row.id) {
           // Round-trip path: a row exported from this menu carries the item's
           // UUID. An explicit id always targets that exact row and takes
-          // precedence over name matching, in every upload mode — so renamed
-          // items update in place instead of duplicating.
+          // precedence over name matching (replace mode ignores ids — it
+          // deletes everything first).
+          const firstRow = seenIds.get(row.id);
+          if (firstRow !== undefined) {
+            summary.errors.push({
+              row: row.fileRow,
+              field: "id",
+              reason: `Duplicate id — already used by row ${firstRow}.`,
+            });
+            summary.failed++;
+            continue;
+          }
+          seenIds.set(row.id, row.fileRow);
           if (!existingIds.has(row.id)) {
             summary.errors.push({
               row: row.fileRow,
@@ -533,6 +546,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
           pairingRows.push({
             fileRow: row.fileRow,
             name: row.name,
+            ownId: row.id,
             pairings: row.pairings,
           });
           continue;

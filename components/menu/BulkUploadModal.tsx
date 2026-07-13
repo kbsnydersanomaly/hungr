@@ -252,11 +252,13 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
             </p>
             <p className="text-xs text-muted-foreground">
               Round-trip editing: download the current menu, edit it, and
-              re-upload in Modify mode. Rows with an{" "}
-              <code className="font-mono">id</code> always update that item — in
-              any upload mode — so renamed items never duplicate. Rows without
-              an <code className="font-mono">id</code> match by name within
-              their category: Add mode skips matches, Modify mode updates them.
+              re-upload in Modify mode. In Add or Modify mode, rows with an{" "}
+              <code className="font-mono">id</code> always update that item, so
+              renamed items never duplicate. Replace mode re-inserts every row
+              fresh — existing items are deleted first and ids are not
+              preserved. Rows without an <code className="font-mono">id</code>{" "}
+              match by name within their category: Add mode skips matches,
+              Modify mode updates them.
             </p>
             <p className="text-xs text-muted-foreground">
               Option columns (preparations, variations, sides, sauces):
@@ -273,7 +275,8 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
               items that already exist. Names are matched case-insensitively;
               unknown names are reported as warnings, not errors, and a row
               whose names all fail to resolve leaves its existing pairings
-              untouched.
+              untouched. Pairings to items on other menus are not included in
+              exports — they cannot be expressed as names.
             </p>
 
             {parseError && (

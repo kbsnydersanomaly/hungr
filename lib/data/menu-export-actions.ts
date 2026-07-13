@@ -25,12 +25,15 @@ export async function exportMenuCsv(menuId: string) {
         .from("categories")
         .select("id, name")
         .eq("menu_id", menuId)
-        .order("sort_order", { ascending: true }),
+        .order("sort_order", { ascending: true })
+        // Secondary key keeps exports deterministic when sort_order ties.
+        .order("id", { ascending: true }),
       supabase
         .from("menu_items")
         .select("*")
         .eq("menu_id", menuId)
-        .order("sort_order", { ascending: true }),
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true }),
     ]);
     if (categoriesResult.error) {
       throw actionError("Failed to load categories", categoriesResult.error);

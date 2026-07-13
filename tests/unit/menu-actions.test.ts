@@ -324,6 +324,7 @@ describe("bulkUpsertItems pairing pass", () => {
 
 describe("bulkUpsertItems id column", () => {
   const BROWNIE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const MERLOT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const GHOST_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 
   beforeEach(() => {
@@ -409,5 +410,63 @@ describe("bulkUpsertItems id column", () => {
     // The name-matched row still updates normally.
     expect(result.data?.updated).toBe(1);
     expect(pairingUpdates).toHaveLength(1);
+  });
+
+  it("errors the second row when the same id appears twice", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [{ id: BROWNIE_ID, name: "Chocolate Brownie", category_id: "cat-1" }],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "modify",
+      rows: [
+        { id: BROWNIE_ID, name: "Brownie A", price: "55.00", category: "Desserts" },
+        { id: BROWNIE_ID, name: "Brownie B", price: "60.00", category: "Desserts" },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    // The first row proceeds; the duplicate is rejected, not double-written.
+    expect(result.data?.updated).toBe(1);
+    expect(result.data?.failed).toBe(1);
+    expect(result.data?.errors).toHaveLength(1);
+    expect(result.data?.errors[0]).toMatchObject({ row: 3, field: "id" });
+    expect(result.data?.errors[0].reason).toContain("row 2");
+    expect(pairingUpdates).toHaveLength(1);
+    expect(pairingUpdates[0]).toMatchObject({ id: BROWNIE_ID, name: "Brownie A" });
+  });
+
+  it("routes pairings by the row's id even when its new name collides with another item", async () => {
+    const TIRAMISU_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [
+        { id: BROWNIE_ID, name: "Chocolate Brownie", category_id: "cat-1" },
+        { id: MERLOT_ID, name: "House Merlot", category_id: "cat-1" },
+        { id: TIRAMISU_ID, name: "Tiramisu", category_id: "cat-1" },
+      ],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "modify",
+      rows: [
+        {
+          id: BROWNIE_ID,
+          // Renamed to a name that already belongs to another item — the
+          // name-based own-id lookup would misroute to MERLOT_ID.
+          name: "House Merlot",
+          price: "55.00",
+          category: "Desserts",
+          pairings: "Tiramisu",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    const pairingUpdate = pairingUpdates.find((u) => u.pairing_ids !== undefined);
+    expect(pairingUpdate).toEqual({ id: BROWNIE_ID, pairing_ids: [TIRAMISU_ID] });
   });
 });
