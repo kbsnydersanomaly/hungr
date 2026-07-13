@@ -5,7 +5,7 @@ import { renameMedia } from "@/lib/data/media-actions";
 
 vi.mock("@/lib/data/media-actions", () => ({
   deleteMedia: vi.fn().mockResolvedValue({ deleted: true }),
-  renameMedia: vi.fn().mockResolvedValue({ ok: true, data: { name: "tasty-burger.jpg" } }),
+  renameMedia: vi.fn().mockResolvedValue({ ok: true, data: { name: "1-tasty-burger.jpg" } }),
 }));
 
 vi.mock("next/image", () => ({
@@ -108,7 +108,7 @@ describe("MediaLibrary", () => {
     expect(screen.getByLabelText("Rename media")).toHaveValue("burger.jpg");
   });
 
-  it("saves the new name and shows the server-returned name immediately", async () => {
+  it("saves the new name and shows the server-returned (possibly deduped) name immediately", async () => {
     render(<MediaLibrary restaurantId="r1" media={media} />);
 
     fireEvent.click(screen.getByLabelText("Rename burger.jpg"));
@@ -120,7 +120,9 @@ describe("MediaLibrary", () => {
     await waitFor(() => {
       expect(renameMedia).toHaveBeenCalledWith("1", "tasty-burger.jpg");
     });
-    expect(await screen.findByText("tasty-burger.jpg")).toBeInTheDocument();
+    // The server deduped the name; the card must show what was actually saved.
+    expect(await screen.findByText("1-tasty-burger.jpg")).toBeInTheDocument();
+    expect(screen.queryByText("tasty-burger.jpg")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Rename media")).not.toBeInTheDocument();
   });
 
