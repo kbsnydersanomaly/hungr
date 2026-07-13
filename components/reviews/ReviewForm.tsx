@@ -55,21 +55,30 @@ export function ReviewForm({ menuItemId, restaurantId }: ReviewFormProps) {
         <form
           action={async (formData: FormData) => {
             setSubmitting(true);
-            const result = await submitReviewAction({
-              menu_item_id: menuItemId,
-              restaurant_id: restaurantId,
-              customer_name: String(formData.get("customer_name")),
-              message: String(formData.get("message")),
-              rating,
-            });
-            if (result.ok) {
-              setOpen(false);
-              setSubmitted(true);
-              toast.success("Review submitted");
-            } else {
-              toast.error(result.message || "Failed to submit review");
+            try {
+              const result = await submitReviewAction({
+                menu_item_id: menuItemId,
+                restaurant_id: restaurantId,
+                customer_name: String(formData.get("customer_name")),
+                message: String(formData.get("message")),
+                rating,
+              });
+              if (result.ok) {
+                setOpen(false);
+                setSubmitted(true);
+                toast.success("Review submitted");
+              } else {
+                toast.error(result.message || "Failed to submit review");
+              }
+            } catch {
+              // Network error mid-flight: the request may have reached the
+              // server, so warn against blindly resubmitting.
+              toast.error(
+                "Something went wrong. Your review may have been submitted — please don't resubmit unless asked."
+              );
+            } finally {
+              setSubmitting(false);
             }
-            setSubmitting(false);
           }}
           className="space-y-3"
         >

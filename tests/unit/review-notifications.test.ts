@@ -60,8 +60,14 @@ function makeAdmin(tables: {
 }
 
 function makeServerClient() {
+  const resolved = { data: [], error: null };
   const builder: Record<string, unknown> = {
+    select: () => builder,
+    eq: () => builder,
+    gte: () => builder,
+    limit: () => builder,
     insert: () => Promise.resolve({ error: null }),
+    then: (resolve: (v: unknown) => void) => resolve(resolved),
   };
   return { from: () => builder };
 }

@@ -120,6 +120,30 @@ export async function submitReviewAction(input: {
     }
 
     const supabase = await createServerClient();
+
+    // Idempotency guard: a double-tap or retry around a slow network can fire
+    // this action twice. If the exact same review (item + name + message) was
+    // already saved in the last 10 minutes, treat this as a replay and return
+    // success without inserting again — and without re-notifying managers.
+    // A DB unique index can't express the time window, so this is app-level.
+    const dedupSince = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: duplicates, error: dedupError } = await supabase
+      .from("reviews")
+      .select("id")
+      .eq("menu_item_id", parsed.data.menu_item_id)
+      .eq("customer_name", parsed.data.customer_name)
+      .eq("message", parsed.data.message)
+      .gte("created_at", dedupSince)
+      .limit(1);
+
+    if (dedupError) {
+      // Fail open: a failed check must not block a genuine submission.
+      console.error("submitReview dedup check failed:", dedupError);
+      Sentry.captureException(dedupError);
+    } else if (duplicates && duplicates.length > 0) {
+      return { submitted: true };
+    }
+
     const { error } = await supabase.from("reviews").insert({
       menu_item_id: parsed.data.menu_item_id,
       restaurant_id: parsed.data.restaurant_id,
