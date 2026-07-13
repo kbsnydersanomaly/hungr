@@ -17,8 +17,11 @@ import { revalidatePath } from "next/cache";
  * whose request-scoped client cannot read memberships or profiles past RLS.
  * A missing/null `notification_prefs.review_emails` means opt-in, matching the
  * defaultChecked behavior on /settings/notifications.
+ *
+ * Deliberately NOT exported: exports in a "use server" module become public RPC
+ * endpoints, and this would let anyone spam managers with arbitrary content.
  */
-export async function notifyReviewRecipients(review: {
+async function notifyReviewRecipients(review: {
   restaurant_id: string;
   customer_name: string;
   message: string;
@@ -26,26 +29,41 @@ export async function notifyReviewRecipients(review: {
 }) {
   const admin = createAdminClient();
 
-  const { data: restaurant } = await admin
+  // Report lookup errors instead of silently notifying nobody — a failed query
+  // must still never throw to the diner, so log + capture and bail out.
+  const reportLookupError = (context: string, error: unknown) => {
+    console.error(`${context}:`, error);
+    Sentry.captureException(error);
+  };
+
+  const { data: restaurant, error: restaurantError } = await admin
     .from("restaurants")
     .select("name, org_id")
     .eq("id", review.restaurant_id)
     .single();
 
+  if (restaurantError) {
+    reportLookupError("review notification: restaurant lookup failed", restaurantError);
+    return;
+  }
   if (!restaurant) return;
 
-  const [{ data: orgMembers }, { data: restaurantManagers }] = await Promise.all([
-    admin
-      .from("organization_members")
-      .select("user_id")
-      .eq("org_id", restaurant.org_id)
-      .in("role", ["owner", "admin", "manager"]),
-    admin
-      .from("restaurant_members")
-      .select("user_id")
-      .eq("restaurant_id", review.restaurant_id)
-      .eq("role", "manager"),
-  ]);
+  const [{ data: orgMembers, error: orgError }, { data: restaurantManagers, error: rmError }] =
+    await Promise.all([
+      admin
+        .from("organization_members")
+        .select("user_id")
+        .eq("org_id", restaurant.org_id)
+        .in("role", ["owner", "admin", "manager"]),
+      admin
+        .from("restaurant_members")
+        .select("user_id")
+        .eq("restaurant_id", review.restaurant_id)
+        .eq("role", "manager"),
+    ]);
+
+  if (orgError) reportLookupError("review notification: org member lookup failed", orgError);
+  if (rmError) reportLookupError("review notification: restaurant manager lookup failed", rmError);
 
   const userIds = Array.from(
     new Set([
@@ -55,10 +73,15 @@ export async function notifyReviewRecipients(review: {
   );
   if (userIds.length === 0) return;
 
-  const { data: profiles } = await admin
+  const { data: profiles, error: profilesError } = await admin
     .from("profiles")
     .select("email, notification_prefs")
     .in("id", userIds);
+
+  if (profilesError) {
+    reportLookupError("review notification: profile lookup failed", profilesError);
+    return;
+  }
 
   const reviews_url = `${env.NEXT_PUBLIC_APP_URL}/restaurants/${review.restaurant_id}/reviews`;
   const message_excerpt =

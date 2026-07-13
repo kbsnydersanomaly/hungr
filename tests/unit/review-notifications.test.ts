@@ -28,28 +28,31 @@ const REVIEW_INPUT = {
   rating: 4,
 };
 
+type TableResult = { data: unknown; error?: unknown };
+
 /**
  * Table-aware admin-client stub: `from(table)` returns a chainable builder that
- * resolves to the configured rows for that table (and `.single()` for lookups).
+ * resolves to the configured result for that table (and `.single()` for lookups).
  */
 function makeAdmin(tables: {
-  restaurants?: { data: unknown };
-  organization_members?: unknown[];
-  restaurant_members?: unknown[];
-  profiles?: unknown[];
+  restaurants?: TableResult;
+  organization_members?: TableResult;
+  restaurant_members?: TableResult;
+  profiles?: TableResult;
 }) {
   const builders: Record<string, Record<string, unknown>> = {};
   for (const table of ["restaurants", "organization_members", "restaurant_members", "profiles"]) {
-    const data =
-      table === "restaurants"
-        ? tables.restaurants?.data ?? null
-        : (tables as Record<string, unknown[]>)[table] ?? [];
+    const result: TableResult = (tables as Record<string, TableResult>)[table] ?? {
+      data: table === "restaurants" ? null : [],
+      error: null,
+    };
+    const resolved = { data: result.data, error: result.error ?? null };
     const builder: Record<string, unknown> = {
       select: () => builder,
       eq: () => builder,
       in: () => builder,
-      single: () => Promise.resolve({ data, error: null }),
-      then: (resolve: (v: unknown) => void) => resolve({ data, error: null }),
+      single: () => Promise.resolve(resolved),
+      then: (resolve: (v: unknown) => void) => resolve(resolved),
     };
     builders[table] = builder;
   }
@@ -74,12 +77,14 @@ describe("submitReviewAction review notifications", () => {
     createAdminClient.mockReturnValue(
       makeAdmin({
         restaurants: { data: { name: "The Hungry Fox", org_id: "org-1" } },
-        organization_members: [{ user_id: "owner-1" }, { user_id: "staff-1" }],
-        restaurant_members: [{ user_id: "mgr-1" }],
-        profiles: [
-          { email: "owner@fox.test", notification_prefs: { review_emails: true } },
-          { email: "mgr@fox.test", notification_prefs: { review_emails: true } },
-        ],
+        organization_members: { data: [{ user_id: "owner-1" }, { user_id: "staff-1" }] },
+        restaurant_members: { data: [{ user_id: "mgr-1" }] },
+        profiles: {
+          data: [
+            { email: "owner@fox.test", notification_prefs: { review_emails: true } },
+            { email: "mgr@fox.test", notification_prefs: { review_emails: true } },
+          ],
+        },
       })
     );
 
@@ -105,11 +110,13 @@ describe("submitReviewAction review notifications", () => {
     createAdminClient.mockReturnValue(
       makeAdmin({
         restaurants: { data: { name: "The Hungry Fox", org_id: "org-1" } },
-        organization_members: [{ user_id: "owner-1" }, { user_id: "owner-2" }],
-        profiles: [
-          { email: "in@fox.test", notification_prefs: { review_emails: true } },
-          { email: "out@fox.test", notification_prefs: { review_emails: false } },
-        ],
+        organization_members: { data: [{ user_id: "owner-1" }, { user_id: "owner-2" }] },
+        profiles: {
+          data: [
+            { email: "in@fox.test", notification_prefs: { review_emails: true } },
+            { email: "out@fox.test", notification_prefs: { review_emails: false } },
+          ],
+        },
       })
     );
 
@@ -124,8 +131,8 @@ describe("submitReviewAction review notifications", () => {
     createAdminClient.mockReturnValue(
       makeAdmin({
         restaurants: { data: { name: "The Hungry Fox", org_id: "org-1" } },
-        organization_members: [{ user_id: "owner-1" }],
-        profiles: [{ email: "noprefs@fox.test", notification_prefs: null }],
+        organization_members: { data: [{ user_id: "owner-1" }] },
+        profiles: { data: [{ email: "noprefs@fox.test", notification_prefs: null }] },
       })
     );
 
@@ -140,8 +147,10 @@ describe("submitReviewAction review notifications", () => {
     createAdminClient.mockReturnValue(
       makeAdmin({
         restaurants: { data: { name: "The Hungry Fox", org_id: "org-1" } },
-        organization_members: [{ user_id: "owner-1" }],
-        profiles: [{ email: "owner@fox.test", notification_prefs: { review_emails: true } }],
+        organization_members: { data: [{ user_id: "owner-1" }] },
+        profiles: {
+          data: [{ email: "owner@fox.test", notification_prefs: { review_emails: true } }],
+        },
       })
     );
 
@@ -150,5 +159,74 @@ describe("submitReviewAction review notifications", () => {
     expect(result.ok).toBe(true);
     expect(result.data).toMatchObject({ submitted: true });
     expect(captureException).toHaveBeenCalledOnce();
+  });
+
+  it("sends only one email when a user is both an org member and restaurant manager", async () => {
+    createAdminClient.mockReturnValue(
+      makeAdmin({
+        restaurants: { data: { name: "The Hungry Fox", org_id: "org-1" } },
+        organization_members: { data: [{ user_id: "mgr-1" }] },
+        restaurant_members: { data: [{ user_id: "mgr-1" }] },
+        profiles: {
+          data: [{ email: "mgr@fox.test", notification_prefs: { review_emails: true } }],
+        },
+      })
+    );
+
+    const result = await submitReviewAction(REVIEW_INPUT);
+
+    expect(result.ok).toBe(true);
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(sendMail).toHaveBeenCalledWith("review-pending", "mgr@fox.test", expect.anything());
+  });
+
+  it("returns success without sending when the restaurant lookup fails", async () => {
+    createAdminClient.mockReturnValue(
+      makeAdmin({
+        restaurants: { data: null, error: { message: "connection reset" } },
+      })
+    );
+
+    const result = await submitReviewAction(REVIEW_INPUT);
+
+    expect(result.ok).toBe(true);
+    expect(sendMail).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledOnce();
+  });
+
+  it("returns success without sending when the profile lookup fails", async () => {
+    createAdminClient.mockReturnValue(
+      makeAdmin({
+        restaurants: { data: { name: "The Hungry Fox", org_id: "org-1" } },
+        organization_members: { data: [{ user_id: "owner-1" }] },
+        profiles: { data: null, error: { message: "permission denied" } },
+      })
+    );
+
+    const result = await submitReviewAction(REVIEW_INPUT);
+
+    expect(result.ok).toBe(true);
+    expect(sendMail).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledOnce();
+  });
+
+  it("captures a membership lookup error but still emails members from the other source", async () => {
+    createAdminClient.mockReturnValue(
+      makeAdmin({
+        restaurants: { data: { name: "The Hungry Fox", org_id: "org-1" } },
+        organization_members: { data: null, error: { message: "timeout" } },
+        restaurant_members: { data: [{ user_id: "mgr-1" }] },
+        profiles: {
+          data: [{ email: "mgr@fox.test", notification_prefs: { review_emails: true } }],
+        },
+      })
+    );
+
+    const result = await submitReviewAction(REVIEW_INPUT);
+
+    expect(result.ok).toBe(true);
+    expect(captureException).toHaveBeenCalledOnce();
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(sendMail).toHaveBeenCalledWith("review-pending", "mgr@fox.test", expect.anything());
   });
 });
