@@ -27,7 +27,7 @@ export async function saveDraftAction(
   draft: Record<string, unknown>
 ) {
   return safeAction(async () => {
-    const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
+    const { user, supabase } = await requireRestaurantAccess(restaurantId, "manager");
 
     const colors = Object.fromEntries(
       COLOR_FIELDS.map((field) => [field, cleanColor(draft[field])])
@@ -47,6 +47,7 @@ export async function saveDraftAction(
         sub_heading: (draft.sub_heading as Record<string, string> | null) ?? null,
         body: (draft.body as Record<string, string> | null) ?? null,
         updated_at: new Date().toISOString(),
+        updated_by: user.id,
       });
 
     if (error) {
@@ -92,7 +93,7 @@ export async function publishAction(restaurantId: string) {
 
 export async function discardAction(restaurantId: string) {
   return safeAction(async () => {
-    const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
+    const { user, supabase } = await requireRestaurantAccess(restaurantId, "manager");
 
     const { data: live } = await supabase
       .from("branding")
@@ -119,6 +120,7 @@ export async function discardAction(restaurantId: string) {
         sub_heading: live.sub_heading,
         body: live.body,
         updated_at: new Date().toISOString(),
+        updated_by: user.id,
       });
     }
 

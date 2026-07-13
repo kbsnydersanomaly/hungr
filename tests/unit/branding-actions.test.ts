@@ -12,6 +12,7 @@ vi.mock("@/lib/auth/role", () => ({ requireRestaurantAccess }));
 import { saveDraftAction } from "@/lib/data/branding-actions";
 
 const RESTAURANT_ID = "11111111-1111-4111-8111-111111111111";
+const USER_ID = "22222222-2222-4222-8222-222222222222";
 
 /**
  * Minimal Supabase stub: `upsert` records its payload and resolves to the
@@ -36,7 +37,7 @@ describe("saveDraftAction", () => {
 
   it("returns { ok: false } with the underlying reason when the upsert fails", async () => {
     const { builder } = makeSupabase({ message: "boom", code: "42P01" });
-    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+    requireRestaurantAccess.mockResolvedValue({ user: { id: USER_ID }, supabase: builder });
 
     const result = await saveDraftAction(RESTAURANT_ID, {
       primary_color: "#FE1B54",
@@ -50,7 +51,7 @@ describe("saveDraftAction", () => {
 
   it("strips invalid hex colors before persisting", async () => {
     const { builder, captured } = makeSupabase();
-    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+    requireRestaurantAccess.mockResolvedValue({ user: { id: USER_ID }, supabase: builder });
 
     const result = await saveDraftAction(RESTAURANT_ID, {
       primary_color: "#FE1B54", // valid
@@ -64,5 +65,17 @@ describe("saveDraftAction", () => {
       secondary_color: null,
       accent_color: null,
     });
+  });
+
+  it("records the saving user in updated_by", async () => {
+    const { builder, captured } = makeSupabase();
+    requireRestaurantAccess.mockResolvedValue({ user: { id: USER_ID }, supabase: builder });
+
+    const result = await saveDraftAction(RESTAURANT_ID, {
+      primary_color: "#FE1B54",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(captured.upsert).toMatchObject({ updated_by: USER_ID });
   });
 });
