@@ -72,7 +72,7 @@ function makeSupabase() {
       select: () => ({
         eq: () => ({
           eq: () => ({
-            eq: () => ({ maybeSingle: subscriptionsMaybeSingle }),
+            in: () => ({ maybeSingle: subscriptionsMaybeSingle }),
           }),
         }),
       }),
@@ -91,25 +91,32 @@ describe("deleteRestaurant", () => {
     requireOrgAccess.mockResolvedValue({ user: { id: USER_ID } });
     restaurantsMaybeSingle.mockResolvedValue({ data: restaurantRow, error: null });
     subscriptionsMaybeSingle.mockResolvedValue({ data: null, error: null });
-    storageList.mockResolvedValue({
-      data: [
-        { id: "a", name: "img1.png" },
-        { id: "b", name: "menu-1.png" },
-      ],
-      error: null,
+    // The cleanup loop lists until a page comes back empty: first page has
+    // two files, the second is empty.
+    let listCalls = 0;
+    storageList.mockImplementation(() => {
+      listCalls++;
+      if (listCalls > 1) return Promise.resolve({ data: [], error: null });
+      return Promise.resolve({
+        data: [
+          { id: "a", name: "img1.png" },
+          { id: "b", name: "menu-1.png" },
+        ],
+        error: null,
+      });
     });
     storageRemove.mockResolvedValue({ error: null });
     rpc.mockResolvedValue({ error: null });
   });
 
-  it("blocks deletion when the restaurant has an active subscription", async () => {
+  it("blocks deletion when the restaurant has a live subscription", async () => {
     subscriptionsMaybeSingle.mockResolvedValue({ data: { id: "sub-1" }, error: null });
 
     const result = await deleteRestaurant(RESTAURANT_ID);
 
     expect(result.ok).toBe(false);
     expect(result.code).toBe("billing");
-    expect(result.message).toContain("active subscription");
+    expect(result.message).toContain("active or paused subscription");
     expect(result.message).toContain(`/restaurants/${RESTAURANT_ID}/billing`);
     expect(storageList).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
@@ -136,6 +143,34 @@ describe("deleteRestaurant", () => {
     expect(storageRemove.mock.invocationCallOrder[0]).toBeLessThan(
       rpc.mock.invocationCallOrder[0]
     );
+  });
+
+  it("removes every object across multiple pages (offset resets after each removal)", async () => {
+    // 250 objects over 3 pages. Each list call at offset 0 sees what is left
+    // after the previous removal; the removed paths must cover all 250.
+    const pages = [100, 100, 50, 0];
+    let call = 0;
+    storageList.mockImplementation(() => {
+      const count = pages[call++] ?? 0;
+      return Promise.resolve({
+        data: Array.from({ length: count }, (_, i) => ({
+          id: `obj-${call}-${i}`,
+          name: `obj-${call}-${i}.png`,
+        })),
+        error: null,
+      });
+    });
+    const removed: string[] = [];
+    storageRemove.mockImplementation((_bucket: string, paths: string[]) => {
+      removed.push(...paths);
+      return Promise.resolve({ error: null });
+    });
+
+    await expect(deleteRestaurant(RESTAURANT_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(storageList).toHaveBeenCalledTimes(4);
+    expect(storageList.mock.calls.every(([, , opts]) => (opts as { offset: number }).offset === 0)).toBe(true);
+    expect(removed).toHaveLength(250);
   });
 
   it("calls the cascade RPC, audits the deletion and redirects to /restaurants", async () => {
@@ -166,13 +201,54 @@ describe("deleteRestaurant", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("surfaces an RPC failure without auditing", async () => {
-    rpc.mockResolvedValue({ error: { message: "boom", code: "XX000" } });
+  it("surfaces an RPC failure without auditing and without raw Postgres text", async () => {
+    rpc.mockResolvedValue({
+      error: {
+        message:
+          'ERROR:  23503: update or delete on table "subscriptions" violates foreign key constraint "invoices_subscription_id_fkey"',
+        code: "23503",
+      },
+    });
 
     const result = await deleteRestaurant(RESTAURANT_ID);
 
     expect(result.ok).toBe(false);
-    expect(result.message).toContain("Failed to delete restaurant");
+    expect(result.message).toBe("Failed to delete restaurant. Please try again.");
+    expect(result.message).not.toContain("23503");
+    expect(result.message).not.toContain("invoices_subscription_id_fkey");
     expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("maps the function's forbidden raise to clean copy", async () => {
+    rpc.mockResolvedValue({
+      error: {
+        message:
+          "ERROR:  P0001: forbidden: only organization owners and admins can delete a restaurant",
+        code: "P0001",
+      },
+    });
+
+    const result = await deleteRestaurant(RESTAURANT_ID);
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("validation");
+    expect(result.message).toBe("You don't have permission to delete this restaurant.");
+  });
+
+  it("maps the function's subscription raise to the billing-cancel copy", async () => {
+    rpc.mockResolvedValue({
+      error: {
+        message:
+          "ERROR:  P0001: restaurant has an active or paused subscription; cancel billing before deleting",
+        code: "P0001",
+      },
+    });
+
+    const result = await deleteRestaurant(RESTAURANT_ID);
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("billing");
+    expect(result.message).toContain(`/restaurants/${RESTAURANT_ID}/billing`);
+    expect(result.message).not.toContain("P0001");
   });
 });

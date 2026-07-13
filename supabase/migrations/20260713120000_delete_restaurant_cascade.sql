@@ -8,9 +8,9 @@
 --
 --   1. The caller must be an owner/admin of the restaurant's org (or a super
 --      admin) — same check has_org_access() performs.
---   2. A restaurant with an active paid subscription cannot be deleted; the
---      app layer tells the user to cancel billing first. The guard is
---      repeated here so no caller can bypass it.
+--   2. A restaurant with a live paid subscription (active, paused or
+--      pending) cannot be deleted; the app layer tells the user to cancel
+--      billing first. The guard is repeated here so no caller can bypass it.
 --
 -- Storage objects (menu-media bucket) are NOT reachable from SQL — the
 -- deleteRestaurant server action removes them before calling this function.
@@ -37,16 +37,18 @@ begin
     raise exception 'forbidden: only organization owners and admins can delete a restaurant';
   end if;
 
-  -- Never silently cancel a paid subscription: an active restaurant-scoped
+  -- Never silently cancel a paid subscription: a live restaurant-scoped
   -- subscription blocks deletion (the app tells the user to cancel billing
-  -- first). Inactive rows are removed below.
+  -- first). 'active' is obvious; 'paused' PayFast mandates auto-resume and
+  -- would bill a deleted restaurant, and 'pending' rows can be activated by
+  -- an in-flight ITN webhook. Only terminal rows are removed below.
   if exists (
     select 1 from subscriptions
     where scope = 'restaurant'
       and scope_id = p_restaurant_id
-      and status = 'active'
+      and status in ('active', 'paused', 'pending')
   ) then
-    raise exception 'restaurant has an active subscription; cancel billing before deleting';
+    raise exception 'restaurant has an active or paused subscription; cancel billing before deleting';
   end if;
 
   -- Dependency order. Most of these would cascade from the restaurants delete
@@ -83,8 +85,20 @@ begin
   delete from restaurant_members where restaurant_id = p_restaurant_id;
   delete from invitations where restaurant_id = p_restaurant_id;
 
-  -- Restaurant-scoped billing rows. The active-status guard above guarantees
-  -- only inactive subscriptions are removed here.
+  -- Restaurant-scoped billing rows. The status guard above guarantees only
+  -- terminal subscriptions are removed here. invoices.subscription_id is
+  -- NO ACTION (and invoices are always written with it set), so the link
+  -- must be severed first — the invoice rows themselves are kept for
+  -- history (their restaurant_id goes SET NULL on the restaurants delete).
+  -- The column is NOT NULL by default; it is made nullable by this
+  -- migration (below) so severing the link is possible, mirroring
+  -- transactions.subscription_id (ON DELETE SET NULL).
+  update invoices
+    set subscription_id = null
+    where subscription_id in (
+      select id from subscriptions
+      where scope = 'restaurant' and scope_id = p_restaurant_id
+    );
   delete from subscriptions
     where scope = 'restaurant' and scope_id = p_restaurant_id;
 
@@ -92,7 +106,14 @@ begin
 end;
 $$;
 
+-- invoices.subscription_id must be nullable so the cascade can sever the
+-- invoice → subscription link (the FK is NO ACTION) while keeping the
+-- invoice rows for history.
+alter table invoices alter column subscription_id drop not null;
+
 -- Only authenticated users may call it; the function itself enforces the
--- org owner/admin check.
-revoke all on function public.delete_restaurant_cascade(uuid) from public;
+-- org owner/admin check. Supabase's default privileges stamp per-role ACLs,
+-- so revoking from PUBLIC alone leaves anon with EXECUTE — revoke from each
+-- role explicitly.
+revoke all on function public.delete_restaurant_cascade(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.delete_restaurant_cascade(uuid) to authenticated;

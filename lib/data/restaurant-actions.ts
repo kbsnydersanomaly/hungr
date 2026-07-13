@@ -126,10 +126,13 @@ async function removeRestaurantStorage(restaurantId: string) {
   const prefix = `${restaurantId}/`;
   const pageSize = 100;
 
-  for (let offset = 0; ; offset += pageSize) {
+  // Always list from offset 0: removing the page just listed shifts the
+  // remaining objects down, so advancing the offset would skip every second
+  // surviving page. Loop until a page comes back empty.
+  for (;;) {
     const { data: entries, error: listError } = await adminClient.storage
       .from(MENU_MEDIA_BUCKET)
-      .list(prefix, { limit: pageSize, offset });
+      .list(prefix, { limit: pageSize, offset: 0 });
 
     if (listError) {
       console.error("deleteRestaurant storage list error:", listError);
@@ -142,16 +145,18 @@ async function removeRestaurantStorage(restaurantId: string) {
       .filter((entry) => entry.id !== null)
       .map((entry) => `${prefix}${entry.name}`);
 
-    if (paths.length > 0) {
-      const { error: removeError } = await adminClient.storage
-        .from(MENU_MEDIA_BUCKET)
-        .remove(paths);
-      if (removeError) {
-        console.error("deleteRestaurant storage remove error:", removeError);
-      }
+    if (paths.length === 0) {
+      // Only folders remain at this level — nothing more to remove.
+      return;
     }
 
-    if (entries.length < pageSize) return;
+    const { error: removeError } = await adminClient.storage
+      .from(MENU_MEDIA_BUCKET)
+      .remove(paths);
+    if (removeError) {
+      console.error("deleteRestaurant storage remove error:", removeError);
+      return;
+    }
   }
 }
 
@@ -171,20 +176,21 @@ export async function deleteRestaurant(
 
     await requireOrgAccess(restaurant.org_id, "admin");
 
-    // Active paid subscription guard: never silently cancel billing as a side
-    // effect of deleting a restaurant. The user must cancel on the billing
-    // page first.
-    const { data: activeSub } = await supabase
+    // Live paid subscription guard: never silently cancel billing as a side
+    // effect of deleting a restaurant. 'active' is obvious; 'paused' PayFast
+    // mandates auto-resume, and 'pending' rows can be activated by an
+    // in-flight ITN webhook. The user must cancel on the billing page first.
+    const { data: liveSub } = await supabase
       .from("subscriptions")
       .select("id")
       .eq("scope", "restaurant")
       .eq("scope_id", restaurantId)
-      .eq("status", "active")
+      .in("status", ["active", "paused", "pending"])
       .maybeSingle();
 
-    if (activeSub) {
+    if (liveSub) {
       throw new BillingError(
-        `This restaurant has an active subscription. Cancel it on the billing page (/restaurants/${restaurantId}/billing) before deleting the restaurant.`
+        `This restaurant has an active or paused subscription. Cancel it on the billing page (/restaurants/${restaurantId}/billing) before deleting the restaurant.`
       );
     }
 
@@ -197,7 +203,23 @@ export async function deleteRestaurant(
 
     if (rpcError) {
       console.error("deleteRestaurant error:", rpcError);
-      throw actionError("Failed to delete restaurant", rpcError);
+      // Map the function's known raise messages to clean copy; never leak
+      // raw Postgres error text (SQLSTATE + raise text) into the toast.
+      const pgMessage = typeof rpcError.message === "string" ? rpcError.message : "";
+      if (pgMessage.includes("forbidden")) {
+        throw new ValidationError(
+          "You don't have permission to delete this restaurant."
+        );
+      }
+      if (pgMessage.includes("cancel billing")) {
+        throw new BillingError(
+          `This restaurant has an active or paused subscription. Cancel it on the billing page (/restaurants/${restaurantId}/billing) before deleting the restaurant.`
+        );
+      }
+      if (pgMessage.includes("not found")) {
+        throw new NotFoundError("Restaurant not found");
+      }
+      throw new ValidationError("Failed to delete restaurant. Please try again.");
     }
 
     // restaurant_id is omitted: the row is already gone and

@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { headers } from "next/headers";
 import type { Json } from "@/lib/database.types";
 
@@ -15,6 +16,10 @@ interface AuditEntry {
 
 export async function writeAudit(entry: AuditEntry) {
   try {
+    // The actor comes from the user's session; the insert goes through the
+    // admin client because audit_logs RLS is read-only for users (SELECT
+    // policy only) — audit writes are service-side bookkeeping. Every caller
+    // is a server action that has already performed its own authorization.
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -22,7 +27,8 @@ export async function writeAudit(entry: AuditEntry) {
     const ip = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? null;
     const userAgent = headersList.get("user-agent") ?? null;
 
-    await supabase.from("audit_logs").insert({
+    const adminClient = createAdminClient();
+    await adminClient.from("audit_logs").insert({
       actor_user_id: user?.id ?? null,
       org_id: entry.org_id ?? null,
       restaurant_id: entry.restaurant_id ?? null,
