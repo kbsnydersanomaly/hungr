@@ -239,6 +239,13 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
               Columns: {BULK_COLUMNS.join(", ")}. Required: name, price, category.
               Separate multiple allergens/labels with semicolons.
             </p>
+            <p className="text-xs text-muted-foreground">
+              Option columns (preparations, variations, sides, sauces):
+              semicolon-separated entries with an optional price in rands after
+              the last colon — e.g.{" "}
+              <code className="font-mono">Grilled:0;Fried:15.50;Extra cheese</code>.
+              Prices are converted to cents. Omit the column to leave options empty.
+            </p>
 
             {parseError && (
               <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -3,6 +3,7 @@ import {
   validateRows,
   buildSampleCsv,
   parseSpreadsheet,
+  parseOptionList,
   BULK_COLUMNS,
   MAX_ROWS,
   type RawRow,
@@ -45,6 +46,48 @@ describe("validateRows", () => {
     ]);
     expect(valid[0].allergens).toEqual(["gluten", "dairy"]);
     expect(valid[0].labels).toEqual(["vegan", "spicy"]);
+  });
+
+  it("parses option columns and defaults them to empty arrays", () => {
+    const blank = validateRows([row()]);
+    expect(blank.valid[0].preparations).toEqual([]);
+    expect(blank.valid[0].variations).toEqual([]);
+    expect(blank.valid[0].sides).toEqual([]);
+    expect(blank.valid[0].sauces).toEqual([]);
+
+    const { valid, errors } = validateRows([
+      row({
+        preparations: "Grilled:0;Fried:15.50",
+        variations: "Medium;Large:25",
+        sides: "Chips:15.00",
+        sauces: "Peri-peri",
+      }),
+    ]);
+    expect(errors).toHaveLength(0);
+    expect(valid[0].preparations).toEqual([
+      { name: "Grilled", price_cents: 0 },
+      { name: "Fried", price_cents: 1550 },
+    ]);
+    expect(valid[0].variations).toEqual([
+      { name: "Medium" },
+      { name: "Large", price_cents: 2500 },
+    ]);
+    expect(valid[0].sides).toEqual([{ name: "Chips", price_cents: 1500 }]);
+    expect(valid[0].sauces).toEqual([{ name: "Peri-peri" }]);
+  });
+
+  it("rejects rows with an invalid option price, scoped to row and column", () => {
+    const { valid, errors } = validateRows([
+      row({ preparations: "Grilled:abc" }),
+      row({ name: "Other", sauces: "Peri-peri:-5" }),
+    ]);
+    expect(valid).toHaveLength(0);
+    expect(errors).toContainEqual(
+      expect.objectContaining({ row: 2, field: "preparations" })
+    );
+    expect(errors).toContainEqual(
+      expect.objectContaining({ row: 3, field: "sauces" })
+    );
   });
 
   it("treats a blank description and image_url as null", () => {
@@ -92,6 +135,65 @@ describe("validateRows", () => {
 
   it("returns nothing for an empty list", () => {
     expect(validateRows([])).toEqual({ valid: [], errors: [] });
+  });
+});
+
+describe("parseOptionList", () => {
+  it("parses entries with and without prices (happy path)", () => {
+    const { options, errors } = parseOptionList(
+      "Grilled:0;Fried:15.50;Extra cheese",
+      "preparations",
+      2
+    );
+    expect(errors).toHaveLength(0);
+    expect(options).toEqual([
+      { name: "Grilled", price_cents: 0 },
+      { name: "Fried", price_cents: 1550 },
+      { name: "Extra cheese" },
+    ]);
+  });
+
+  it("splits on the last colon so prices stick to the suffix", () => {
+    const { options, errors } = parseOptionList("House sauce: spicy:12", "sauces", 2);
+    expect(errors).toHaveLength(0);
+    expect(options).toEqual([{ name: "House sauce: spicy", price_cents: 1200 }]);
+  });
+
+  it("returns empty options for a blank cell", () => {
+    expect(parseOptionList("", "sides", 2)).toEqual({ options: [], errors: [] });
+    expect(parseOptionList("   ", "sides", 2)).toEqual({ options: [], errors: [] });
+  });
+
+  it("ignores empty entries and trailing semicolons", () => {
+    const { options, errors } = parseOptionList("Chips:15;;Salad;", "sides", 4);
+    expect(errors).toHaveLength(0);
+    expect(options).toEqual([
+      { name: "Chips", price_cents: 1500 },
+      { name: "Salad" },
+    ]);
+  });
+
+  it("reports bad prices with a row-scoped error", () => {
+    const { options, errors } = parseOptionList(
+      "Fried:abc;Baked:-1;Grilled",
+      "preparations",
+      7
+    );
+    expect(options).toEqual([{ name: "Grilled" }]);
+    expect(errors).toHaveLength(2);
+    for (const error of errors) {
+      expect(error.row).toBe(7);
+      expect(error.field).toBe("preparations");
+      expect(error.reason).toMatch(/invalid price/i);
+    }
+  });
+
+  it("reports a missing name before the colon", () => {
+    const { options, errors } = parseOptionList(":10", "variations", 3);
+    expect(options).toEqual([]);
+    expect(errors).toContainEqual(
+      expect.objectContaining({ row: 3, field: "variations" })
+    );
   });
 });
 

@@ -456,6 +456,10 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       image_urls: row.image_url ? [row.image_url] : [],
       allergens: row.allergens,
       labels: row.labels,
+      preparations: row.preparations,
+      variations: row.variations,
+      sides: row.sides,
+      sauces: row.sauces,
     });
 
     const resolved = valid.map((row) => ({

@@ -19,6 +19,13 @@ export const MAX_ROWS = 2000;
 /**
  * Canonical column order for the sample file and parsing. Required columns are
  * `name`, `price`, `category`; the rest are optional.
+ *
+ * Option columns (`preparations`, `variations`, `sides`, `sauces`) use the
+ * same semicolon convention as `allergens`/`labels`, one entry per option:
+ * `Name:price;Name:price;Name`. The `:price` suffix is optional and is a
+ * non-negative decimal in rands (e.g. `Grilled:0;Fried:15.50;Extra cheese`).
+ * An entry is split on its LAST `:`, so a name containing `:` must be followed
+ * by a valid price — otherwise the row is rejected with a clear error.
  */
 export const BULK_COLUMNS = [
   "name",
@@ -28,12 +35,30 @@ export const BULK_COLUMNS = [
   "allergens",
   "labels",
   "image_url",
+  "preparations",
+  "variations",
+  "sides",
+  "sauces",
 ] as const;
 
 export type BulkColumn = (typeof BULK_COLUMNS)[number];
 
 /** A raw row keyed by (normalized) column name, values as strings. */
 export type RawRow = Record<string, string>;
+
+/** One entry in an option column (JSON shape stored on `menu_items`). */
+export type ParsedOption = {
+  name: string;
+  price_cents?: number;
+};
+
+/** The four option columns accepted by the bulk upload. */
+export const OPTION_COLUMNS = [
+  "preparations",
+  "variations",
+  "sides",
+  "sauces",
+] as const;
 
 /** A validated row, ready to be turned into a `menu_items` insert. */
 export interface ParsedRow {
@@ -44,6 +69,10 @@ export interface ParsedRow {
   allergens: string[];
   labels: string[];
   image_url: string | null;
+  preparations: ParsedOption[];
+  variations: ParsedOption[];
+  sides: ParsedOption[];
+  sauces: ParsedOption[];
 }
 
 /** A single validation failure, addressed by 1-based file row (incl. header). */
@@ -76,6 +105,67 @@ function splitList(value: unknown): string[] {
     .split(";")
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
+}
+
+/** Rands → cents, same convention as `upsertItem` (`Math.round(value * 100)`). */
+function randToCents(value: number): number {
+  return Math.round(value * 100);
+}
+
+/**
+ * Parse one option column cell (`Name:price;Name:price;Name`) into
+ * `{ name, price_cents? }[]`. Each entry is split on its LAST `:`; the suffix
+ * must be a non-negative decimal in rands. Blank entries and trailing
+ * semicolons are ignored. Errors use the same `{ row, field, reason }` shape
+ * as the rest of the parser; `rowIndex` is the 1-based file row (incl. header).
+ */
+export function parseOptionList(
+  raw: string,
+  column: string,
+  rowIndex: number
+): { options: ParsedOption[]; errors: RowError[] } {
+  const options: ParsedOption[] = [];
+  const errors: RowError[] = [];
+  const fail = (reason: string) => errors.push({ row: rowIndex, field: column, reason });
+
+  for (const entry of splitList(raw)) {
+    const separator = entry.lastIndexOf(":");
+    if (separator === -1) {
+      options.push({ name: entry });
+      continue;
+    }
+    const name = entry.slice(0, separator).trim();
+    const priceStr = entry.slice(separator + 1).trim();
+    if (!name) {
+      fail(`Option "${entry}" is missing a name before ":".`);
+      continue;
+    }
+    const price = Number(priceStr);
+    if (priceStr === "" || !Number.isFinite(price) || price < 0) {
+      fail(
+        `Option "${name}" has an invalid price "${priceStr}". ` +
+          "Prices must be non-negative decimals in rands (e.g. 15.50)."
+      );
+      continue;
+    }
+    options.push({ name, price_cents: randToCents(price) });
+  }
+
+  return { options, errors };
+}
+
+/** Zod field for one option column; rejects the row on any bad entry. */
+function optionListField(column: (typeof OPTION_COLUMNS)[number]) {
+  return z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      const { options, errors } = parseOptionList(v ?? "", column, 0);
+      for (const error of errors) {
+        ctx.addIssue({ code: "custom", message: error.reason });
+      }
+      return errors.length > 0 ? z.NEVER : options;
+    });
 }
 
 /**
@@ -111,7 +201,7 @@ export const BulkRowSchema = z.object({
         ctx.addIssue({ code: "custom", message: "Price must be non-negative." });
         return z.NEVER;
       }
-      return Math.round(num * 100);
+      return randToCents(num);
     }),
   category: z
     .string()
@@ -131,6 +221,10 @@ export const BulkRowSchema = z.object({
     .transform((v) => (v ?? "").trim())
     .pipe(z.union([z.literal(""), z.string().url("Image URL must be a valid URL.")]))
     .transform((v) => (v.length > 0 ? v : null)),
+  preparations: optionListField("preparations"),
+  variations: optionListField("variations"),
+  sides: optionListField("sides"),
+  sauces: optionListField("sauces"),
 });
 
 /** Map a raw parsed row into the shape `BulkRowSchema` expects. */
@@ -239,6 +333,10 @@ export const SAMPLE_ROWS: Record<BulkColumn, string>[] = [
     allergens: "gluten;dairy",
     labels: "vegetarian",
     image_url: "",
+    preparations: "Thin crust;Deep dish:10.00",
+    variations: "Medium;Large:25.00",
+    sides: "Chips:15.00;Side salad:20.00",
+    sauces: "Garlic mayo:5.00;Peri-peri",
   },
   {
     name: "Tiramisu",
@@ -248,6 +346,10 @@ export const SAMPLE_ROWS: Record<BulkColumn, string>[] = [
     allergens: "dairy;eggs",
     labels: "",
     image_url: "",
+    preparations: "",
+    variations: "Single;Double:30.00",
+    sides: "",
+    sauces: "",
   },
 ];
 
