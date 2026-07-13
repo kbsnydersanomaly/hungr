@@ -8,6 +8,7 @@ import { getRestaurantBillingContext } from "@/lib/billing/pricing";
 import type { OrgRole } from "@/lib/auth/role";
 import { PageHeader } from "@/components/PageHeader";
 import { AddRestaurantButton } from "@/components/dashboard/AddRestaurantButton";
+import { AddRestaurantCard, RestaurantCard } from "@/components/dashboard/RestaurantCard";
 import { LinkButton } from "@/components/ui/link-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,6 +142,16 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <section className="space-y-3">
+        <h2 className="font-heading text-lg font-semibold">Your restaurants</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {restaurants.map((r) => (
+            <RestaurantCard key={r.id} restaurant={r} />
+          ))}
+          <AddRestaurantCard />
+        </div>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
