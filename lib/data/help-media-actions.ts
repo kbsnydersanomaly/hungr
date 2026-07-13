@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSuperAdmin } from "@/lib/auth/role";
-import { safeAction, ValidationError, NotFoundError } from "@/lib/errors";
+import { safeAction, ValidationError, actionError, NotFoundError } from "@/lib/errors";
 import type { Database } from "@/lib/database.types";
 
 type HelpMediaRow = Database["public"]["Tables"]["help_media"]["Row"];
@@ -23,7 +23,7 @@ export async function listHelpMedia(): Promise<HelpMediaItem[]> {
 
   if (error) {
     console.error("listHelpMedia error:", error);
-    throw new ValidationError("Failed to load help media.");
+    throw actionError("Failed to load help media", error);
   }
 
   return data ?? [];
@@ -60,7 +60,7 @@ export async function recordHelpMediaUpload(formData: FormData) {
 
     if (error) {
       console.error("recordHelpMediaUpload error:", error);
-      throw new ValidationError("Failed to record upload.");
+      throw actionError("Failed to record upload", error);
     }
 
     revalidatePath("/admin/help/media");
@@ -93,7 +93,7 @@ export async function deleteHelpMedia(mediaId: string) {
 
     if (error) {
       console.error("deleteHelpMedia error:", error);
-      throw new ValidationError("Failed to delete media.");
+      throw actionError("Failed to delete media", error);
     }
 
     revalidatePath("/admin/help/media");

@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@/lib/supabase/server";
 import { requireSuperAdmin, isSuperAdmin } from "@/lib/auth/role";
-import { safeAction, ValidationError, NotFoundError } from "@/lib/errors";
+import { safeAction, ValidationError, actionError, NotFoundError } from "@/lib/errors";
 import { slugify } from "@/lib/utils/slugify";
 import type { Database } from "@/lib/database.types";
 import { paginatedQuery, type PaginationResult } from "@/lib/data/admin-pagination";
@@ -117,7 +117,7 @@ export async function listHelpCategories() {
 
     if (error) {
       console.error("listHelpCategories error:", error);
-      throw new ValidationError("Failed to load help categories.");
+      throw actionError("Failed to load help categories", error);
     }
 
     return (data ?? []) as HelpCategoryRow[];
@@ -165,7 +165,7 @@ export async function listHelpArticles(filters?: {
 
     if (error) {
       console.error("listHelpArticles error:", error);
-      throw new ValidationError("Failed to load help articles.");
+      throw actionError("Failed to load help articles", error);
     }
 
     return ((data ?? []) as HelpArticleRow[]).map((row) =>
@@ -309,7 +309,7 @@ export async function createHelpArticle(formData: FormData) {
 
     if (error) {
       console.error("createHelpArticle error:", error);
-      throw new ValidationError("Failed to create article.");
+      throw actionError("Failed to create article", error);
     }
 
     return { id: data?.id };
@@ -340,7 +340,7 @@ export async function updateHelpArticle(id: string, formData: FormData) {
 
     if (error) {
       console.error("updateHelpArticle error:", error);
-      throw new ValidationError("Failed to update article.");
+      throw actionError("Failed to update article", error);
     }
 
     return { updated: true };
@@ -355,7 +355,7 @@ export async function deleteHelpArticle(id: string) {
 
     if (error) {
       console.error("deleteHelpArticle error:", error);
-      throw new ValidationError("Failed to delete article.");
+      throw actionError("Failed to delete article", error);
     }
 
     return { deleted: true };
@@ -373,7 +373,7 @@ export async function toggleHelpArticlePublished(id: string, published: boolean)
 
     if (error) {
       console.error("toggleHelpArticlePublished error:", error);
-      throw new ValidationError("Failed to update article.");
+      throw actionError("Failed to update article", error);
     }
 
     return { updated: true };
@@ -400,7 +400,7 @@ export async function createHelpCategory(formData: FormData) {
       if (error.code === "23505") {
         throw new ValidationError("A category with that slug already exists.");
       }
-      throw new ValidationError("Failed to create category.");
+      throw actionError("Failed to create category", error);
     }
 
     return { id: data?.id };
@@ -428,7 +428,7 @@ export async function updateHelpCategory(id: string, formData: FormData) {
       if (error.code === "23505") {
         throw new ValidationError("A category with that slug already exists.");
       }
-      throw new ValidationError("Failed to update category.");
+      throw actionError("Failed to update category", error);
     }
 
     if (!data || data.length === 0) {
@@ -450,14 +450,14 @@ export async function deleteHelpCategory(id: string) {
 
     if (countError) {
       console.error("deleteHelpCategory count error:", countError);
-      throw new ValidationError("Failed to delete category.");
+      throw actionError("Failed to delete category", countError);
     }
 
     const { error } = await supabase.from("help_categories").delete().eq("id", id);
 
     if (error) {
       console.error("deleteHelpCategory error:", error);
-      throw new ValidationError("Failed to delete category.");
+      throw actionError("Failed to delete category", error);
     }
 
     return { deleted: true, affectedArticles: count ?? 0 };

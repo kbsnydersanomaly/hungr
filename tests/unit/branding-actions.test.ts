@@ -34,8 +34,8 @@ describe("saveDraftAction", () => {
     vi.clearAllMocks();
   });
 
-  it("returns { ok: false } when the upsert fails", async () => {
-    const { builder } = makeSupabase({ message: "boom" });
+  it("returns { ok: false } with the underlying reason when the upsert fails", async () => {
+    const { builder } = makeSupabase({ message: "boom", code: "42P01" });
     requireRestaurantAccess.mockResolvedValue({ supabase: builder });
 
     const result = await saveDraftAction(RESTAURANT_ID, {
@@ -43,6 +43,9 @@ describe("saveDraftAction", () => {
     });
 
     expect(result.ok).toBe(false);
+    expect(result.message).toContain("Failed to save draft");
+    expect(result.message).toContain("boom");
+    expect(result.message).toContain("42P01");
   });
 
   it("strips invalid hex colors before persisting", async () => {

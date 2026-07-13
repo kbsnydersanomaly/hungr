@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
-import { NotFoundError, ValidationError, safeAction } from "@/lib/errors";
+import { NotFoundError, ValidationError, actionError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { safeJsonParse } from "@/lib/utils/safeJsonParse";
 import { trackMediaUsage, untrackMediaUsage } from "./media-actions";
@@ -61,7 +61,7 @@ export async function listSpecialsForRestaurant(restaurantId: string) {
 
   if (error) {
     console.error("listSpecialsForRestaurant error:", error);
-    throw new ValidationError("Failed to load specials.");
+    throw actionError("Failed to load specials", error);
   }
 
   return data ?? [];
@@ -83,7 +83,7 @@ export async function createSpecial(restaurantId: string, formData: FormData) {
 
     if (error || !created) {
       console.error("createSpecial error:", error);
-      throw new ValidationError("Failed to create special.");
+      throw actionError("Failed to create special", error);
     }
 
     if (fields.media_id) {
@@ -120,7 +120,7 @@ export async function updateSpecial(specialId: string, formData: FormData) {
 
     if (error) {
       console.error("updateSpecial error:", error);
-      throw new ValidationError("Failed to update special.");
+      throw actionError("Failed to update special", error);
     }
 
     if (existing?.media_id && existing.media_id !== fields.media_id) {
@@ -158,7 +158,7 @@ export async function deleteSpecial(specialId: string) {
 
     if (error) {
       console.error("deleteSpecial error:", error);
-      throw new ValidationError("Failed to delete special.");
+      throw actionError("Failed to delete special", error);
     }
 
     if (existing?.media_id) {

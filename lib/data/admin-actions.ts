@@ -1,6 +1,6 @@
 "use server";
 
-import { ValidationError, safeAction, NotFoundError } from "@/lib/errors";
+import { ValidationError, actionError, safeAction, NotFoundError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/auth/role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/database.types";
@@ -144,7 +144,7 @@ export async function createPlan(formData: FormData) {
 
     if (error) {
       console.error("createPlan error:", error);
-      throw new ValidationError("Failed to create plan.");
+      throw actionError("Failed to create plan", error);
     }
 
     return { created: true };
@@ -170,7 +170,7 @@ export async function updatePlan(planId: string, formData: FormData) {
 
     if (error) {
       console.error("updatePlan error:", error);
-      throw new ValidationError("Failed to update plan.");
+      throw actionError("Failed to update plan", error);
     }
 
     return { updated: true };
@@ -267,7 +267,7 @@ export async function updateSubscriptionStatus(
 
     if (error) {
       console.error("updateSubscriptionStatus error:", error);
-      throw new ValidationError("Failed to update subscription.");
+      throw actionError("Failed to update subscription", error);
     }
 
     return { updated: true };
@@ -326,7 +326,7 @@ export async function updateSubscription(subscriptionId: string, formData: FormD
 
     if (error) {
       console.error("updateSubscription error:", error);
-      throw new ValidationError("Failed to update subscription.");
+      throw actionError("Failed to update subscription", error);
     }
 
     return { updated: true };
@@ -345,7 +345,7 @@ export async function listTransactionsForSubscription(subscriptionId: string, li
 
   if (error) {
     console.error("listTransactionsForSubscription error:", error);
-    throw new ValidationError("Failed to load transactions.");
+    throw actionError("Failed to load transactions", error);
   }
 
   return data ?? [];
@@ -437,7 +437,7 @@ export async function updateOrganization(orgId: string, formData: FormData) {
 
     if (error) {
       console.error("updateOrganization error:", error);
-      throw new ValidationError("Failed to update organization.");
+      throw actionError("Failed to update organization", error);
     }
 
     return { updated: true };
@@ -533,7 +533,7 @@ export async function updateRestaurantStorageLimit(
 
     if (error) {
       console.error("updateRestaurantStorageLimit error:", error);
-      throw new ValidationError("Failed to update storage limit.");
+      throw actionError("Failed to update storage limit", error);
     }
 
     return { updated: true };
@@ -595,14 +595,14 @@ async function deleteOrganizationUnsafe(orgId: string) {
     const { error } = await supabase.from(table).delete().eq("org_id", orgId);
     if (error) {
       console.error(`deleteOrganization cascade error on ${table}:`, error);
-      throw new ValidationError(`Failed to delete related ${table}.`);
+      throw actionError(`Failed to delete related ${table}`, error);
     }
   }
 
   const { error } = await supabase.from("organizations").delete().eq("id", orgId);
   if (error) {
     console.error("deleteOrganization error:", error);
-    throw new ValidationError("Failed to delete organization.");
+    throw actionError("Failed to delete organization", error);
   }
 
   return { deleted: true };
@@ -624,13 +624,13 @@ export async function deleteSubscription(subscriptionId: string) {
 
     if (invoiceError) {
       console.error("deleteSubscription invoices error:", invoiceError);
-      throw new ValidationError("Failed to delete subscription invoices.");
+      throw actionError("Failed to delete subscription invoices", invoiceError);
     }
 
     const { error } = await supabase.from("subscriptions").delete().eq("id", subscriptionId);
     if (error) {
       console.error("deleteSubscription error:", error);
-      throw new ValidationError("Failed to delete subscription.");
+      throw actionError("Failed to delete subscription", error);
     }
 
     return { deleted: true };
@@ -648,7 +648,7 @@ export async function deactivatePlan(planId: string) {
 
     if (error) {
       console.error("deactivatePlan error:", error);
-      throw new ValidationError("Failed to deactivate plan.");
+      throw actionError("Failed to deactivate plan", error);
     }
 
     return { updated: true };
@@ -666,7 +666,7 @@ export async function deletePlan(planId: string) {
 
     if (countError) {
       console.error("deletePlan count error:", countError);
-      throw new ValidationError("Failed to check plan usage.");
+      throw actionError("Failed to check plan usage", countError);
     }
 
     if ((count ?? 0) > 0) {
@@ -676,7 +676,7 @@ export async function deletePlan(planId: string) {
     const { error } = await supabase.from("plans").delete().eq("id", planId);
     if (error) {
       console.error("deletePlan error:", error);
-      throw new ValidationError("Failed to delete plan.");
+      throw actionError("Failed to delete plan", error);
     }
 
     return { deleted: true };
@@ -693,7 +693,7 @@ export async function disableUser(userId: string) {
 
     if (error) {
       console.error("disableUser error:", error);
-      throw new ValidationError("Failed to disable user.");
+      throw actionError("Failed to disable user", error);
     }
 
     return { disabled: true };
@@ -710,7 +710,7 @@ export async function enableUser(userId: string) {
 
     if (error) {
       console.error("enableUser error:", error);
-      throw new ValidationError("Failed to enable user.");
+      throw actionError("Failed to enable user", error);
     }
 
     return { enabled: true };
@@ -729,7 +729,7 @@ export async function deleteUser(userId: string) {
 
     if (orgError) {
       console.error("deleteUser org lookup error:", orgError);
-      throw new ValidationError("Failed to lookup user organizations.");
+      throw actionError("Failed to lookup user organizations", orgError);
     }
 
     // Cascade-delete each owned organization (also purges its media storage).
@@ -749,7 +749,7 @@ export async function deleteUser(userId: string) {
     const { error } = await supabase.auth.admin.deleteUser(userId);
     if (error) {
       console.error("deleteUser error:", error);
-      throw new ValidationError("Failed to delete user.");
+      throw actionError("Failed to delete user", error);
     }
 
     return { deleted: true };

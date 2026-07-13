@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
-import { ValidationError, safeAction } from "@/lib/errors";
+import { ValidationError, actionError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 
 export async function loadItemsAndCategoriesForRestaurant(restaurantId: string) {
@@ -69,7 +69,7 @@ export async function loadSpecialTargets(specialId: string) {
 
   if (error) {
     console.error("loadSpecialTargets error:", error);
-    throw new ValidationError("Failed to load special targets.");
+    throw actionError("Failed to load special targets", error);
   }
 
   return data ?? [];
@@ -108,7 +108,7 @@ export async function saveSpecialTargets(
 
       if (error) {
         console.error("saveSpecialTargets error:", error);
-        throw new ValidationError("Failed to save special targets.");
+        throw actionError("Failed to save special targets", error);
       }
     }
 

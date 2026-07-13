@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { NotFoundError, ValidationError, safeAction } from "@/lib/errors";
+import { NotFoundError, ValidationError, actionError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { formatBytes } from "@/lib/utils/bytes";
 
@@ -18,7 +18,7 @@ export async function listMediaForRestaurant(restaurantId: string) {
 
   if (error) {
     console.error("listMediaForRestaurant error:", error);
-    throw new ValidationError("Failed to load media.");
+    throw actionError("Failed to load media", error);
   }
 
   return data ?? [];
@@ -46,7 +46,7 @@ export async function getRestaurantStorageUsage(
 
   if (mediaError || restaurantError) {
     console.error("getRestaurantStorageUsage error:", mediaError ?? restaurantError);
-    throw new ValidationError("Failed to load storage usage.");
+    throw actionError("Failed to load storage usage", mediaError ?? restaurantError);
   }
 
   const usedBytes = (rows ?? []).reduce((sum, row) => sum + (row.size ?? 0), 0);
@@ -156,7 +156,7 @@ export async function recordMediaUpload(
 
     if (error) {
       console.error("recordMediaUpload error:", error);
-      throw new ValidationError("Failed to record upload.");
+      throw actionError("Failed to record upload", error);
     }
 
     revalidatePath(`/restaurants/${restaurantId}/media`);
@@ -202,7 +202,7 @@ export async function deleteMedia(mediaId: string) {
 
     if (error) {
       console.error("deleteMedia error:", error);
-      throw new ValidationError("Failed to delete media.");
+      throw actionError("Failed to delete media", error);
     }
 
     if (media.restaurant_id) {
@@ -237,7 +237,7 @@ export async function trackMediaUsage(
 
     if (error) {
       console.error("trackMediaUsage error:", error);
-      throw new ValidationError("Failed to track media usage.");
+      throw actionError("Failed to track media usage", error);
     }
     return { tracked: true };
   });
@@ -270,7 +270,7 @@ export async function untrackMediaUsage(
 
     if (error) {
       console.error("untrackMediaUsage error:", error);
-      throw new ValidationError("Failed to untrack media usage.");
+      throw actionError("Failed to untrack media usage", error);
     }
     return { untracked: true };
   });

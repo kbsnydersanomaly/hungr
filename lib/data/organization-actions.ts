@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ValidationError, safeAction } from "@/lib/errors";
+import { ValidationError, actionError, safeAction } from "@/lib/errors";
 import { requireOrgAccess } from "@/lib/auth/role";
 import { getActiveOrg } from "@/lib/auth/active-org";
 
@@ -23,7 +23,7 @@ export async function updateOrganizationName(formData: FormData) {
 
     if (error) {
       console.error("updateOrganizationName error:", error);
-      throw new ValidationError("Failed to update organization name.");
+      throw actionError("Failed to update organization name", error);
     }
 
     revalidatePath("/settings/organization");

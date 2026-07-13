@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   ValidationError,
+  actionError,
   safeAction,
   BillingError,
   type ActionResult,
@@ -66,7 +67,7 @@ export async function createRestaurant(
         );
       }
       console.error("createRestaurant error:", error);
-      throw new ValidationError("Failed to create restaurant.");
+      throw actionError("Failed to create restaurant", error);
     }
 
     await authed.from("branding_drafts").insert({ restaurant_id: restaurant.id });
@@ -103,7 +104,7 @@ export async function updateRestaurant(restaurantId: string, formData: FormData)
 
     if (error) {
       console.error("updateRestaurant error:", error);
-      throw new ValidationError("Failed to update restaurant.");
+      throw actionError("Failed to update restaurant", error);
     }
 
     revalidatePath(`/restaurants/${restaurantId}`);
@@ -151,7 +152,7 @@ export async function createRestaurantAndSubscribe(
 
     if (countError) {
       console.error("count restaurants error:", countError);
-      throw new ValidationError("Failed to check restaurant limit.");
+      throw actionError("Failed to check restaurant limit", countError);
     }
 
     const restaurantIndex = (existingCount ?? 0) + 1;
@@ -182,7 +183,7 @@ export async function createRestaurantAndSubscribe(
         );
       }
       console.error("createRestaurant error:", error);
-      throw new ValidationError("Failed to create restaurant.");
+      throw actionError("Failed to create restaurant", error);
     }
 
     await authed.from("branding_drafts").insert({ restaurant_id: restaurant.id });

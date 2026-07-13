@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { NotFoundError, ValidationError, safeAction } from "@/lib/errors";
+import { NotFoundError, ValidationError, actionError, safeAction } from "@/lib/errors";
 import { requireOrgAccess, requireRestaurantAccess } from "@/lib/auth/role";
 import { requireSession } from "@/lib/auth/session";
 import {
@@ -137,7 +137,7 @@ export async function loadSubscriptionForRestaurant(restaurantId: string) {
 
   if (error) {
     console.error("loadSubscriptionForRestaurant error:", error);
-    throw new ValidationError("Failed to load subscription.");
+    throw actionError("Failed to load subscription", error);
   }
 
   return data;
@@ -155,7 +155,7 @@ export async function loadTransactionsForRestaurant(restaurantId: string) {
 
   if (error) {
     console.error("loadTransactionsForRestaurant error:", error);
-    throw new ValidationError("Failed to load transactions.");
+    throw actionError("Failed to load transactions", error);
   }
 
   return data ?? [];
@@ -246,7 +246,7 @@ export async function pauseSubscriptionAction(subscriptionId: string) {
 
     if (error) {
       console.error("pauseSubscriptionAction error:", error);
-      throw new ValidationError("Failed to pause subscription.");
+      throw actionError("Failed to pause subscription", error);
     }
 
     const context = await getSubscriptionContext(supabase, sub as SubscriptionRow);
@@ -285,7 +285,7 @@ export async function cancelSubscriptionAction(subscriptionId: string) {
 
     if (error) {
       console.error("cancelSubscriptionAction error:", error);
-      throw new ValidationError("Failed to cancel subscription.");
+      throw actionError("Failed to cancel subscription", error);
     }
 
     const context = await getSubscriptionContext(supabase, sub as SubscriptionRow);
@@ -326,7 +326,7 @@ export async function resumeSubscriptionAction(subscriptionId: string) {
 
     if (error) {
       console.error("resumeSubscriptionAction error:", error);
-      throw new ValidationError("Failed to resume subscription.");
+      throw actionError("Failed to resume subscription", error);
     }
 
     await notifySubscriptionEvent(sub as SubscriptionRow, "resumed", user.id);
@@ -418,7 +418,7 @@ export async function getInvoiceDownloadUrl(invoiceId: string) {
 
     if (error || !data?.signedUrl) {
       console.error("getInvoiceDownloadUrl error:", error);
-      throw new ValidationError("Failed to generate invoice link.");
+      throw actionError("Failed to generate invoice link", error);
     }
 
     return { url: data.signedUrl };

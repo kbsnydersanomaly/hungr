@@ -1,7 +1,7 @@
 "use server";
 
 import { requireRestaurantAccess } from "@/lib/auth/role";
-import { ValidationError } from "@/lib/errors";
+import { actionError } from "@/lib/errors";
 
 export interface DailyStats {
   day: string;
@@ -77,7 +77,7 @@ export async function getDailyStatsForRestaurant(
 
   if (error) {
     console.error("getDailyStats error:", error);
-    throw new ValidationError("Failed to load analytics.");
+    throw actionError("Failed to load analytics", error);
   }
 
   // Group by day

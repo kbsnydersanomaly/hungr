@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSuperAdmin } from "@/lib/auth/role";
-import { safeAction, ValidationError } from "@/lib/errors";
+import { safeAction, actionError } from "@/lib/errors";
 import { BOTTOM_NAV_SETTING_KEY } from "@/lib/data/platform-settings";
 
 export async function setBottomNavEnabledAction(enabled: boolean) {
@@ -17,7 +17,7 @@ export async function setBottomNavEnabledAction(enabled: boolean) {
 
     if (error) {
       console.error("setBottomNavEnabledAction error:", error);
-      throw new ValidationError("Failed to update setting.");
+      throw actionError("Failed to update setting", error);
     }
 
     revalidatePath("/admin/settings");

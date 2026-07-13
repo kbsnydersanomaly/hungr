@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ValidationError, safeAction } from "@/lib/errors";
+import { actionError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { writeAudit } from "@/lib/utils/audit";
 import { BrandingColorSchema } from "@/lib/schemas/branding";
@@ -51,7 +51,7 @@ export async function saveDraftAction(
 
     if (error) {
       console.error("saveDraftAction error:", error);
-      throw new ValidationError("Failed to save draft.");
+      throw actionError("Failed to save draft", error);
     }
 
     revalidatePath(`/restaurants/${restaurantId}/branding`);
@@ -69,7 +69,7 @@ export async function publishAction(restaurantId: string) {
 
     if (error) {
       console.error("publishAction error:", error);
-      throw new ValidationError("Failed to publish branding.");
+      throw actionError("Failed to publish branding", error);
     }
 
     const { data: restaurant } = await supabase

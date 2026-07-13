@@ -1,7 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
-import { safeAction, ValidationError } from "@/lib/errors";
+import { safeAction, ValidationError, actionError } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { ReviewSchema } from "@/lib/schemas/review";
 import { revalidatePath } from "next/cache";
@@ -31,7 +31,7 @@ export async function submitReviewAction(input: {
 
     if (error) {
       console.error("submitReview error:", error);
-      throw new ValidationError("Failed to submit review.");
+      throw actionError("Failed to submit review", error);
     }
 
     return { submitted: true };
@@ -55,7 +55,7 @@ export async function moderateReview(reviewId: string, status: "approved" | "rej
       .update({ status, moderated_at: new Date().toISOString() })
       .eq("id", reviewId);
 
-    if (error) throw new ValidationError("Failed to update review.");
+    if (error) throw actionError("Failed to update review", error);
     revalidatePath(`/restaurants/${review.restaurant_id}/reviews`);
     return { updated: true };
   });
@@ -74,7 +74,7 @@ export async function deleteReview(reviewId: string) {
     await requireRestaurantAccess(review.restaurant_id, "manager");
 
     const { error } = await supabase.from("reviews").delete().eq("id", reviewId);
-    if (error) throw new ValidationError("Failed to delete review.");
+    if (error) throw actionError("Failed to delete review", error);
     revalidatePath(`/restaurants/${review.restaurant_id}/reviews`);
     return { deleted: true };
   });
@@ -107,7 +107,7 @@ export async function bulkModerateReviews(
       .update({ status, moderated_at: new Date().toISOString() })
       .in("id", reviewIds);
 
-    if (error) throw new ValidationError("Failed to update reviews.");
+    if (error) throw actionError("Failed to update reviews", error);
     for (const rid of restaurantIds) revalidatePath(`/restaurants/${rid}/reviews`);
     return { updated: true };
   });
