@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Plus } from "lucide-react";
+import { RestaurantCardMenu } from "@/components/dashboard/RestaurantCardMenu";
 import type { Database } from "@/lib/database.types";
 
 export type RestaurantCardData = Pick<
@@ -57,6 +58,7 @@ export function RestaurantCard({ restaurant }: { restaurant: RestaurantCardData 
             {link.label}
           </Link>
         ))}
+        <RestaurantCardMenu restaurantId={restaurant.id} />
       </CardFooter>
     </Card>
   );

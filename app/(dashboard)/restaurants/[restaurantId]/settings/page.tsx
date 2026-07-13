@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DeleteRestaurantDialog } from "@/components/dashboard/DeleteRestaurantDialog";
 
 export default async function RestaurantSettingsPage({
   params,
@@ -103,6 +104,23 @@ export default async function RestaurantSettingsPage({
               <SubmitButton>Save changes</SubmitButton>
             </FormFieldset>
           </ServerActionForm>
+        </CardContent>
+      </Card>
+      <Card id="danger-zone" className="border-destructive/50">
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-destructive">
+              Danger zone
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Deleting this restaurant permanently removes its menus, menu
+              items, media, reviews and branding. This cannot be undone.
+            </p>
+          </div>
+          <DeleteRestaurantDialog
+            restaurantId={restaurantId}
+            restaurantName={restaurant.name}
+          />
         </CardContent>
       </Card>
     </div>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   ValidationError,
+  NotFoundError,
   actionError,
   safeAction,
   BillingError,
@@ -109,6 +110,109 @@ export async function updateRestaurant(restaurantId: string, formData: FormData)
 
     revalidatePath(`/restaurants/${restaurantId}`);
     return { updated: true };
+  });
+}
+
+const MENU_MEDIA_BUCKET = "menu-media";
+
+/**
+ * Remove every storage object under `{restaurantId}/` in the menu-media
+ * bucket. Storage objects are not reachable from SQL, so this must happen in
+ * the app layer before the cascade RPC runs. Best-effort: a storage failure
+ * is logged but does not block the database cleanup.
+ */
+async function removeRestaurantStorage(restaurantId: string) {
+  const adminClient = createAdminClient();
+  const prefix = `${restaurantId}/`;
+  const pageSize = 100;
+
+  for (let offset = 0; ; offset += pageSize) {
+    const { data: entries, error: listError } = await adminClient.storage
+      .from(MENU_MEDIA_BUCKET)
+      .list(prefix, { limit: pageSize, offset });
+
+    if (listError) {
+      console.error("deleteRestaurant storage list error:", listError);
+      return;
+    }
+    if (!entries || entries.length === 0) return;
+
+    // Folders have no id; only files can be removed.
+    const paths = entries
+      .filter((entry) => entry.id !== null)
+      .map((entry) => `${prefix}${entry.name}`);
+
+    if (paths.length > 0) {
+      const { error: removeError } = await adminClient.storage
+        .from(MENU_MEDIA_BUCKET)
+        .remove(paths);
+      if (removeError) {
+        console.error("deleteRestaurant storage remove error:", removeError);
+      }
+    }
+
+    if (entries.length < pageSize) return;
+  }
+}
+
+export async function deleteRestaurant(
+  restaurantId: string
+): Promise<ActionResult<void>> {
+  return safeAction(async () => {
+    const { supabase } = await requireSession();
+
+    const { data: restaurant, error: loadError } = await supabase
+      .from("restaurants")
+      .select("id, org_id, name, slug")
+      .eq("id", restaurantId)
+      .maybeSingle();
+
+    if (loadError || !restaurant) throw new NotFoundError("Restaurant not found");
+
+    await requireOrgAccess(restaurant.org_id, "admin");
+
+    // Active paid subscription guard: never silently cancel billing as a side
+    // effect of deleting a restaurant. The user must cancel on the billing
+    // page first.
+    const { data: activeSub } = await supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("scope", "restaurant")
+      .eq("scope_id", restaurantId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (activeSub) {
+      throw new BillingError(
+        `This restaurant has an active subscription. Cancel it on the billing page (/restaurants/${restaurantId}/billing) before deleting the restaurant.`
+      );
+    }
+
+    // Storage cleanup first — the SQL function cannot touch storage objects.
+    await removeRestaurantStorage(restaurantId);
+
+    const { error: rpcError } = await supabase.rpc("delete_restaurant_cascade", {
+      p_restaurant_id: restaurantId,
+    });
+
+    if (rpcError) {
+      console.error("deleteRestaurant error:", rpcError);
+      throw actionError("Failed to delete restaurant", rpcError);
+    }
+
+    // restaurant_id is omitted: the row is already gone and
+    // audit_logs.restaurant_id would violate its FK. Name/slug go in the diff.
+    await writeAudit({
+      action: "restaurant.delete",
+      org_id: restaurant.org_id,
+      target_table: "restaurants",
+      target_id: restaurantId,
+      diff: { name: restaurant.name, slug: restaurant.slug },
+    });
+
+    revalidatePath("/restaurants");
+    if (restaurant.slug) revalidatePath(`/m/${restaurant.slug}`);
+    redirect("/restaurants");
   });
 }
 

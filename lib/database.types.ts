@@ -1696,6 +1696,10 @@ export type Database = {
         Args: { p_invitation_id: string; p_user_id: string }
         Returns: undefined
       }
+      delete_restaurant_cascade: {
+        Args: { p_restaurant_id: string }
+        Returns: undefined
+      }
       get_invitation_by_token: { Args: { p_token: string }; Returns: Json }
       has_org_access: {
         Args: { min_role?: string; oid: string }

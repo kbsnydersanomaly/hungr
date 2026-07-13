@@ -1,9 +1,13 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import {
   RestaurantCard,
   AddRestaurantCard,
 } from "@/components/dashboard/RestaurantCard";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 const restaurant = {
   id: "rest-1",
@@ -66,6 +70,13 @@ describe("RestaurantCard", () => {
   it("renders a secondary badge for non-active restaurants", () => {
     render(<RestaurantCard restaurant={{ ...restaurant, status: "draft" }} />);
     expect(screen.getByText("draft")).toBeInTheDocument();
+  });
+
+  it("offers a more-actions menu with a link to delete", async () => {
+    render(<RestaurantCard restaurant={restaurant} />);
+    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
+    expect(await screen.findByText("Delete…")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 });
 
