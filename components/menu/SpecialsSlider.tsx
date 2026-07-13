@@ -72,7 +72,7 @@ export function SpecialsSlider({ specials }: SpecialsSliderProps) {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="text-on-image absolute bottom-0 left-0 right-0 p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="inline-flex items-center rounded-md bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground uppercase">
+                    <span className="inline-flex items-center rounded-md bg-[color:var(--color-accent,var(--secondary))] px-2 py-0.5 text-[10px] font-bold text-[color:var(--accent-foreground,var(--secondary-foreground))] uppercase">
                       {special.kind === "combo" ? "Combo" : "Special"}
                     </span>
                     {special.kind === "combo" && special.combo_price_cents ? (
