@@ -28,6 +28,7 @@ const media = [
   { id: "1", url: "/burger.jpg", name: "burger.jpg", mime: "image/jpeg", size: 1024, created_at: "2024-01-01" },
   { id: "2", url: "/fries.jpg", name: "fries.jpg", mime: "image/jpeg", size: 2048, created_at: "2024-01-02" },
   { id: "3", url: "/salad.jpg", name: "salad.jpg", mime: "image/jpeg", size: 3072, created_at: "2024-01-03" },
+  { id: "4", url: "/i-love-everything.jpg", name: "i-love-everything.jpg", mime: "image/jpeg", size: 4096, created_at: "2024-01-04" },
 ];
 
 describe("MediaLibrary", () => {
@@ -38,10 +39,11 @@ describe("MediaLibrary", () => {
   it("renders all media items by default", () => {
     render(<MediaLibrary restaurantId="r1" media={media} />);
 
-    expect(screen.getByText("3 images")).toBeInTheDocument();
+    expect(screen.getByText("4 images")).toBeInTheDocument();
     expect(screen.getByAltText("burger.jpg")).toBeInTheDocument();
     expect(screen.getByAltText("fries.jpg")).toBeInTheDocument();
     expect(screen.getByAltText("salad.jpg")).toBeInTheDocument();
+    expect(screen.getByAltText("i-love-everything.jpg")).toBeInTheDocument();
   });
 
   it("filters media by filename as the user types", () => {
@@ -62,8 +64,31 @@ describe("MediaLibrary", () => {
     const searchInput = screen.getByLabelText("Search media");
     fireEvent.change(searchInput, { target: { value: "pizza" } });
 
-    expect(screen.getByText("No media matches your search.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No matches. Tip: you can rename files with the pencil icon.")
+    ).toBeInTheDocument();
     expect(screen.queryByAltText("burger.jpg")).not.toBeInTheDocument();
+  });
+
+  it("matches a multi-word query against hyphenated filenames", () => {
+    render(<MediaLibrary restaurantId="r1" media={media} />);
+
+    const searchInput = screen.getByLabelText("Search media");
+    fireEvent.change(searchInput, { target: { value: "i love everything" } });
+
+    expect(screen.getByAltText("i-love-everything.jpg")).toBeInTheDocument();
+    expect(screen.queryByAltText("burger.jpg")).not.toBeInTheDocument();
+    expect(screen.getByText("1 image")).toBeInTheDocument();
+  });
+
+  it("normalizes separators in both query and filename", () => {
+    render(<MediaLibrary restaurantId="r1" media={media} />);
+
+    const searchInput = screen.getByLabelText("Search media");
+    fireEvent.change(searchInput, { target: { value: "i_love/everything.jpg" } });
+
+    expect(screen.getByAltText("i-love-everything.jpg")).toBeInTheDocument();
+    expect(screen.queryByAltText("fries.jpg")).not.toBeInTheDocument();
   });
 
   it("clears the search query when the clear button is clicked", () => {

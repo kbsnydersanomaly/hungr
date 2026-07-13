@@ -22,6 +22,15 @@ interface MediaItem {
   created_at: string;
 }
 
+/** Lowercase and turn separators into spaces so search is forgiving of naming style. */
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[-_./]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 interface MediaLibraryProps {
   restaurantId: string;
   media: MediaItem[];
@@ -80,9 +89,12 @@ export function MediaLibrary({
   );
 
   const filteredMedia = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return displayMedia;
-    return displayMedia.filter((item) => item.name.toLowerCase().includes(query));
+    const tokens = normalize(searchQuery).split(" ").filter(Boolean);
+    if (tokens.length === 0) return displayMedia;
+    return displayMedia.filter((item) => {
+      const normName = normalize(item.name);
+      return tokens.every((t) => normName.includes(t));
+    });
   }, [displayMedia, searchQuery]);
 
   const usageBar = showUsage ? (
@@ -207,7 +219,7 @@ export function MediaLibrary({
           <CardContent className="py-12 text-center">
             <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-sm text-muted-foreground">
-              No media matches your search.
+              No matches. Tip: you can rename files with the pencil icon.
             </p>
           </CardContent>
         </Card>
