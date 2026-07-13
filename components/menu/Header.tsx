@@ -37,6 +37,8 @@ export function Header({
     >
       <div className="flex items-center gap-3">
         {logoUrl ? (
+          // The preview bridge injects equivalent markup live when a logo is
+          // first picked (see applyLogoToDocument) — keep both in sync.
           <div className="flex items-center gap-2" data-branding-logo>
             <Image
               src={logoUrl}
