@@ -148,7 +148,7 @@ export function SpecialsList({
                       checked={special.active}
                       disabled={togglingId === special.id}
                       onCheckedChange={(checked) => handleToggleActive(special, checked)}
-                      aria-label={special.active ? "Published" : "Unpublished"}
+                      aria-label={`${special.active ? "Unpublish" : "Publish"} ${special.title}`}
                     />
                     <span className="text-xs text-muted-foreground">
                       {special.active ? "Published" : "Unpublished"}
