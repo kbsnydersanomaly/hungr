@@ -394,7 +394,9 @@ function groupErrorsByRow(errors: RowError[]): { row: number; errors: RowError[]
       groups.push({ row: err.row, errors: [err] });
     }
   }
-  return groups;
+  // Server-side summaries append id errors after validation errors, so rows
+  // can arrive out of order; sort groups for a monotonic display.
+  return groups.sort((a, b) => a.row - b.row);
 }
 
 function ErrorList({ errors }: { errors: RowError[] }) {
@@ -428,12 +430,20 @@ function ErrorList({ errors }: { errors: RowError[] }) {
       <div className="max-h-64 space-y-2 overflow-auto rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
         {groups.map((group) => (
           <div key={group.row}>
-            <div className="text-xs font-medium">Row {group.row}</div>
-            {group.errors.map((err, i) => (
-              <div key={i} className="pl-3">
-                {err.field} · {err.reason}
+            {group.errors.length === 1 ? (
+              <div>
+                Row {group.row} · {group.errors[0].field} · {group.errors[0].reason}
               </div>
-            ))}
+            ) : (
+              <>
+                <div className="text-xs font-medium">Row {group.row}</div>
+                {group.errors.map((err, i) => (
+                  <div key={i} className="pl-3">
+                    {err.field} · {err.reason}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ))}
       </div>

@@ -54,9 +54,8 @@ describe("BulkUploadModal", () => {
     uploadCsv("name,price,category\n,89,Mains\nSalad,55,Starters\n");
 
     // The first data row (file row 2) is missing a name.
-    expect(await screen.findByText("Row 2")).toBeInTheDocument();
     expect(
-      screen.getByText(/name · Item name is required\./i)
+      await screen.findByText(/Row 2 · name · Item name is required\./i)
     ).toBeInTheDocument();
     // The valid row is still previewed.
     expect(screen.getByText("Salad")).toBeInTheDocument();
@@ -69,10 +68,14 @@ describe("BulkUploadModal", () => {
 
     expect(await screen.findByText("25 errors found")).toBeInTheDocument();
     // First and last rows are both visible — nothing was sliced off.
-    expect(screen.getByText("Row 2")).toBeInTheDocument();
-    expect(screen.getByText("Row 26")).toBeInTheDocument();
     expect(
-      screen.getAllByText(/name · Item name is required\./i)
+      screen.getByText(/Row 2 · name · Item name is required\./i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Row 26 · name · Item name is required\./i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/Row \d+ · name · Item name is required\./i)
     ).toHaveLength(25);
     expect(screen.queryByText(/…and \d+ more\./)).not.toBeInTheDocument();
   });
