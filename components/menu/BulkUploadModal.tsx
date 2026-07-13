@@ -67,6 +67,10 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
   const [summary, setSummary] = useState<BulkUploadSummary | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Depth counter for drag enter/leave: those events bubble, so moving across
+  // child elements fires extra enters/leaves. The highlight only clears when
+  // the counter returns to zero (the pointer truly left the zone).
+  const dragDepthRef = useRef(0);
 
   function reset() {
     setFileName(null);
@@ -122,27 +126,39 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    handleFile(event.target.files?.[0] ?? null);
+    const file = event.target.files?.[0] ?? null;
+    // Clear the value so picking the same file again (e.g. after a drop
+    // replaced it) still fires onChange.
+    event.target.value = "";
+    handleFile(file);
   }
 
-  // Drag-and-drop mirrors the MediaUploadZone pattern: preventDefault on
-  // dragover is required or the browser navigates to the dropped file.
+  // Drag-and-drop: preventDefault on dragover is required or the browser
+  // navigates to the dropped file. Enter/leave events bubble from children,
+  // so a depth counter (not the events themselves) drives the highlight.
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
   }
 
   function handleDragEnter(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
+    dragDepthRef.current += 1;
     setIsDragging(true);
   }
 
   function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    setIsDragging(false);
+    dragDepthRef.current -= 1;
+    if (dragDepthRef.current <= 0) {
+      dragDepthRef.current = 0;
+      setIsDragging(false);
+    }
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
+    // A drop may arrive without balanced leave events; reset unconditionally.
+    dragDepthRef.current = 0;
     setIsDragging(false);
     const file = event.dataTransfer.files?.[0];
     // Unsupported types (e.g. .txt/.png) fall through to parseSpreadsheet,

@@ -304,4 +304,43 @@ describe("BulkUploadModal", () => {
       )
     ).toBeInTheDocument();
   });
+
+  it("keeps the highlight when dragging across child elements (bubbled leave)", () => {
+    openModal();
+    const zone = getDropZone();
+    const child = screen.getByRole("button", { name: /choose file/i });
+
+    fireEvent.dragEnter(zone);
+    // Entering a child bubbles another dragEnter to the zone.
+    fireEvent.dragEnter(child);
+    // Leaving the child bubbles a dragLeave — the pointer is still inside
+    // the zone, so the highlight must stay on.
+    fireEvent.dragLeave(child);
+    expect(zone).toHaveAttribute("data-dragging", "true");
+
+    // Finally leaving the zone itself clears the highlight.
+    fireEvent.dragLeave(zone);
+    expect(zone).not.toHaveAttribute("data-dragging");
+  });
+
+  it("clears the file input value after picking so the same file can be re-picked", async () => {
+    openModal();
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+
+    uploadCsv("name,price,category\nPizza,89,Mains\n");
+    await screen.findByText("Pizza");
+    expect(input.value).toBe("");
+
+    // Drop a different file, then re-pick the original one — the cleared
+    // value means onChange fires again and the preview updates.
+    dropFile("other.csv", "text/csv", "name,price,category\nBurger,99,Mains\n");
+    await screen.findByText("Burger");
+    expect(screen.queryByText("Pizza")).not.toBeInTheDocument();
+
+    uploadCsv("name,price,category\nPizza,89,Mains\n");
+    expect(await screen.findByText("Pizza")).toBeInTheDocument();
+    expect(screen.queryByText("Burger")).not.toBeInTheDocument();
+  });
 });
