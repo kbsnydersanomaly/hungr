@@ -1,10 +1,87 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { safeAction, ValidationError, actionError } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { ReviewSchema } from "@/lib/schemas/review";
+import { sendMail } from "@/lib/mail";
+import { env } from "@/lib/env";
+import type { NotificationPrefs } from "@/lib/data/notification-actions";
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
+
+/**
+ * Email org owners/admins/managers and restaurant managers about a new review.
+ * Runs with the service-role client because the submitter is an anonymous diner
+ * whose request-scoped client cannot read memberships or profiles past RLS.
+ * A missing/null `notification_prefs.review_emails` means opt-in, matching the
+ * defaultChecked behavior on /settings/notifications.
+ */
+export async function notifyReviewRecipients(review: {
+  restaurant_id: string;
+  customer_name: string;
+  message: string;
+  rating: number;
+}) {
+  const admin = createAdminClient();
+
+  const { data: restaurant } = await admin
+    .from("restaurants")
+    .select("name, org_id")
+    .eq("id", review.restaurant_id)
+    .single();
+
+  if (!restaurant) return;
+
+  const [{ data: orgMembers }, { data: restaurantManagers }] = await Promise.all([
+    admin
+      .from("organization_members")
+      .select("user_id")
+      .eq("org_id", restaurant.org_id)
+      .in("role", ["owner", "admin", "manager"]),
+    admin
+      .from("restaurant_members")
+      .select("user_id")
+      .eq("restaurant_id", review.restaurant_id)
+      .eq("role", "manager"),
+  ]);
+
+  const userIds = Array.from(
+    new Set([
+      ...(orgMembers ?? []).map((m) => m.user_id),
+      ...(restaurantManagers ?? []).map((m) => m.user_id),
+    ])
+  );
+  if (userIds.length === 0) return;
+
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("email, notification_prefs")
+    .in("id", userIds);
+
+  const reviews_url = `${env.NEXT_PUBLIC_APP_URL}/restaurants/${review.restaurant_id}/reviews`;
+  const message_excerpt =
+    review.message.length > 200 ? `${review.message.slice(0, 200)}…` : review.message;
+
+  const recipients = (profiles ?? []).filter(
+    (p) =>
+      p.email &&
+      (p.notification_prefs as NotificationPrefs | null)?.review_emails !== false
+  );
+
+  await Promise.all(
+    recipients.map((p) =>
+      sendMail("review-pending", p.email, {
+        restaurant_name: restaurant.name,
+        rating: review.rating,
+        reviewer_name: review.customer_name,
+        message_excerpt,
+        reviews_url,
+      })
+    )
+  );
+}
 
 export async function submitReviewAction(input: {
   menu_item_id: string;
@@ -32,6 +109,20 @@ export async function submitReviewAction(input: {
     if (error) {
       console.error("submitReview error:", error);
       throw actionError("Failed to submit review", error);
+    }
+
+    // The review is saved — a notification failure must never fail the diner's
+    // submission, so report and swallow anything that goes wrong here.
+    try {
+      await notifyReviewRecipients({
+        restaurant_id: parsed.data.restaurant_id,
+        customer_name: parsed.data.customer_name,
+        message: parsed.data.message,
+        rating: parsed.data.rating,
+      });
+    } catch (err) {
+      console.error("review notification failed:", err);
+      Sentry.captureException(err);
     }
 
     return { submitted: true };

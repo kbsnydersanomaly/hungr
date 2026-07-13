@@ -21,6 +21,9 @@ export const TEMPLATE_FIXTURES: Record<
   "review-pending": {
     restaurant_name: "The Hungry Fox",
     reviews_url: `${baseUrl}/dashboard/reviews`,
+    rating: 4,
+    reviewer_name: "Jane Doe",
+    message_excerpt: "Great food, friendly staff. Will definitely be back!",
   },
   "payment-receipt": {
     invoice_number: "HUNGR-2026-00042",
