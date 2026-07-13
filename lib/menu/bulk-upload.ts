@@ -1,6 +1,7 @@
 import { z } from "zod";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { centsToRands } from "@/lib/utils/money";
 
 /**
  * Shared parsing + validation for the bulk menu upload feature.
@@ -68,6 +69,8 @@ export const OPTION_COLUMNS = [
 
 /** A validated row, ready to be turned into a `menu_items` insert. */
 export interface ParsedRow {
+  /** Optional item UUID from an exported file; `null` for new rows. */
+  id: string | null;
   name: string;
   description: string | null;
   price_cents: number;
@@ -166,6 +169,24 @@ export function parseOptionList(
   return { options, errors };
 }
 
+/**
+ * Serialize one option column back to the importer's `Name:price;Name`
+ * encoding (the inverse of `parseOptionList`). A name containing `:` MUST get
+ * an explicit price suffix, because the importer splits each entry on its LAST
+ * `:` and requires a valid price after it — a bare `House sauce: spicy` would
+ * fail to re-import. When the stored option has no price, `:0.00` is emitted
+ * (accepting the 0-vs-absent semantic so export → import round-trips).
+ */
+export function serializeOptionList(options: ParsedOption[]): string {
+  return options
+    .map((opt) => {
+      const name = opt.name.trim();
+      const needsPrice = opt.price_cents !== undefined || name.includes(":");
+      return needsPrice ? `${name}:${centsToRands(opt.price_cents ?? 0)}` : name;
+    })
+    .join(";");
+}
+
 /** Zod field for one option column; rejects the row on any bad entry. */
 function optionListField(column: (typeof OPTION_COLUMNS)[number]) {
   return z
@@ -187,6 +208,12 @@ function optionListField(column: (typeof OPTION_COLUMNS)[number]) {
  * (`Math.round(value * 100)`).
  */
 export const BulkRowSchema = z.object({
+  id: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim())
+    .pipe(z.union([z.literal(""), z.string().uuid("id must be a valid item UUID.")]))
+    .transform((v) => (v.length > 0 ? v : null)),
   name: z
     .string()
     .transform((v) => v.trim())
@@ -245,7 +272,7 @@ export const BulkRowSchema = z.object({
 
 /** Map a raw parsed row into the shape `BulkRowSchema` expects. */
 function toSchemaInput(raw: RawRow): Record<string, string> {
-  const input: Record<string, string> = {};
+  const input: Record<string, string> = { id: raw.id ?? "" };
   for (const col of BULK_COLUMNS) {
     input[col] = raw[col] ?? "";
   }
@@ -376,6 +403,58 @@ export function buildSampleCsv(): string {
   return Papa.unparse({
     fields: [...BULK_COLUMNS],
     data: SAMPLE_ROWS.map((row) => BULK_COLUMNS.map((col) => row[col])),
+  });
+}
+
+/**
+ * Column order for the menu export: the importer's columns plus a leading
+ * `id` (the item UUID) so a downloaded → edited → re-uploaded file updates
+ * rows in place even when names change.
+ */
+export const EXPORT_COLUMNS = ["id", ...BULK_COLUMNS] as const;
+
+/** One menu item as serialized for export (prices still in cents here). */
+export interface MenuExportRow {
+  id: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  category: string;
+  allergens: string[];
+  labels: string[];
+  image_url: string | null;
+  preparations: ParsedOption[];
+  variations: ParsedOption[];
+  sides: ParsedOption[];
+  sauces: ParsedOption[];
+  /** Names of paired items, already resolved within the same menu. */
+  pairings: string[];
+}
+
+/**
+ * Serialize menu items to a CSV string in exactly the format the importer
+ * accepts (plus the leading `id` column): prices as decimal rands, option
+ * columns in the `Name:price;Name` encoding, pairings as item names.
+ * `Papa.unparse` handles quoting of commas, quotes, and newlines.
+ */
+export function buildMenuCsv(rows: MenuExportRow[]): string {
+  return Papa.unparse({
+    fields: [...EXPORT_COLUMNS],
+    data: rows.map((row) => [
+      row.id,
+      row.name,
+      row.description ?? "",
+      centsToRands(row.price_cents),
+      row.category,
+      row.allergens.join(";"),
+      row.labels.join(";"),
+      row.image_url ?? "",
+      serializeOptionList(row.preparations),
+      serializeOptionList(row.variations),
+      serializeOptionList(row.sides),
+      serializeOptionList(row.sauces),
+      row.pairings.join(";"),
+    ]),
   });
 }
 

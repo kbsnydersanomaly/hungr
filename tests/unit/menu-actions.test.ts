@@ -321,3 +321,93 @@ describe("bulkUpsertItems pairing pass", () => {
     expect(result.data?.warnings[0].reason).toMatch(/Failed to save pairings/);
   });
 });
+
+describe("bulkUpsertItems id column", () => {
+  const BROWNIE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const GHOST_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadMenuById.mockResolvedValue(MENU);
+    writeAudit.mockResolvedValue(undefined);
+  });
+
+  it("updates the item targeted by id even when the name changed (modify mode)", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [{ id: BROWNIE_ID, name: "Old Brownie Name", category_id: "cat-1" }],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "modify",
+      rows: [
+        {
+          id: BROWNIE_ID,
+          name: "Chocolate Brownie",
+          price: "60.00",
+          category: "Desserts",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.updated).toBe(1);
+    expect(result.data?.skipped).toBe(0);
+    expect(result.data?.added).toBe(0);
+    expect(pairingUpdates).toHaveLength(1);
+    expect(pairingUpdates[0].id).toBe(BROWNIE_ID);
+    expect(pairingUpdates[0].pairing_ids).toBeUndefined();
+    expect(pairingUpdates[0]).toMatchObject({ name: "Chocolate Brownie", price_cents: 6000 });
+  });
+
+  it("takes precedence over add-mode skipping when the id exists", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [{ id: BROWNIE_ID, name: "Chocolate Brownie", category_id: "cat-1" }],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "add",
+      rows: [
+        {
+          id: BROWNIE_ID,
+          name: "Chocolate Brownie",
+          price: "60.00",
+          category: "Desserts",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    // Add mode would normally skip an existing name; the explicit id wins.
+    expect(result.data?.updated).toBe(1);
+    expect(result.data?.skipped).toBe(0);
+    expect(pairingUpdates.map((u) => u.id)).toEqual([BROWNIE_ID]);
+  });
+
+  it("errors the row when the id does not belong to this menu", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [{ id: BROWNIE_ID, name: "Chocolate Brownie", category_id: "cat-1" }],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "modify",
+      rows: [
+        { id: GHOST_ID, name: "Ghost", price: "10.00", category: "Desserts" },
+        { name: "Chocolate Brownie", price: "55.00", category: "Desserts" },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.failed).toBe(1);
+    expect(result.data?.errors).toHaveLength(1);
+    expect(result.data?.errors[0]).toMatchObject({ row: 2, field: "id" });
+    // The name-matched row still updates normally.
+    expect(result.data?.updated).toBe(1);
+    expect(pairingUpdates).toHaveLength(1);
+  });
+});

@@ -21,6 +21,7 @@ import { AddCategoryForm } from "@/components/menu/AddCategoryForm";
 import { MenuWorkspace } from "@/components/menu/MenuWorkspace";
 import { MenuNameEditor } from "@/components/menu/MenuNameEditor";
 import { BulkUploadModal } from "@/components/menu/BulkUploadModal";
+import { ExportMenuButton } from "@/components/menu/ExportMenuButton";
 import { ArrowLeft, ExternalLink, Eye, EyeOff } from "lucide-react";
 
 export default async function MenuWorkspacePage({
@@ -82,6 +83,7 @@ export default async function MenuWorkspacePage({
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <BulkUploadModal menuId={menuId} restaurantId={restaurantId} />
+          <ExportMenuButton menuId={menuId} />
 
           {isPublished && (
             <Button variant="link" size="sm" asChild>

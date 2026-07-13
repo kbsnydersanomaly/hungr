@@ -29,6 +29,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { bulkUpsertItems } from "@/lib/data/menu-actions";
+import { ExportMenuButton } from "@/components/menu/ExportMenuButton";
 import {
   parseSpreadsheet,
   validateRows,
@@ -223,6 +224,7 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
                 <Download className="h-4 w-4 mr-2" />
                 Download sample
               </Button>
+              <ExportMenuButton menuId={menuId} label="Download current menu (CSV)" />
               <Button
                 variant="outline"
                 size="sm"
@@ -244,7 +246,17 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
             </div>
             <p className="text-xs text-muted-foreground">
               Columns: {BULK_COLUMNS.join(", ")}. Required: name, price, category.
-              Separate multiple allergens/labels with semicolons.
+              Separate multiple allergens/labels with semicolons. An optional
+              leading <code className="font-mono">id</code> column (present in
+              downloaded files) targets that exact item.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Round-trip editing: download the current menu, edit it, and
+              re-upload in Modify mode. Rows with an{" "}
+              <code className="font-mono">id</code> always update that item — in
+              any upload mode — so renamed items never duplicate. Rows without
+              an <code className="font-mono">id</code> match by name within
+              their category: Add mode skips matches, Modify mode updates them.
             </p>
             <p className="text-xs text-muted-foreground">
               Option columns (preparations, variations, sides, sauces):

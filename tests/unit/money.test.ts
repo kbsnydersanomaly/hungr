@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatZar, parseZar } from "@/lib/utils/money";
+import { formatZar, parseZar, centsToRands } from "@/lib/utils/money";
 
 describe("formatZar", () => {
   it("formats zero", () => {
@@ -48,5 +48,18 @@ describe("parseZar", () => {
     for (const cents of [0, 99, 4500, 123456, 100000000]) {
       expect(parseZar(formatZar(cents))).toBe(cents);
     }
+  });
+});
+
+describe("centsToRands", () => {
+  it("formats plain decimal rands parseable with Number()", () => {
+    expect(centsToRands(0)).toBe("0.00");
+    expect(centsToRands(7500)).toBe("75.00");
+    expect(centsToRands(5)).toBe("0.05");
+    expect(centsToRands(123456)).toBe("1234.56");
+  });
+
+  it("never adds a currency symbol or thousands grouping", () => {
+    expect(centsToRands(100000000)).toBe("1000000.00");
   });
 });

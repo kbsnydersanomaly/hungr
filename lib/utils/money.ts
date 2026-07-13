@@ -20,3 +20,13 @@ export function parseZar(s: string): number {
     parseFloat(s.replace(/[^\d.,]/g, "").replace(",", ".")) * 100
   );
 }
+
+/**
+ * Cents → plain decimal rands (e.g. 7500 → "75.00"), the inverse of the
+ * `Math.round(value * 100)` convention used by `upsertItem` and the bulk
+ * importer. Unlike `formatZar` this is machine-oriented: no "R " prefix and no
+ * thousands grouping, so the output re-parses with `Number()`.
+ */
+export function centsToRands(cents: number): string {
+  return (Math.round(cents) / 100).toFixed(2);
+}

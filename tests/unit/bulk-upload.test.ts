@@ -4,8 +4,11 @@ import {
   buildSampleCsv,
   parseSpreadsheet,
   parseOptionList,
+  serializeOptionList,
   resolvePairings,
+  buildMenuCsv,
   BULK_COLUMNS,
+  EXPORT_COLUMNS,
   MAX_ROWS,
   type RawRow,
 } from "@/lib/menu/bulk-upload";
@@ -194,6 +197,138 @@ describe("parseOptionList", () => {
     expect(options).toEqual([]);
     expect(errors).toContainEqual(
       expect.objectContaining({ row: 3, field: "variations" })
+    );
+  });
+});
+
+describe("serializeOptionList", () => {
+  it("serializes options with and without prices (inverse of parseOptionList)", () => {
+    expect(
+      serializeOptionList([
+        { name: "Grilled", price_cents: 0 },
+        { name: "Fried", price_cents: 1550 },
+        { name: "Extra cheese" },
+      ])
+    ).toBe("Grilled:0.00;Fried:15.50;Extra cheese");
+  });
+
+  it("emits an explicit price suffix when the name contains a colon", () => {
+    // The importer splits on the LAST ":" and requires a valid price after it,
+    // so a bare "House sauce: spicy" would fail to re-import. With no stored
+    // price, ":0.00" is emitted (accepting the 0-vs-absent semantic).
+    expect(serializeOptionList([{ name: "House sauce: spicy" }])).toBe(
+      "House sauce: spicy:0.00"
+    );
+    expect(
+      serializeOptionList([{ name: "House sauce: spicy", price_cents: 1200 }])
+    ).toBe("House sauce: spicy:12.00");
+  });
+
+  it("round-trips colon-named options through the parser", () => {
+    const serialized = serializeOptionList([{ name: "House sauce: spicy" }]);
+    const { options, errors } = parseOptionList(serialized, "sauces", 2);
+    expect(errors).toHaveLength(0);
+    expect(options).toEqual([{ name: "House sauce: spicy", price_cents: 0 }]);
+  });
+
+  it("returns an empty string for no options", () => {
+    expect(serializeOptionList([])).toBe("");
+  });
+});
+
+describe("buildMenuCsv", () => {
+  const ITEM_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const PAIRED_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+  it("uses the export header (id plus the importer's columns)", () => {
+    const csv = buildMenuCsv([]);
+    expect(csv.split(/\r?\n/)[0]).toBe(EXPORT_COLUMNS.join(","));
+  });
+
+  it("round-trips a description containing a comma, a quote, and a newline", async () => {
+    const description = 'Slow-cooked, "fall-off-the-bone" ribs.\nServed hot.';
+    const csv = buildMenuCsv([
+      {
+        id: ITEM_ID,
+        name: "BBQ Ribs",
+        description,
+        price_cents: 12950,
+        category: "Mains",
+        allergens: [],
+        labels: [],
+        image_url: null,
+        preparations: [],
+        variations: [],
+        sides: [],
+        sauces: [],
+        pairings: [],
+      },
+    ]);
+
+    const file = new File([csv], "menu.csv", { type: "text/csv" });
+    const { rows } = await parseSpreadsheet(file);
+    const { valid, errors } = validateRows(rows);
+    expect(errors).toHaveLength(0);
+    expect(valid[0].id).toBe(ITEM_ID);
+    expect(valid[0].description).toBe(description);
+    expect(valid[0].price_cents).toBe(12950);
+  });
+
+  it("serializes prices as rands, options and pairings in the importer's encoding", async () => {
+    const csv = buildMenuCsv([
+      {
+        id: ITEM_ID,
+        name: "Margherita Pizza",
+        description: null,
+        price_cents: 8900,
+        category: "Mains",
+        allergens: ["gluten", "dairy"],
+        labels: ["vegetarian"],
+        image_url: "https://cdn.test/pizza.png",
+        preparations: [{ name: "Deep dish", price_cents: 1000 }],
+        variations: [{ name: "Medium" }],
+        sides: [],
+        sauces: [{ name: "House sauce: spicy" }],
+        pairings: ["Tiramisu"],
+      },
+    ]);
+
+    const file = new File([csv], "menu.csv", { type: "text/csv" });
+    const { rows } = await parseSpreadsheet(file);
+    const { valid, errors } = validateRows(rows);
+    expect(errors).toHaveLength(0);
+    expect(valid[0]).toMatchObject({
+      id: ITEM_ID,
+      price_cents: 8900,
+      description: null,
+      image_url: "https://cdn.test/pizza.png",
+      allergens: ["gluten", "dairy"],
+      labels: ["vegetarian"],
+      preparations: [{ name: "Deep dish", price_cents: 1000 }],
+      variations: [{ name: "Medium" }],
+      sauces: [{ name: "House sauce: spicy", price_cents: 0 }],
+      pairings: ["Tiramisu"],
+    });
+    // Paired item id never leaks into the file — pairings are names.
+    expect(csv).not.toContain(PAIRED_ID);
+  });
+});
+
+describe("id column", () => {
+  const VALID_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+  it("accepts a valid UUID and defaults a blank id to null", () => {
+    const { valid, errors } = validateRows([row({ id: VALID_ID }), row()]);
+    expect(errors).toHaveLength(0);
+    expect(valid[0].id).toBe(VALID_ID);
+    expect(valid[1].id).toBeNull();
+  });
+
+  it("rejects a malformed id, scoped to row and column", () => {
+    const { valid, errors } = validateRows([row({ id: "not-a-uuid" })]);
+    expect(valid).toHaveLength(0);
+    expect(errors).toContainEqual(
+      expect.objectContaining({ row: 2, field: "id" })
     );
   });
 });

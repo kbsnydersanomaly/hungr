@@ -4,9 +4,14 @@ import { toast } from "sonner";
 import { BulkUploadModal } from "@/components/menu/BulkUploadModal";
 
 const bulkUpsertItems = vi.fn();
+const exportMenuCsv = vi.fn();
 
 vi.mock("@/lib/data/menu-actions", () => ({
   bulkUpsertItems: (...args: unknown[]) => bulkUpsertItems(...args),
+}));
+
+vi.mock("@/lib/data/menu-export-actions", () => ({
+  exportMenuCsv: (...args: unknown[]) => exportMenuCsv(...args),
 }));
 
 vi.mock("sonner", () => ({
@@ -120,5 +125,38 @@ describe("BulkUploadModal", () => {
     expect(screen.getByText(/1 warning/i)).toBeInTheDocument();
     expect(screen.getByText(/Row 2 · pairings ·/i)).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("1 warning"));
+  });
+
+  it("downloads the current menu as <menu-slug>.csv", async () => {
+    exportMenuCsv.mockResolvedValue({
+      ok: true,
+      data: { csv: "id,name,price,category\n", slug: "dinner" },
+    });
+    const createObjectURL = vi.fn(() => "blob:mock");
+    const revokeObjectURL = vi.fn();
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    openModal();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /download current menu/i })
+    );
+
+    await waitFor(() => expect(exportMenuCsv).toHaveBeenCalledWith("menu-1"));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
+  });
+
+  it("toasts an error when the export fails", async () => {
+    exportMenuCsv.mockResolvedValue({ ok: false, message: "nope" });
+
+    openModal();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /download current menu/i })
+    );
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("nope"));
   });
 });

@@ -475,6 +475,8 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
     const pairingRows: PairingRow[] = [];
 
     if (mode === "replace") {
+      // Every existing item is deleted first, so any `id` column in the file
+      // no longer points at anything — replace mode ignores it and inserts.
       const { error: deleteError } = await supabase
         .from("menu_items")
         .delete()
@@ -503,14 +505,38 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       const itemKey = (categoryId: string, name: string) =>
         `${categoryId}::${name.trim().toLowerCase()}`;
       const itemMap = new Map<string, string>();
+      const existingIds = new Set<string>();
       for (const item of existingItems ?? []) {
         itemMap.set(itemKey(item.category_id, item.name), item.id);
+        existingIds.add(item.id);
       }
 
       const inserts: ReturnType<typeof toItemRow>[] = [];
       const updates: { id: string; data: ReturnType<typeof toItemRow> }[] = [];
 
       for (const { row, categoryId } of resolved) {
+        if (row.id) {
+          // Round-trip path: a row exported from this menu carries the item's
+          // UUID. An explicit id always targets that exact row and takes
+          // precedence over name matching, in every upload mode — so renamed
+          // items update in place instead of duplicating.
+          if (!existingIds.has(row.id)) {
+            summary.errors.push({
+              row: row.fileRow,
+              field: "id",
+              reason: "No item with this id exists on this menu.",
+            });
+            summary.failed++;
+            continue;
+          }
+          updates.push({ id: row.id, data: toItemRow(row, categoryId) });
+          pairingRows.push({
+            fileRow: row.fileRow,
+            name: row.name,
+            pairings: row.pairings,
+          });
+          continue;
+        }
         const existingId = itemMap.get(itemKey(categoryId, row.name));
         if (mode === "add") {
           if (existingId) {
