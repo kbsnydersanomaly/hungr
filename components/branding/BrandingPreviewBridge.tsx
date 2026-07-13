@@ -10,6 +10,9 @@ interface PreviewMessage {
   type: typeof BRANDING_PREVIEW_MESSAGE;
   vars: Record<string, string>;
   fonts: string[];
+  // Precomputed Google Fonts URL (carries per-style weights/italic). When
+  // present it takes precedence over rebuilding from `fonts`.
+  fontsHref?: string | null;
   logoUrl?: string | null;
 }
 
@@ -110,8 +113,13 @@ export function BrandingPreviewBridge() {
         root.style.setProperty(key, value);
       }
 
-      // Load any Google Fonts the draft references.
-      const href = googleFontsUrl(data.fonts ?? []);
+      // Load any Google Fonts the draft references. Prefer the precomputed
+      // URL (it includes the draft's weights/italic axes); fall back to
+      // rebuilding from the family list for older message senders.
+      const href =
+        "fontsHref" in data
+          ? data.fontsHref
+          : googleFontsUrl(data.fonts ?? []);
       let link = document.getElementById(
         "branding-preview-fonts"
       ) as HTMLLinkElement | null;
