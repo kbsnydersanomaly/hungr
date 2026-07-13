@@ -50,7 +50,7 @@ export function MediaUploadDialog({
         <MediaUploadZone
           restaurantId={restaurantId}
           remainingBytes={remainingBytes}
-          onUploaded={() => {
+          onUploadComplete={() => {
             setOpen(false);
             onUpload?.();
           }}
