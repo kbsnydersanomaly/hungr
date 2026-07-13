@@ -4,6 +4,7 @@ import {
   buildSampleCsv,
   parseSpreadsheet,
   parseOptionList,
+  resolvePairings,
   BULK_COLUMNS,
   MAX_ROWS,
   type RawRow,
@@ -242,5 +243,128 @@ describe("parseSpreadsheet", () => {
     for (let i = 0; i < MAX_ROWS + 1; i++) lines.push(`Item ${i},10,Mains`);
     const file = new File([lines.join("\n")], "big.csv", { type: "text/csv" });
     await expect(parseSpreadsheet(file)).rejects.toThrow(/Too many rows/);
+  });
+});
+
+describe("pairings column", () => {
+  it("splits the pairings cell like allergens/labels and stamps the file row", () => {
+    const { valid, errors } = validateRows([
+      row({ pairings: "Chocolate Brownie; House Merlot ;" }),
+    ]);
+    expect(errors).toHaveLength(0);
+    expect(valid[0].pairings).toEqual(["Chocolate Brownie", "House Merlot"]);
+    expect(valid[0].fileRow).toBe(2);
+  });
+
+  it("defaults pairings to an empty array when the column is blank", () => {
+    const { valid } = validateRows([row()]);
+    expect(valid[0].pairings).toEqual([]);
+  });
+});
+
+describe("resolvePairings", () => {
+  const ID = {
+    brownie: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    merlot: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    tiramisu: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  };
+
+  /** name (lowercased, trimmed) -> id, as built from the menu's items. */
+  const nameToId = new Map([
+    ["chocolate brownie", ID.brownie],
+    ["house merlot", ID.merlot],
+    ["tiramisu", ID.tiramisu],
+  ]);
+
+  it("resolves pairing names to item ids", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 2,
+          name: "Chocolate Brownie",
+          pairings: ["House Merlot", "Tiramisu"],
+        },
+      ],
+      nameToId
+    );
+    expect(warnings).toHaveLength(0);
+    expect(updates).toEqual([
+      { id: ID.brownie, pairing_ids: [ID.merlot, ID.tiramisu] },
+    ]);
+  });
+
+  it("matches names case- and whitespace-insensitively", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 2,
+          name: "  chocolate BROWNIE ",
+          pairings: [" house merlot", "TIRAMISU "],
+        },
+      ],
+      nameToId
+    );
+    expect(warnings).toHaveLength(0);
+    expect(updates).toEqual([
+      { id: ID.brownie, pairing_ids: [ID.merlot, ID.tiramisu] },
+    ]);
+  });
+
+  it("warns (not errors) on unresolvable names, keeping the resolvable ones", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 5,
+          name: "Chocolate Brownie",
+          pairings: ["House Merlot", "Ghost Item"],
+        },
+      ],
+      nameToId
+    );
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot] }]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ row: 5, field: "pairings" });
+    expect(warnings[0].reason).toContain("Ghost Item");
+  });
+
+  it("excludes self-pairing", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 2,
+          name: "Chocolate Brownie",
+          pairings: ["Chocolate Brownie", "House Merlot"],
+        },
+      ],
+      nameToId
+    );
+    expect(warnings).toHaveLength(0);
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot] }]);
+  });
+
+  it("dedupes repeated pairing names", () => {
+    const { updates } = resolvePairings(
+      [
+        {
+          fileRow: 2,
+          name: "Chocolate Brownie",
+          pairings: ["House Merlot", "house merlot", " House Merlot "],
+        },
+      ],
+      nameToId
+    );
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot] }]);
+  });
+
+  it("skips rows without pairings and rows not written to the menu", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        { fileRow: 2, name: "Chocolate Brownie", pairings: [] },
+        { fileRow: 3, name: "Not On Menu", pairings: ["House Merlot"] },
+      ],
+      nameToId
+    );
+    expect(updates).toHaveLength(0);
+    expect(warnings).toHaveLength(0);
   });
 });

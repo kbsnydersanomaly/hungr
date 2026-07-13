@@ -26,6 +26,11 @@ export const MAX_ROWS = 2000;
  * non-negative decimal in rands (e.g. `Grilled:0;Fried:15.50;Extra cheese`).
  * An entry is split on its LAST `:`, so a name containing `:` must be followed
  * by a valid price — otherwise the row is rejected with a clear error.
+ *
+ * The `pairings` column lists other item names on the same menu
+ * (semicolon-separated, e.g. `Chocolate Brownie;House Merlot`). Names are
+ * resolved to item ids in a second pass after the upload — see
+ * `resolvePairings`; unresolvable names become warnings, never errors.
  */
 export const BULK_COLUMNS = [
   "name",
@@ -39,6 +44,7 @@ export const BULK_COLUMNS = [
   "variations",
   "sides",
   "sauces",
+  "pairings",
 ] as const;
 
 export type BulkColumn = (typeof BULK_COLUMNS)[number];
@@ -73,6 +79,10 @@ export interface ParsedRow {
   variations: ParsedOption[];
   sides: ParsedOption[];
   sauces: ParsedOption[];
+  /** Names of other items on this menu; resolved to ids after the upsert. */
+  pairings: string[];
+  /** 1-based file row (incl. header), so server-side warnings match the file. */
+  fileRow: number;
 }
 
 /** A single validation failure, addressed by 1-based file row (incl. header). */
@@ -96,6 +106,8 @@ export interface BulkUploadSummary {
   failed: number;
   categoriesCreated: number;
   errors: RowError[];
+  /** Non-fatal issues (e.g. pairing names that matched no item). */
+  warnings: RowError[];
 }
 
 /** Split a semicolon-separated cell into a trimmed list, dropping empties. */
@@ -225,6 +237,10 @@ export const BulkRowSchema = z.object({
   variations: optionListField("variations"),
   sides: optionListField("sides"),
   sauces: optionListField("sauces"),
+  pairings: z
+    .string()
+    .optional()
+    .transform((v) => splitList(v)),
 });
 
 /** Map a raw parsed row into the shape `BulkRowSchema` expects. */
@@ -253,7 +269,7 @@ export function validateRows(rawRows: RawRow[]): {
     const result = BulkRowSchema.safeParse(toSchemaInput(raw));
     if (result.success) {
       const { price, ...rest } = result.data;
-      valid.push({ ...rest, price_cents: price });
+      valid.push({ ...rest, price_cents: price, fileRow });
     } else {
       for (const issue of result.error.issues) {
         errors.push({
@@ -337,6 +353,7 @@ export const SAMPLE_ROWS: Record<BulkColumn, string>[] = [
     variations: "Medium;Large:25.00",
     sides: "Chips:15.00;Side salad:20.00",
     sauces: "Garlic mayo:5.00;Peri-peri",
+    pairings: "Tiramisu",
   },
   {
     name: "Tiramisu",
@@ -350,6 +367,7 @@ export const SAMPLE_ROWS: Record<BulkColumn, string>[] = [
     variations: "Single;Double:30.00",
     sides: "",
     sauces: "",
+    pairings: "",
   },
 ];
 
@@ -359,4 +377,58 @@ export function buildSampleCsv(): string {
     fields: [...BULK_COLUMNS],
     data: SAMPLE_ROWS.map((row) => BULK_COLUMNS.map((col) => row[col])),
   });
+}
+
+/** A written row participating in pairing resolution. */
+export interface PairingRow {
+  /** 1-based file row (incl. header), used in warnings. */
+  fileRow: number;
+  /** The row's own item name (to find its id and exclude self-pairing). */
+  name: string;
+  /** Pairing names as entered in the `pairings` column. */
+  pairings: string[];
+}
+
+/** A resolved `pairing_ids` update for one menu item. */
+export interface PairingUpdate {
+  id: string;
+  pairing_ids: string[];
+}
+
+/**
+ * Resolve pairing names to item ids against a map of every item now on the
+ * menu (keyed by lowercased, trimmed name). Mirrors the safety rules of
+ * `upsertItem`: ids are deduped and an item never pairs with itself.
+ * Unresolvable names become warnings (row number + unknown name), never
+ * hard failures. Only rows with a non-empty `pairings` list produce updates.
+ */
+export function resolvePairings(
+  rows: PairingRow[],
+  nameToId: ReadonlyMap<string, string>
+): { updates: PairingUpdate[]; warnings: RowError[] } {
+  const updates: PairingUpdate[] = [];
+  const warnings: RowError[] = [];
+
+  for (const row of rows) {
+    if (row.pairings.length === 0) continue;
+    const ownId = nameToId.get(row.name.trim().toLowerCase());
+    if (!ownId) continue; // Row was skipped by the upload mode — nothing to update.
+
+    const ids: string[] = [];
+    for (const pairingName of row.pairings) {
+      const id = nameToId.get(pairingName.trim().toLowerCase());
+      if (!id) {
+        warnings.push({
+          row: row.fileRow,
+          field: "pairings",
+          reason: `Unknown item "${pairingName}" — no item with that name exists on this menu.`,
+        });
+        continue;
+      }
+      if (id !== ownId) ids.push(id);
+    }
+    updates.push({ id: ownId, pairing_ids: [...new Set(ids)] });
+  }
+
+  return { updates, warnings };
 }

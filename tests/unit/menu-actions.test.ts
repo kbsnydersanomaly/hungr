@@ -22,7 +22,7 @@ vi.mock("@/lib/data/menus", () => ({ loadMenuById }));
 vi.mock("@/lib/qr/generate", () => ({ generateAndStoreMenuQr: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 
-import { renameMenu, createMenu } from "@/lib/data/menu-actions";
+import { renameMenu, createMenu, bulkUpsertItems } from "@/lib/data/menu-actions";
 import { ForbiddenError } from "@/lib/errors";
 
 const MENU_ID = "33333333-3333-4333-8333-333333333333";
@@ -146,5 +146,103 @@ describe("createMenu", () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toContain("80");
+  });
+});
+
+/**
+ * Stateful Supabase stub for `bulkUpsertItems`: `from()` selects the canned
+ * table, selects resolve to the canned rows, mutations resolve with no error,
+ * and `update(...).eq("id", ...)` calls on `menu_items` are recorded.
+ */
+function makeBulkSupabase(tables: {
+  categories?: { id: string; name: string }[];
+  menu_items?: { id: string; name: string }[];
+}) {
+  const pairingUpdates: { id: string; pairing_ids: string[] }[] = [];
+  let table = "";
+  let pendingUpdate: Record<string, unknown> | null = null;
+  const builder: Record<string, unknown> = {
+    from: (t: string) => {
+      table = t;
+      return builder;
+    },
+    select: () => builder,
+    insert: () => builder,
+    delete: () => builder,
+    update: (payload: Record<string, unknown>) => {
+      pendingUpdate = payload;
+      return builder;
+    },
+    eq: (col: string, value: unknown) => {
+      if (pendingUpdate && table === "menu_items" && col === "id") {
+        pairingUpdates.push({
+          id: String(value),
+          ...(pendingUpdate as { pairing_ids: string[] }),
+        });
+        pendingUpdate = null;
+      }
+      return builder;
+    },
+    then: (resolve: (v: unknown) => void) =>
+      resolve({ data: tables[table as keyof typeof tables] ?? null, error: null }),
+  };
+  return { builder, pairingUpdates };
+}
+
+describe("bulkUpsertItems pairing pass", () => {
+  const BROWNIE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const MERLOT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadMenuById.mockResolvedValue(MENU);
+    writeAudit.mockResolvedValue(undefined);
+  });
+
+  it("resolves pairing names to ids after insert and warns on unknown names", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [
+        { id: BROWNIE_ID, name: "Chocolate Brownie" },
+        { id: MERLOT_ID, name: "House Merlot" },
+      ],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "replace",
+      rows: [
+        {
+          name: "Chocolate Brownie",
+          price: "55.00",
+          category: "Desserts",
+          pairings: "House Merlot;Ghost Item",
+        },
+        { name: "House Merlot", price: "80.00", category: "Desserts", pairings: "" },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.added).toBe(2);
+    expect(pairingUpdates).toEqual([{ id: BROWNIE_ID, pairing_ids: [MERLOT_ID] }]);
+    expect(result.data?.warnings).toHaveLength(1);
+    expect(result.data?.warnings[0]).toMatchObject({ row: 2, field: "pairings" });
+    expect(result.data?.warnings[0].reason).toContain("Ghost Item");
+  });
+
+  it("runs no pairing queries when no row declares pairings", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "replace",
+      rows: [{ name: "Tiramisu", price: "55.00", category: "Desserts" }],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.warnings).toEqual([]);
+    expect(pairingUpdates).toHaveLength(0);
   });
 });

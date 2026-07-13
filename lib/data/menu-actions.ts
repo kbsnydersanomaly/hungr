@@ -17,9 +17,11 @@ import { writeAudit } from "@/lib/utils/audit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   validateRows,
+  resolvePairings,
   type BulkUploadPayload,
   type BulkUploadSummary,
   type ParsedRow,
+  type PairingRow,
 } from "@/lib/menu/bulk-upload";
 
 export async function createMenu(restaurantId: string, formData: FormData) {
@@ -412,6 +414,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       failed: errors.length,
       categoriesCreated: 0,
       errors,
+      warnings: [],
     };
 
     if (valid.length === 0) return summary;
@@ -467,6 +470,9 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       categoryId: categoryMap.get(row.category.toLowerCase())!,
     }));
 
+    // Rows actually written (inserted or updated) — only these get pairings.
+    const pairingRows: PairingRow[] = [];
+
     if (mode === "replace") {
       const { error: deleteError } = await supabase
         .from("menu_items")
@@ -478,6 +484,13 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       const { error: insertError } = await supabase.from("menu_items").insert(inserts);
       if (insertError) throw actionError("Failed to insert items", insertError);
       summary.added = inserts.length;
+      pairingRows.push(
+        ...resolved.map(({ row }) => ({
+          fileRow: row.fileRow,
+          name: row.name,
+          pairings: row.pairings,
+        }))
+      );
     } else {
       // add / modify: match existing items by name within their category.
       const { data: existingItems, error: itemLoadError } = await supabase
@@ -511,6 +524,11 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
           }
           updates.push({ id: existingId, data: toItemRow(row, categoryId) });
         }
+        pairingRows.push({
+          fileRow: row.fileRow,
+          name: row.name,
+          pairings: row.pairings,
+        });
       }
 
       if (inserts.length > 0) {
@@ -525,6 +543,32 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
           .eq("id", id);
         if (updateError) throw actionError("Failed to update item", updateError);
         summary.updated++;
+      }
+    }
+
+    // Second pass: pairings reference other items by name, so they can only be
+    // resolved once every row exists on the menu. Unresolvable names become
+    // warnings in the summary rather than failing the upload.
+    if (pairingRows.some((row) => row.pairings.length > 0)) {
+      const { data: allItems, error: pairingLoadError } = await supabase
+        .from("menu_items")
+        .select("id, name")
+        .eq("menu_id", menuId);
+      if (pairingLoadError) throw actionError("Failed to load items for pairings", pairingLoadError);
+
+      const nameToId = new Map<string, string>();
+      for (const item of allItems ?? []) {
+        nameToId.set(item.name.trim().toLowerCase(), item.id);
+      }
+
+      const { updates: pairingUpdates, warnings } = resolvePairings(pairingRows, nameToId);
+      summary.warnings.push(...warnings);
+      for (const { id, pairing_ids } of pairingUpdates) {
+        const { error: pairingError } = await supabase
+          .from("menu_items")
+          .update({ pairing_ids })
+          .eq("id", id);
+        if (pairingError) throw actionError("Failed to save pairings", pairingError);
       }
     }
 

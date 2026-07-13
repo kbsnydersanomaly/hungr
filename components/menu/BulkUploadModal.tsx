@@ -178,6 +178,7 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
               </p>
             )}
             {summary.errors.length > 0 && <ErrorList errors={summary.errors} />}
+            {summary.warnings.length > 0 && <WarningList warnings={summary.warnings} />}
             <DialogFooter>
               <Button variant="outline" onClick={reset}>
                 Upload another
@@ -245,6 +246,13 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
               the last colon — e.g.{" "}
               <code className="font-mono">Grilled:0;Fried:15.50;Extra cheese</code>.
               Prices are converted to cents. Omit the column to leave options empty.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Pairings column: semicolon-separated names of other items on this
+              menu — e.g.{" "}
+              <code className="font-mono">Chocolate Brownie;House Merlot</code>.
+              Names are matched case-insensitively after upload; unknown names
+              are reported as warnings, not errors.
             </p>
 
             {parseError && (
@@ -358,6 +366,26 @@ function ErrorList({ errors }: { errors: RowError[] }) {
       ))}
       {errors.length > shown.length && (
         <div className="text-xs">…and {errors.length - shown.length} more.</div>
+      )}
+    </div>
+  );
+}
+
+function WarningList({ warnings }: { warnings: RowError[] }) {
+  const shown = warnings.slice(0, 20);
+  return (
+    <div className="max-h-40 space-y-1 overflow-auto rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+      <div className="flex items-center gap-1.5 font-medium">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        {warnings.length} warning{warnings.length === 1 ? "" : "s"}
+      </div>
+      {shown.map((warning, i) => (
+        <div key={i}>
+          Row {warning.row} · {warning.field} · {warning.reason}
+        </div>
+      ))}
+      {warnings.length > shown.length && (
+        <div className="text-xs">…and {warnings.length - shown.length} more.</div>
       )}
     </div>
   );

@@ -63,6 +63,7 @@ describe("BulkUploadModal", () => {
         failed: 0,
         categoriesCreated: 1,
         errors: [],
+        warnings: [],
       },
     });
 
@@ -84,5 +85,38 @@ describe("BulkUploadModal", () => {
       expect(screen.getByText("Upload another")).toBeInTheDocument()
     );
     expect(screen.getByText(/1 new category created/i)).toBeInTheDocument();
+  });
+
+  it("shows pairing warnings in the summary", async () => {
+    bulkUpsertItems.mockResolvedValue({
+      ok: true,
+      data: {
+        added: 1,
+        updated: 0,
+        skipped: 0,
+        failed: 0,
+        categoriesCreated: 0,
+        errors: [],
+        warnings: [
+          {
+            row: 2,
+            field: "pairings",
+            reason: 'Unknown item "Ghost Item" — no item with that name exists on this menu.',
+          },
+        ],
+      },
+    });
+
+    openModal();
+    uploadCsv("name,price,category,pairings\nPizza,89,Mains,Ghost Item\n");
+
+    const submit = await screen.findByRole("button", { name: /upload 1 item/i });
+    fireEvent.click(submit);
+
+    await waitFor(() =>
+      expect(screen.getByText("Upload another")).toBeInTheDocument()
+    );
+    expect(screen.getByText(/1 warning/i)).toBeInTheDocument();
+    expect(screen.getByText(/Row 2 · pairings ·/i)).toBeInTheDocument();
   });
 });
