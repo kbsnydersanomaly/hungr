@@ -31,6 +31,23 @@ describe("ReviewForm submit UX", () => {
     vi.clearAllMocks();
   });
 
+  it("disables the submit button while the action is in flight", async () => {
+    let resolveAction: (value: { ok: boolean }) => void;
+    submitReviewAction.mockImplementation(
+      () => new Promise((resolve) => (resolveAction = resolve))
+    );
+    openAndFill();
+
+    fireEvent.click(screen.getByRole("button", { name: /submit review/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /submitting/i })).toBeDisabled()
+    );
+
+    resolveAction!({ ok: true });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+  });
+
   it("warns against resubmitting and re-enables the button after a network error", async () => {
     submitReviewAction.mockRejectedValue(new Error("network error"));
     openAndFill();

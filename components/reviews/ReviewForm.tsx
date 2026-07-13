@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,10 +23,24 @@ interface ReviewFormProps {
   restaurantId: string;
 }
 
+/**
+ * The pending state must come from `useFormStatus`, not local state set inside
+ * the form action: React batches state updates made within an action's
+ * transition, so a local `submitting` flag would never render the disabled
+ * in-flight state (same pattern as components/forms/SubmitButton.tsx).
+ */
+function ReviewSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending} className="w-full">
+      {pending ? "Submitting..." : "Submit review"}
+    </Button>
+  );
+}
+
 export function ReviewForm({ menuItemId, restaurantId }: ReviewFormProps) {
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(5);
-  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   if (submitted) {
@@ -54,7 +69,6 @@ export function ReviewForm({ menuItemId, restaurantId }: ReviewFormProps) {
         </DialogHeader>
         <form
           action={async (formData: FormData) => {
-            setSubmitting(true);
             try {
               const result = await submitReviewAction({
                 menu_item_id: menuItemId,
@@ -72,12 +86,11 @@ export function ReviewForm({ menuItemId, restaurantId }: ReviewFormProps) {
               }
             } catch {
               // Network error mid-flight: the request may have reached the
-              // server, so warn against blindly resubmitting.
+              // server, so warn against blindly resubmitting. The button
+              // re-enables via useFormStatus once this action settles.
               toast.error(
                 "Something went wrong. Your review may have been submitted — please don't resubmit unless asked."
               );
-            } finally {
-              setSubmitting(false);
             }
           }}
           className="space-y-3"
@@ -129,9 +142,7 @@ export function ReviewForm({ menuItemId, restaurantId }: ReviewFormProps) {
             />
           </div>
 
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Submitting..." : "Submit review"}
-          </Button>
+          <ReviewSubmitButton />
         </form>
       </DialogContent>
     </Dialog>

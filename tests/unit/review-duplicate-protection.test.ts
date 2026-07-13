@@ -33,32 +33,61 @@ interface DedupQuery {
 }
 
 /**
- * Server-client stub where the dedup select resolves to `dedupResult` and
- * `insert` records how many times it ran. Awaiting the select chain resolves
- * via `then`; `insert` returns its own promise, so one builder serves both.
+ * The dedup existence check runs on the ADMIN client (anon RLS only sees
+ * approved reviews, so a request-scoped client would never see fresh pending
+ * rows). The insert stays on the request-scoped server client.
+ *
+ * This stub wires both: `createServerClient` resolves to an insert-counting
+ * client, `createAdminClient` returns a table dispatcher where `reviews` is
+ * the dedup chain (awaitable via `then`, resolving to `dedupResult`) and any
+ * other table answers the notification lookups with a null restaurant so the
+ * notify block ends quietly.
  */
-function makeServerClient(dedupResult: { data: unknown; error?: unknown } = { data: [] }) {
+function makeClients(dedupResult: { data: unknown; error?: unknown } = { data: [] }) {
   const dedupQuery: DedupQuery = { eq: [], gte: [] };
+  const tablesQueried: string[] = [];
   let insertCount = 0;
-  const resolved = { data: dedupResult.data, error: dedupResult.error ?? null };
-  const builder: Record<string, unknown> = {
-    select: () => builder,
+
+  const dedupBuilder: Record<string, unknown> = {
+    select: () => dedupBuilder,
     eq: (col: string, val: unknown) => {
       dedupQuery.eq.push([col, val]);
-      return builder;
+      return dedupBuilder;
     },
     gte: (col: string, val: unknown) => {
       dedupQuery.gte.push([col, val]);
-      return builder;
+      return dedupBuilder;
     },
-    limit: () => builder,
-    insert: () => {
-      insertCount++;
-      return Promise.resolve({ error: null });
-    },
-    then: (resolve: (v: unknown) => void) => resolve(resolved),
+    limit: () => dedupBuilder,
+    then: (resolve: (v: unknown) => void) =>
+      resolve({ data: dedupResult.data, error: dedupResult.error ?? null }),
   };
-  return { client: { from: () => builder }, dedupQuery, getInsertCount: () => insertCount };
+
+  // Notification lookups: `.from(t).select(...).eq(...).single()` → null row.
+  const lookupBuilder: Record<string, unknown> = {
+    select: () => lookupBuilder,
+    eq: () => lookupBuilder,
+    in: () => lookupBuilder,
+    single: () => Promise.resolve({ data: null, error: null }),
+    then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+  };
+
+  const admin = {
+    from: (table: string) => {
+      tablesQueried.push(table);
+      return table === "reviews" ? dedupBuilder : lookupBuilder;
+    },
+  };
+  const server = {
+    from: () => ({
+      insert: () => {
+        insertCount++;
+        return Promise.resolve({ error: null });
+      },
+    }),
+  };
+
+  return { admin, server, dedupQuery, tablesQueried, getInsertCount: () => insertCount };
 }
 
 beforeEach(() => {
@@ -67,9 +96,21 @@ beforeEach(() => {
 });
 
 describe("submitReviewAction duplicate protection", () => {
+  it("runs the dedup existence check on the admin client (anon RLS hides pending reviews)", async () => {
+    const stub = makeClients({ data: [] });
+    createServerClient.mockResolvedValue(stub.server);
+    createAdminClient.mockReturnValue(stub.admin);
+
+    await submitReviewAction(REVIEW_INPUT);
+
+    expect(createAdminClient).toHaveBeenCalled();
+    expect(stub.tablesQueried[0]).toBe("reviews");
+  });
+
   it("returns success without inserting when an identical review exists in the last 10 minutes", async () => {
-    const stub = makeServerClient({ data: [{ id: "rev-existing" }] });
-    createServerClient.mockResolvedValue(stub.client);
+    const stub = makeClients({ data: [{ id: "rev-existing" }] });
+    createServerClient.mockResolvedValue(stub.server);
+    createAdminClient.mockReturnValue(stub.admin);
 
     const result = await submitReviewAction(REVIEW_INPUT);
 
@@ -77,7 +118,7 @@ describe("submitReviewAction duplicate protection", () => {
     expect(result.data).toMatchObject({ submitted: true });
     expect(stub.getInsertCount()).toBe(0);
     // A deduped replay must not re-notify managers.
-    expect(createAdminClient).not.toHaveBeenCalled();
+    expect(stub.tablesQueried).toEqual(["reviews"]);
     expect(sendMail).not.toHaveBeenCalled();
   });
 
@@ -85,27 +126,33 @@ describe("submitReviewAction duplicate protection", () => {
     // Simulate a real table: the first insert lands, the second submission's
     // dedup select then sees the row.
     const stored: Array<{ id: string }> = [];
-    const dedupQuery: DedupQuery = { eq: [], gte: [] };
-    let insertCount = 0;
-    const builder: Record<string, unknown> = {
-      select: () => builder,
-      eq: (col: string, val: unknown) => {
-        dedupQuery.eq.push([col, val]);
-        return builder;
-      },
-      gte: () => builder,
-      limit: () => builder,
-      insert: () => {
-        insertCount++;
-        stored.push({ id: `rev-${insertCount}` });
-        return Promise.resolve({ error: null });
-      },
+    const dedupBuilder: Record<string, unknown> = {
+      select: () => dedupBuilder,
+      eq: () => dedupBuilder,
+      gte: () => dedupBuilder,
+      limit: () => dedupBuilder,
       then: (resolve: (v: unknown) => void) => resolve({ data: stored, error: null }),
     };
-    createServerClient.mockResolvedValue({ from: () => builder });
-    // The first submission proceeds past the insert into notification lookups;
-    // a null restaurant ends notification quietly.
-    createAdminClient.mockReturnValue({ from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }) }) });
+    const lookupBuilder: Record<string, unknown> = {
+      select: () => lookupBuilder,
+      eq: () => lookupBuilder,
+      in: () => lookupBuilder,
+      single: () => Promise.resolve({ data: null, error: null }),
+      then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    };
+    let insertCount = 0;
+    createAdminClient.mockReturnValue({
+      from: (table: string) => (table === "reviews" ? dedupBuilder : lookupBuilder),
+    });
+    createServerClient.mockResolvedValue({
+      from: () => ({
+        insert: () => {
+          insertCount++;
+          stored.push({ id: `rev-${insertCount}` });
+          return Promise.resolve({ error: null });
+        },
+      }),
+    });
 
     const first = await submitReviewAction(REVIEW_INPUT);
     const second = await submitReviewAction(REVIEW_INPUT);
@@ -115,22 +162,24 @@ describe("submitReviewAction duplicate protection", () => {
     expect(insertCount).toBe(1);
   });
 
-  it("inserts when no matching review exists (different visit / outside the window)", async () => {
-    const stub = makeServerClient({ data: [] });
-    createServerClient.mockResolvedValue(stub.client);
-    createAdminClient.mockReturnValue({ from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }) }) });
+  it("inserts a same-text resubmission with a different rating (correction is not deduped)", async () => {
+    // With rating in the dedup scope, the DB finds no match for a changed
+    // rating, so the corrected review must be inserted.
+    const stub = makeClients({ data: [] });
+    createServerClient.mockResolvedValue(stub.server);
+    createAdminClient.mockReturnValue(stub.admin);
 
-    const result = await submitReviewAction(REVIEW_INPUT);
+    const result = await submitReviewAction({ ...REVIEW_INPUT, rating: 5 });
 
     expect(result.ok).toBe(true);
     expect(stub.getInsertCount()).toBe(1);
   });
 
-  it("scopes the dedup check to item + name + message within the last 10 minutes (not rating)", async () => {
+  it("scopes the dedup check to item + name + message + rating within the last 10 minutes", async () => {
     const before = Date.now();
-    const stub = makeServerClient({ data: [] });
-    createServerClient.mockResolvedValue(stub.client);
-    createAdminClient.mockReturnValue({ from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }) }) });
+    const stub = makeClients({ data: [] });
+    createServerClient.mockResolvedValue(stub.server);
+    createAdminClient.mockReturnValue(stub.admin);
 
     await submitReviewAction(REVIEW_INPUT);
     const after = Date.now();
@@ -139,6 +188,7 @@ describe("submitReviewAction duplicate protection", () => {
       ["menu_item_id", REVIEW_INPUT.menu_item_id],
       ["customer_name", REVIEW_INPUT.customer_name],
       ["message", REVIEW_INPUT.message],
+      ["rating", REVIEW_INPUT.rating],
     ]);
     const gte = stub.dedupQuery.gte.find(([col]) => col === "created_at");
     expect(gte).toBeDefined();
@@ -148,9 +198,9 @@ describe("submitReviewAction duplicate protection", () => {
   });
 
   it("fails open and still inserts when the dedup check itself errors", async () => {
-    const stub = makeServerClient({ data: null, error: { message: "connection reset" } });
-    createServerClient.mockResolvedValue(stub.client);
-    createAdminClient.mockReturnValue({ from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }) }) });
+    const stub = makeClients({ data: null, error: { message: "connection reset" } });
+    createServerClient.mockResolvedValue(stub.server);
+    createAdminClient.mockReturnValue(stub.admin);
 
     const result = await submitReviewAction(REVIEW_INPUT);
 

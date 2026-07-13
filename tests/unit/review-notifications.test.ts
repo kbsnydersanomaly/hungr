@@ -33,15 +33,24 @@ type TableResult = { data: unknown; error?: unknown };
 /**
  * Table-aware admin-client stub: `from(table)` returns a chainable builder that
  * resolves to the configured result for that table (and `.single()` for lookups).
+ * `reviews` is the pre-insert dedup check (select/eq/gte/limit chain); the rest
+ * are notification lookups.
  */
 function makeAdmin(tables: {
+  reviews?: TableResult;
   restaurants?: TableResult;
   organization_members?: TableResult;
   restaurant_members?: TableResult;
   profiles?: TableResult;
 }) {
   const builders: Record<string, Record<string, unknown>> = {};
-  for (const table of ["restaurants", "organization_members", "restaurant_members", "profiles"]) {
+  for (const table of [
+    "reviews",
+    "restaurants",
+    "organization_members",
+    "restaurant_members",
+    "profiles",
+  ]) {
     const result: TableResult = (tables as Record<string, TableResult>)[table] ?? {
       data: table === "restaurants" ? null : [],
       error: null,
@@ -51,6 +60,8 @@ function makeAdmin(tables: {
       select: () => builder,
       eq: () => builder,
       in: () => builder,
+      gte: () => builder,
+      limit: () => builder,
       single: () => Promise.resolve(resolved),
       then: (resolve: (v: unknown) => void) => resolve(resolved),
     };
@@ -60,14 +71,8 @@ function makeAdmin(tables: {
 }
 
 function makeServerClient() {
-  const resolved = { data: [], error: null };
   const builder: Record<string, unknown> = {
-    select: () => builder,
-    eq: () => builder,
-    gte: () => builder,
-    limit: () => builder,
     insert: () => Promise.resolve({ error: null }),
-    then: (resolve: (v: unknown) => void) => resolve(resolved),
   };
   return { from: () => builder };
 }

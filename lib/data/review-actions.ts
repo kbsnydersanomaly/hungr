@@ -122,17 +122,26 @@ export async function submitReviewAction(input: {
     const supabase = await createServerClient();
 
     // Idempotency guard: a double-tap or retry around a slow network can fire
-    // this action twice. If the exact same review (item + name + message) was
-    // already saved in the last 10 minutes, treat this as a replay and return
-    // success without inserting again — and without re-notifying managers.
-    // A DB unique index can't express the time window, so this is app-level.
+    // this action twice. If the exact same review (item + name + message +
+    // rating) was already saved in the last 10 minutes, treat this as a replay
+    // and return success without inserting again — and without re-notifying
+    // managers. A DB unique index can't express the time window, so this is
+    // app-level. Note: a manager-rejected review within the window also
+    // suppresses an identical resubmission — deliberate.
+    //
+    // This MUST use the admin client: anon RLS on `reviews` only allows
+    // SELECT of status = 'approved' rows, and fresh reviews are 'pending', so
+    // the request-scoped client would always see zero rows and the guard would
+    // silently never match. It's a read-only existence check on zod-validated
+    // input, before any privileged write.
     const dedupSince = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { data: duplicates, error: dedupError } = await supabase
+    const { data: duplicates, error: dedupError } = await createAdminClient()
       .from("reviews")
       .select("id")
       .eq("menu_item_id", parsed.data.menu_item_id)
       .eq("customer_name", parsed.data.customer_name)
       .eq("message", parsed.data.message)
+      .eq("rating", parsed.data.rating)
       .gte("created_at", dedupSince)
       .limit(1);
 
