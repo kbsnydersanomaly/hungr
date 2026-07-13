@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCategoryForm } from "@/components/menu/AddCategoryForm";
 import { MenuWorkspace } from "@/components/menu/MenuWorkspace";
+import { MenuNameEditor } from "@/components/menu/MenuNameEditor";
 import { BulkUploadModal } from "@/components/menu/BulkUploadModal";
 import { ArrowLeft, ExternalLink, Eye, EyeOff } from "lucide-react";
 
@@ -63,7 +64,7 @@ export default async function MenuWorkspacePage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={menu.name}
+        title={<MenuNameEditor menuId={menuId} name={menu.name} />}
         description={`Menu workspace for ${restaurant.name}`}
         action={
           <Button variant="ghost" asChild>

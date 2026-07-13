@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ValidationError, actionError, safeAction } from "@/lib/errors";
+import { RenameMenuSchema } from "@/lib/schemas/menu";
 import {
   requireRestaurantAccess,
   requireCategoryAccess,
@@ -315,6 +316,51 @@ export async function updateMenuStatus(menuId: string, status: "draft" | "publis
     revalidatePath(`/m/${restaurantSlug}`);
     if (menu.slug) revalidatePath(`/m/${restaurantSlug}/${menu.slug}`);
     return { status };
+  });
+}
+
+export async function renameMenu(menuId: string, name: string) {
+  return safeAction(async () => {
+    const menu = await loadMenuById(menuId);
+    const { supabase } = await requireRestaurantAccess(menu.restaurant_id, "manager");
+
+    const parsed = RenameMenuSchema.safeParse({ name });
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid menu name.");
+    }
+
+    const { data: restaurant } = await supabase
+      .from("restaurants")
+      .select("slug")
+      .eq("id", menu.restaurant_id)
+      .maybeSingle();
+
+    const restaurantSlug = restaurant?.slug ?? "";
+
+    // Only the display name changes here — the slug is intentionally left
+    // untouched. The slug appears in public URLs (/m/[restaurantSlug]/[menuSlug])
+    // and in printed QR codes, so renaming a menu must never break those links.
+    const { error } = await supabase
+      .from("menus")
+      .update({ name: parsed.data.name, updated_at: new Date().toISOString() })
+      .eq("id", menuId);
+
+    if (error) throw actionError("Failed to rename menu", error);
+
+    await writeAudit({
+      action: "menu.rename",
+      target_table: "menus",
+      target_id: menuId,
+      diff: { previous_name: menu.name, name: parsed.data.name },
+    });
+
+    revalidatePath(`/restaurants/${menu.restaurant_id}/menus`);
+    revalidatePath(`/restaurants/${menu.restaurant_id}/menus/${menuId}`);
+    if (restaurantSlug) {
+      revalidatePath(`/m/${restaurantSlug}`);
+      if (menu.slug) revalidatePath(`/m/${restaurantSlug}/${menu.slug}`);
+    }
+    return { name: parsed.data.name };
   });
 }
 

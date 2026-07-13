@@ -4,6 +4,14 @@ export const MenuSchema = z.object({
   name: z.string().min(1, "Menu name is required."),
 });
 
+export const RenameMenuSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Menu name is required.")
+    .max(80, "Menu name must be 80 characters or fewer."),
+});
+
 export const CategorySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, "Category name is required."),
