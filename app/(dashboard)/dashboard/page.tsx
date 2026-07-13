@@ -61,7 +61,7 @@ export default async function DashboardPage() {
         .eq("org_id", orgId!),
       supabase
         .from("reviews")
-        .select("rating, status")
+        .select("rating, status, restaurant_id")
         .in("restaurant_id", restaurantIds),
       Promise.all(
         restaurants.map((r) => getTotalMenuViewsForRestaurant(r.id, 30).catch(() => 0))
@@ -73,6 +73,12 @@ export default async function DashboardPage() {
 
   const pendingReviews =
     reviewsData?.filter((r) => r.status === "pending").length ?? 0;
+
+  // Link moderation to a restaurant that actually has pending reviews
+  // (the count is org-wide; the first restaurant may have none).
+  const pendingRestaurantId =
+    reviewsData?.find((r) => r.status === "pending")?.restaurant_id ??
+    restaurants[0].id;
 
   const approvedReviews =
     reviewsData?.filter((r) => r.status === "approved") ?? [];
@@ -203,7 +209,7 @@ export default async function DashboardPage() {
               </p>
             </div>
             <Button asChild size="sm" variant="outline">
-              <Link href={`/restaurants/${firstRestaurant.id}/reviews`}>
+              <Link href={`/restaurants/${pendingRestaurantId}/reviews`}>
                 Moderate
               </Link>
             </Button>
