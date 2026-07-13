@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   brandingToCssVars,
   brandingFontFamilies,
+  brandingGoogleFontsUrl,
   googleFontsUrl,
   contrastForeground,
 } from "@/lib/theme/cssVars";
@@ -84,6 +85,29 @@ describe("brandingToCssVars", () => {
     expect(vars["--font-heading"]).toBe('"Lobster", ui-sans-serif, system-ui, sans-serif');
     expect(vars["--font-body"]).toBe('"Inter", ui-sans-serif, system-ui, sans-serif');
   });
+
+  it("emits font weight vars for heading and body styles", () => {
+    const vars = brandingToCssVars({
+      main_heading: { weight: "700" },
+      sub_heading: { weight: "600" },
+      body: { weight: "300" },
+    }) as Record<string, string>;
+
+    expect(vars["--font-main-heading-weight"]).toBe("700");
+    expect(vars["--font-sub-heading-weight"]).toBe("600");
+    expect(vars["--font-body-weight"]).toBe("300");
+  });
+
+  it("emits font-style vars only when italic is true", () => {
+    const vars = brandingToCssVars({
+      main_heading: { italic: true },
+      body: { italic: false },
+    }) as Record<string, string>;
+
+    expect(vars["--font-main-heading-style"]).toBe("italic");
+    expect(vars["--font-sub-heading-style"]).toBeUndefined();
+    expect(vars["--font-body-style"]).toBeUndefined();
+  });
 });
 
 describe("brandingFontFamilies", () => {
@@ -118,5 +142,37 @@ describe("googleFontsUrl", () => {
     expect(url).toContain("https://fonts.googleapis.com/css2?");
     expect(url).toContain("family=Open+Sans:wght@400;500;600;700");
     expect(url).toContain("display=swap");
+  });
+});
+
+describe("brandingGoogleFontsUrl", () => {
+  it("returns null when there is no branding or typefaces", () => {
+    expect(brandingGoogleFontsUrl(null)).toBeNull();
+    expect(brandingGoogleFontsUrl({ primary_color: "#FE1B54" })).toBeNull();
+  });
+
+  it("requests only the base weights when no styles set weights", () => {
+    const url = brandingGoogleFontsUrl({ body: { typeface: "Inter" } });
+    expect(url).toContain("family=Inter:wght@400;500;600;700");
+    expect(url).not.toContain("ital");
+  });
+
+  it("unions explicit style weights into the request", () => {
+    const url = brandingGoogleFontsUrl({
+      main_heading: { typeface: "Lobster", weight: "800" },
+      body: { typeface: "Inter", weight: "300" },
+    });
+    expect(url).toContain("family=Lobster:wght@300;400;500;600;700;800");
+    expect(url).toContain("family=Inter:wght@300;400;500;600;700;800");
+  });
+
+  it("adds the italic axis (ital first, sorted tuples) when any style is italic", () => {
+    const url = brandingGoogleFontsUrl({
+      main_heading: { typeface: "Inter", weight: "700", italic: true },
+      body: { typeface: "Inter" },
+    });
+    expect(url).toContain(
+      "family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700"
+    );
   });
 });

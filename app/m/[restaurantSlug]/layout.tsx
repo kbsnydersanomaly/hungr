@@ -9,8 +9,7 @@ import {
 } from "@/lib/billing/subscription";
 import {
   brandingToCssVars,
-  brandingFontFamilies,
-  googleFontsUrl,
+  brandingGoogleFontsUrl,
 } from "@/lib/theme/cssVars";
 import { BrandingRealtime } from "@/components/branding/BrandingRealtime";
 import { BrandingPreviewBridge } from "@/components/branding/BrandingPreviewBridge";
@@ -47,7 +46,7 @@ export default async function PublicMenuLayout({
     isBottomNavEnabled(),
   ]);
   const cssVars = brandingToCssVars(branding);
-  const fontsHref = googleFontsUrl(brandingFontFamilies(branding));
+  const fontsHref = brandingGoogleFontsUrl(branding);
 
   return (
     <div

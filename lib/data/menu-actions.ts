@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ValidationError, safeAction } from "@/lib/errors";
+import { ValidationError, actionError, safeAction } from "@/lib/errors";
+import { RenameMenuSchema } from "@/lib/schemas/menu";
 import {
   requireRestaurantAccess,
   requireCategoryAccess,
@@ -27,6 +28,9 @@ export async function createMenu(restaurantId: string, formData: FormData) {
 
     const name = String(formData.get("name") ?? "").trim();
     if (!name) throw new ValidationError("Menu name is required.");
+    // Same cap as RenameMenuSchema so a menu can always be renamed to its
+    // current name.
+    if (name.length > 80) throw new ValidationError("Menu name must be 80 characters or fewer.");
 
     const slug = await ensureUniqueSlug(name, async (s) => {
       const { data } = await supabase
@@ -46,7 +50,7 @@ export async function createMenu(restaurantId: string, formData: FormData) {
 
     if (error || !menu) {
       console.error("createMenu error:", error);
-      throw new ValidationError("Failed to create menu.");
+      throw actionError("Failed to create menu", error);
     }
 
     const { error: seedError } = await supabase.from("categories").insert(
@@ -105,7 +109,7 @@ export async function upsertCategory(menuId: string, formData: FormData) {
 
     if (error) {
       console.error("upsertCategory error:", error);
-      throw new ValidationError("Failed to save category.");
+      throw actionError("Failed to save category", error);
     }
 
     revalidatePath(`/restaurants/${menu.restaurant_id}/menus/${menuId}`);
@@ -124,7 +128,7 @@ export async function updateCategoryName(categoryId: string, name: string) {
       .update({ name: name.trim() })
       .eq("id", categoryId);
 
-    if (error) throw new ValidationError("Failed to update category.");
+    if (error) throw actionError("Failed to update category", error);
 
     revalidatePath(`/restaurants/${restaurantId}/menus/${menuId}`);
     return { updated: true };
@@ -138,7 +142,7 @@ export async function deleteCategory(categoryId: string) {
     const { error } = await supabase.from("categories").delete().eq("id", categoryId);
     if (error) {
       console.error("deleteCategory error:", error);
-      throw new ValidationError("Failed to delete category.");
+      throw actionError("Failed to delete category", error);
     }
 
     await writeAudit({
@@ -225,7 +229,7 @@ export async function upsertItem(menuId: string, formData: FormData) {
 
     if (error) {
       console.error("upsertItem error:", error);
-      throw new ValidationError("Failed to save item.");
+      throw actionError("Failed to save item", error);
     }
 
     await writeAudit({
@@ -244,7 +248,7 @@ export async function deleteItem(itemId: string) {
     const { supabase, restaurantId, menuId } = await requireItemAccess(itemId, "manager");
 
     const { error } = await supabase.from("menu_items").delete().eq("id", itemId);
-    if (error) throw new ValidationError("Failed to delete item.");
+    if (error) throw actionError("Failed to delete item", error);
 
     revalidatePath(`/restaurants/${restaurantId}/menus/${menuId}`);
     return { deleted: true };
@@ -309,12 +313,57 @@ export async function updateMenuStatus(menuId: string, status: "draft" | "publis
       .update({ status, qr_url: qrUrl, qr_assigned: qrAssigned, updated_at: new Date().toISOString() })
       .eq("id", menuId);
 
-    if (error) throw new ValidationError("Failed to update menu status.");
+    if (error) throw actionError("Failed to update menu status", error);
 
     revalidatePath(`/restaurants/${menu.restaurant_id}/menus/${menuId}`);
     revalidatePath(`/m/${restaurantSlug}`);
     if (menu.slug) revalidatePath(`/m/${restaurantSlug}/${menu.slug}`);
     return { status };
+  });
+}
+
+export async function renameMenu(menuId: string, name: string) {
+  return safeAction(async () => {
+    const menu = await loadMenuById(menuId);
+    const { supabase } = await requireRestaurantAccess(menu.restaurant_id, "manager");
+
+    const parsed = RenameMenuSchema.safeParse({ name });
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues[0]?.message ?? "Invalid menu name.");
+    }
+
+    const { data: restaurant } = await supabase
+      .from("restaurants")
+      .select("slug")
+      .eq("id", menu.restaurant_id)
+      .maybeSingle();
+
+    const restaurantSlug = restaurant?.slug ?? "";
+
+    // Only the display name changes here — the slug is intentionally left
+    // untouched. The slug appears in public URLs (/m/[restaurantSlug]/[menuSlug])
+    // and in printed QR codes, so renaming a menu must never break those links.
+    const { error } = await supabase
+      .from("menus")
+      .update({ name: parsed.data.name, updated_at: new Date().toISOString() })
+      .eq("id", menuId);
+
+    if (error) throw actionError("Failed to rename menu", error);
+
+    await writeAudit({
+      action: "menu.rename",
+      target_table: "menus",
+      target_id: menuId,
+      diff: { previous_name: menu.name, name: parsed.data.name },
+    });
+
+    revalidatePath(`/restaurants/${menu.restaurant_id}/menus`);
+    revalidatePath(`/restaurants/${menu.restaurant_id}/menus/${menuId}`);
+    if (restaurantSlug) {
+      revalidatePath(`/m/${restaurantSlug}`);
+      if (menu.slug) revalidatePath(`/m/${restaurantSlug}/${menu.slug}`);
+    }
+    return { name: parsed.data.name };
   });
 }
 
@@ -337,7 +386,7 @@ export async function regenerateQr(menuId: string) {
       .update({ qr_url: qrUrl, qr_assigned: true, updated_at: new Date().toISOString() })
       .eq("id", menuId);
 
-    if (error) throw new ValidationError("Failed to update menu QR.");
+    if (error) throw actionError("Failed to update menu QR", error);
 
     revalidatePath(`/restaurants/${menu.restaurant_id}/menus/${menuId}`);
     revalidatePath(`/restaurants/${menu.restaurant_id}/qr`);
@@ -372,7 +421,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       .from("categories")
       .select("id, name")
       .eq("menu_id", menuId);
-    if (catLoadError) throw new ValidationError("Failed to load categories.");
+    if (catLoadError) throw actionError("Failed to load categories", catLoadError);
 
     const categoryMap = new Map<string, string>();
     for (const cat of existingCategories ?? []) {
@@ -390,7 +439,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
         .from("categories")
         .insert([...missing.values()].map((name) => ({ menu_id: menuId, name })))
         .select("id, name");
-      if (createError) throw new ValidationError("Failed to create categories.");
+      if (createError) throw actionError("Failed to create categories", createError);
       for (const cat of created ?? []) {
         categoryMap.set(cat.name.trim().toLowerCase(), cat.id);
       }
@@ -419,11 +468,11 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
         .from("menu_items")
         .delete()
         .eq("menu_id", menuId);
-      if (deleteError) throw new ValidationError("Failed to clear existing items.");
+      if (deleteError) throw actionError("Failed to clear existing items", deleteError);
 
       const inserts = resolved.map(({ row, categoryId }) => toItemRow(row, categoryId));
       const { error: insertError } = await supabase.from("menu_items").insert(inserts);
-      if (insertError) throw new ValidationError("Failed to insert items.");
+      if (insertError) throw actionError("Failed to insert items", insertError);
       summary.added = inserts.length;
     } else {
       // add / modify: match existing items by name within their category.
@@ -431,7 +480,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
         .from("menu_items")
         .select("id, name, category_id")
         .eq("menu_id", menuId);
-      if (itemLoadError) throw new ValidationError("Failed to load existing items.");
+      if (itemLoadError) throw actionError("Failed to load existing items", itemLoadError);
 
       const itemKey = (categoryId: string, name: string) =>
         `${categoryId}::${name.trim().toLowerCase()}`;
@@ -462,7 +511,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
 
       if (inserts.length > 0) {
         const { error: insertError } = await supabase.from("menu_items").insert(inserts);
-        if (insertError) throw new ValidationError("Failed to insert items.");
+        if (insertError) throw actionError("Failed to insert items", insertError);
         summary.added = inserts.length;
       }
       for (const { id, data } of updates) {
@@ -470,7 +519,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
           .from("menu_items")
           .update(data)
           .eq("id", id);
-        if (updateError) throw new ValidationError("Failed to update item.");
+        if (updateError) throw actionError("Failed to update item", updateError);
         summary.updated++;
       }
     }
@@ -507,7 +556,7 @@ export async function deleteMenu(menuId: string) {
 
       if (defaultError) {
         console.error("deleteMenu clear default_menu_id error:", defaultError);
-        throw new ValidationError("Failed to clear default menu reference.");
+        throw actionError("Failed to clear default menu reference", defaultError);
       }
     }
 
@@ -528,7 +577,7 @@ export async function deleteMenu(menuId: string) {
     const { error } = await supabase.from("menus").delete().eq("id", menuId);
     if (error) {
       console.error("deleteMenu error:", error);
-      throw new ValidationError("Failed to delete menu.");
+      throw actionError("Failed to delete menu", error);
     }
 
     await writeAudit({

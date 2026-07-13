@@ -45,6 +45,26 @@ export interface ActionResult<T> {
   message?: string;
 }
 
+/**
+ * Wrap an underlying failure (e.g. a Postgres/storage error) in a
+ * ValidationError whose message includes the original reason and code, so the
+ * toast and logs are actionable. Also reports the error to Sentry — safeAction
+ * only auto-captures non-HungrError exceptions, so translated errors must be
+ * captured explicitly.
+ */
+export function actionError(context: string, error: unknown): ValidationError {
+  const e = error as { message?: unknown; code?: unknown } | null;
+  const message = typeof e?.message === "string" ? e.message : "";
+  const code = typeof e?.code === "string" ? e.code : "";
+  const detail = [message, code ? `(${code})` : ""].filter(Boolean).join(" ");
+  import("@sentry/nextjs")
+    .then((Sentry) => Sentry.captureException(error))
+    .catch(() => {
+      // Sentry import failed — non-fatal
+    });
+  return new ValidationError(detail ? `${context}: ${detail}` : context);
+}
+
 export function isRedirectError(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
   const e = err as Record<string, unknown>;

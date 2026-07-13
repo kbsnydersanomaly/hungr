@@ -42,12 +42,16 @@ describe("Header", () => {
     expect(
       screen.queryByRole("heading", { name: "Testaurant" })
     ).not.toBeInTheDocument();
+    // The preview bridge targets this hook to swap the logo live.
+    expect(logo.closest("[data-branding-logo]")).toBeInTheDocument();
   });
 
   it("falls back to a letter avatar without a logo", () => {
     render(<Header {...baseProps} />);
     expect(screen.queryByAltText("Testaurant")).not.toBeInTheDocument();
     expect(screen.getByText("T")).toBeInTheDocument();
+    // The preview bridge hides this and injects a logo when one is picked.
+    expect(screen.getByText("T").closest("[data-branding-avatar]")).toBeInTheDocument();
   });
 
   it("renders the restaurant name and the about link", () => {

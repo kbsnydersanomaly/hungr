@@ -85,6 +85,7 @@ export function brandingToCssVars(branding: Record<string, unknown> | null): Rea
     ["typeface", "--font-main-heading"],
     ["case", "--case-main-heading"],
     ["size", "--size-main-heading"],
+    ["weight", "--font-main-heading-weight"],
   ];
 
   const subHeadingMap: [string, string][] = [
@@ -92,6 +93,7 @@ export function brandingToCssVars(branding: Record<string, unknown> | null): Rea
     ["typeface", "--font-sub-heading"],
     ["case", "--case-sub-heading"],
     ["size", "--size-sub-heading"],
+    ["weight", "--font-sub-heading-weight"],
   ];
 
   const bodyMap: [string, string][] = [
@@ -99,6 +101,7 @@ export function brandingToCssVars(branding: Record<string, unknown> | null): Rea
     ["typeface", "--font-body"],
     ["case", "--case-body"],
     ["size", "--size-body"],
+    ["weight", "--font-body-weight"],
   ];
 
   const sections: [string, [string, string][]][] = [
@@ -117,6 +120,24 @@ export function brandingToCssVars(branding: Record<string, unknown> | null): Rea
         const val = obj[field];
         if (val) vars[dest] = val;
       }
+    }
+  }
+
+  // Italic is stored as a boolean; expose it as a font-style keyword.
+  const italicMap: [string, string][] = [
+    ["main_heading", "--font-main-heading-style"],
+    ["sub_heading", "--font-sub-heading-style"],
+    ["body", "--font-body-style"],
+  ];
+  for (const [sectionKey, dest] of italicMap) {
+    const section = branding[sectionKey];
+    if (
+      section &&
+      typeof section === "object" &&
+      !Array.isArray(section) &&
+      (section as Record<string, unknown>).italic === true
+    ) {
+      vars[dest] = "italic";
     }
   }
 
@@ -148,13 +169,63 @@ export function brandingFontFamilies(
   return [...families];
 }
 
+/** Weights always requested so Tailwind font-* utilities keep real glyphs. */
+const BASE_FONT_WEIGHTS = ["400", "500", "600", "700"];
+
+function buildGoogleFontsUrl(
+  families: string[],
+  weights: string[],
+  italic: boolean
+): string {
+  const sortedWeights = [...new Set(weights)].sort();
+  const params = families
+    .map((f) => {
+      const family = encodeURIComponent(f).replace(/%20/g, "+");
+      if (italic) {
+        // CSS2 requires the ital axis first, with sorted 0/1 tuples.
+        const tuples = sortedWeights
+          .flatMap((w) => [`0,${w}`, `1,${w}`])
+          .sort();
+        return `family=${family}:ital,wght@${tuples.join(";")}`;
+      }
+      return `family=${family}:wght@${sortedWeights.join(";")}`;
+    })
+    .join("&");
+  return `https://fonts.googleapis.com/css2?${params}&display=swap`;
+}
+
 /** Builds a Google Fonts stylesheet URL for the given font families. */
 export function googleFontsUrl(families: string[]): string | null {
   if (families.length === 0) return null;
-  const params = families
-    .map(
-      (f) => `family=${encodeURIComponent(f).replace(/%20/g, "+")}:wght@400;500;600;700`
-    )
-    .join("&");
-  return `https://fonts.googleapis.com/css2?${params}&display=swap`;
+  return buildGoogleFontsUrl(families, BASE_FONT_WEIGHTS, false);
+}
+
+/**
+ * Builds a Google Fonts URL for a branding row: the base weights plus any
+ * explicit style weights, and the italic axis when any style is italic.
+ */
+export function brandingGoogleFontsUrl(
+  branding: Record<string, unknown> | null
+): string | null {
+  const families = brandingFontFamilies(branding);
+  if (families.length === 0) return null;
+
+  const weights = new Set(BASE_FONT_WEIGHTS);
+  let italic = false;
+  // Fallbacks mirror the CSS defaults in app/globals.css (.branding-scope).
+  const styles: [unknown, string][] = [
+    [branding?.main_heading, "700"],
+    [branding?.sub_heading, "700"],
+    [branding?.body, "400"],
+  ];
+  for (const [section, fallback] of styles) {
+    if (section && typeof section === "object" && !Array.isArray(section)) {
+      const obj = section as Record<string, unknown>;
+      weights.add(
+        typeof obj.weight === "string" && obj.weight ? obj.weight : fallback
+      );
+      if (obj.italic === true) italic = true;
+    }
+  }
+  return buildGoogleFontsUrl(families, [...weights], italic);
 }

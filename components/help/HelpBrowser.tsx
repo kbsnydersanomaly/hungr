@@ -88,7 +88,13 @@ export function HelpBrowser({
         {categories.length > 0 && (
           <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "all")}>
             <SelectTrigger className="w-full sm:w-56">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder="All categories">
+                {(value) => {
+                  if (!value || value === "all") return "All categories";
+                  const category = categories.find((c) => c.id === value);
+                  return category?.name ?? value;
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>

@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/select";
 import { MediaPicker } from "@/components/dashboard/MediaPicker";
 import { MultiImagePicker } from "@/components/dashboard/MultiImagePicker";
+import { Switch } from "@/components/ui/switch";
 import {
   saveDraftAction,
   publishAction,
   discardAction,
 } from "@/lib/data/branding-actions";
-import { brandingToCssVars, brandingFontFamilies } from "@/lib/theme/cssVars";
+import { brandingToCssVars, brandingFontFamilies, brandingGoogleFontsUrl } from "@/lib/theme/cssVars";
 import { GOOGLE_FONT_OPTIONS } from "@/lib/theme/fonts";
 import {
   BRANDING_PREVIEW_MESSAGE,
@@ -34,7 +35,7 @@ import {
 import { Check, Loader2, Undo2, Redo2 } from "lucide-react";
 import { toast } from "sonner";
 
-type BrandingJsonField = Record<string, string> | null;
+type BrandingJsonField = Record<string, string | boolean> | null;
 
 interface BrandingData {
   primary_color?: string | null;
@@ -111,7 +112,7 @@ const GENERAL_COLOR_ROLES: ColorRole[] = [
   {
     key: "accent_color",
     label: "Accent",
-    description: "Decorative highlights and illustrations",
+    description: "Active category pills and the specials tag",
     fallback: "#3CE1AF",
   },
 ];
@@ -126,12 +127,21 @@ const TYPOGRAPHY_COLOR_ROLES: ColorRole[] = [
   {
     key: "body_color",
     label: "Body text color",
-    description: "Descriptions and general text",
+    description: "Item descriptions and general menu text",
     fallback: "#181818",
   },
 ];
 
 const FONT_ITEMS = GOOGLE_FONT_OPTIONS.map((f) => ({ value: f, label: f }));
+
+const WEIGHT_ITEMS = [
+  { value: "300", label: "Light" },
+  { value: "400", label: "Regular" },
+  { value: "500", label: "Medium" },
+  { value: "600", label: "Semi-bold" },
+  { value: "700", label: "Bold" },
+  { value: "800", label: "Extra-bold" },
+];
 
 function isValidHex(value: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(value);
@@ -182,6 +192,8 @@ export function BrandingEditor({
           type: BRANDING_PREVIEW_MESSAGE,
           vars: brandingToCssVars(state as Record<string, unknown>),
           fonts: brandingFontFamilies(state as Record<string, unknown>),
+          fontsHref: brandingGoogleFontsUrl(state as Record<string, unknown>),
+          logoUrl: state.logo_url ?? null,
         },
         window.location.origin
       );
@@ -323,12 +335,12 @@ export function BrandingEditor({
   const updateNested = (
     parent: "main_heading" | "sub_heading" | "body" | "primary_button" | "secondary_button",
     key: string,
-    value: string
+    value: string | boolean
   ) => {
     const next = {
       ...draftState,
       [parent]: {
-        ...((draftState[parent] as Record<string, string> | null) ?? {}),
+        ...((draftState[parent] as Record<string, string | boolean> | null) ?? {}),
         [key]: value,
       },
     };
@@ -356,8 +368,9 @@ export function BrandingEditor({
     draftState.logo_url !== (live?.logo_url ?? null);
 
   function roleValue(role: ColorRole): string {
-    if (role.key === "heading_color") return draftState.main_heading?.color ?? "";
-    if (role.key === "body_color") return draftState.body?.color ?? "";
+    if (role.key === "heading_color")
+      return (draftState.main_heading?.color as string) ?? "";
+    if (role.key === "body_color") return (draftState.body?.color as string) ?? "";
     return (draftState[role.key] as string | null) ?? "";
   }
 
@@ -396,6 +409,44 @@ export function BrandingEditor({
           </div>
         </div>
         <p className="text-xs text-muted-foreground">{role.description}</p>
+      </div>
+    );
+  };
+
+  const renderStyleControls = (
+    parent: "main_heading" | "body",
+    weightPlaceholder: string
+  ) => {
+    const section = draftState[parent];
+    return (
+      <div className="flex items-end gap-3">
+        <div className="flex-1 space-y-2">
+          <Label className="text-sm">Weight</Label>
+          <Select
+            items={WEIGHT_ITEMS}
+            value={(section?.weight as string) ?? ""}
+            onValueChange={(v) => updateNested(parent, "weight", v ?? "")}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={weightPlaceholder} />
+            </SelectTrigger>
+            <SelectContent>
+              {WEIGHT_ITEMS.map((w) => (
+                <SelectItem key={w.value} value={w.value}>
+                  {w.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 pb-1.5">
+          <Switch
+            size="sm"
+            checked={section?.italic === true}
+            onCheckedChange={(checked) => updateNested(parent, "italic", checked)}
+          />
+          <Label className="text-sm">Italic</Label>
+        </div>
       </div>
     );
   };
@@ -499,7 +550,7 @@ export function BrandingEditor({
             <Label className="text-sm">Heading font</Label>
             <Select
               items={FONT_ITEMS}
-              value={draftState.main_heading?.typeface ?? ""}
+              value={(draftState.main_heading?.typeface as string) ?? ""}
               onValueChange={(v) => updateNested("main_heading", "typeface", v ?? "")}
             >
               <SelectTrigger className="w-full">
@@ -514,12 +565,13 @@ export function BrandingEditor({
               </SelectContent>
             </Select>
           </div>
+          {renderStyleControls("main_heading", "Default (Bold)")}
           {renderColorRow(TYPOGRAPHY_COLOR_ROLES[0])}
           <div className="space-y-2">
             <Label className="text-sm">Body font</Label>
             <Select
               items={FONT_ITEMS}
-              value={draftState.body?.typeface ?? ""}
+              value={(draftState.body?.typeface as string) ?? ""}
               onValueChange={(v) => updateNested("body", "typeface", v ?? "")}
             >
               <SelectTrigger className="w-full">
@@ -534,6 +586,7 @@ export function BrandingEditor({
               </SelectContent>
             </Select>
           </div>
+          {renderStyleControls("body", "Default (Regular)")}
           {renderColorRow(TYPOGRAPHY_COLOR_ROLES[1])}
         </div>
         </div>

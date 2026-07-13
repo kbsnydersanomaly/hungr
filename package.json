@@ -14,6 +14,7 @@
     "db:seed": "tsx db/seed.ts",
     "db:confirm-user": "tsx db/confirm-user.ts",
     "db:gen-types": "supabase gen types typescript --local > lib/database.types.ts",
+    "db:check": "tsx scripts/check-schema-drift.ts",
     "deploy:edge-functions": "supabase functions deploy rollup_analytics",
     "mail:test": "tsx scripts/send-test-emails.ts"
   },

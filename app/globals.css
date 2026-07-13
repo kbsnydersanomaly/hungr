@@ -151,9 +151,32 @@
   color: var(--color-body, var(--foreground));
   background-color: var(--background);
 }
+/* Body weight/style live in the base layer so Tailwind's font-* utilities
+   (prices, pills, nav) keep their emphasis; the branding choice applies to
+   plain body text only. Fallbacks reproduce the pre-branding rendering. */
+@layer base {
+  .branding-scope {
+    font-weight: var(--font-body-weight, inherit);
+    font-style: var(--font-body-style, normal);
+  }
+}
+/* Body text (item/special descriptions): follows the restaurant's body text
+   colour, falling back to muted when none is set. */
+.branding-scope .menu-description {
+  color: var(--color-body, var(--muted-foreground));
+}
 .branding-scope :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
   color: var(--color-main-heading, inherit);
+  /* Unlayered like the sibling rules, so an explicit branding weight wins
+     over Tailwind font-* utilities on headings. The `revert-layer` fallback
+     is load-bearing: when no weight/style is chosen it defers back to the
+     layered author styles (utilities, then preflight), preserving each
+     heading's original weight instead of forcing a single default. Do not
+     "simplify" it to a numeric fallback — that would bold every
+     font-semibold heading on existing menus. */
+  font-weight: var(--font-main-heading-weight, revert-layer);
+  font-style: var(--font-main-heading-style, revert-layer);
 }
 /* Labels over image gradients must stay white regardless of branding tokens. */
 .branding-scope .text-on-image :is(h1, h2, h3, h4, h5, h6, p) {

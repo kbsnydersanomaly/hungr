@@ -1,7 +1,18 @@
 import { z } from "zod";
 
 export const MenuSchema = z.object({
-  name: z.string().min(1, "Menu name is required."),
+  name: z
+    .string()
+    .min(1, "Menu name is required.")
+    .max(80, "Menu name must be 80 characters or fewer."),
+});
+
+export const RenameMenuSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Menu name is required.")
+    .max(80, "Menu name must be 80 characters or fewer."),
 });
 
 export const CategorySchema = z.object({

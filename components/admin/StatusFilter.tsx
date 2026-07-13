@@ -24,7 +24,15 @@ export function StatusFilter({ options, paramName = "status", placeholder = "Fil
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[160px]"><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectTrigger className="w-[160px]">
+        <SelectValue placeholder={placeholder}>
+          {(value) => {
+            if (!value) return placeholder;
+            const opt = options.find((o) => o.value === value);
+            return opt?.label ?? String(value);
+          }}
+        </SelectValue>
+      </SelectTrigger>
       <SelectContent>
         <SelectItem value="">All</SelectItem>
         {options.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}

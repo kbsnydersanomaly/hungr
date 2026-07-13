@@ -22,10 +22,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Star, CheckCircle, XCircle, Trash2, Loader2 } from "lucide-react";
+import { Star, CheckCircle, XCircle, Trash2, Loader2, Eye } from "lucide-react";
 
 type ReviewStatus = "pending" | "approved" | "rejected";
 
@@ -51,6 +52,7 @@ export function ReviewTable({
   const [loading, setLoading] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [showDelete, setShowDelete] = useState<string | null>(null);
+  const [detailReview, setDetailReview] = useState<Review | null>(null);
 
   const filtered = useMemo(() => {
     if (filter === "all") return reviews;
@@ -108,6 +110,12 @@ export function ReviewTable({
     router.refresh();
   }
 
+  async function handleModerateFromDetail(status: "approved" | "rejected") {
+    if (!detailReview) return;
+    await handleModerate(detailReview.id, status);
+    setDetailReview(null);
+  }
+
   async function handleDelete(id: string) {
     setLoading((prev) => new Set(prev).add(id));
     await deleteReview(id);
@@ -124,6 +132,7 @@ export function ReviewTable({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (detailReview || showDelete) return;
 
       if (e.key === "j" || e.key === "J") {
         e.preventDefault();
@@ -142,7 +151,7 @@ export function ReviewTable({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered, focusedIndex, handleModerate]);
+  }, [filtered, focusedIndex, handleModerate, detailReview, showDelete]);
 
   const statusColors: Record<ReviewStatus, string> = {
     pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -235,7 +244,13 @@ export function ReviewTable({
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-xs truncate">{review.message}</TableCell>
+                  <TableCell
+                    className="max-w-xs truncate cursor-pointer hover:underline"
+                    title={review.message}
+                    onClick={() => setDetailReview(review)}
+                  >
+                    {review.message}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"
@@ -249,6 +264,15 @@ export function ReviewTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        aria-label="View review"
+                        onClick={() => setDetailReview(review)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                       {review.status !== "approved" && (
                         <Button
                           size="icon"
@@ -298,6 +322,75 @@ export function ReviewTable({
           </TableBody>
         </Table>
       </div>
+
+      {/* Review detail dialog */}
+      <Dialog
+        open={!!detailReview}
+        onOpenChange={(open) => !open && setDetailReview(null)}
+      >
+        <DialogContent className="sm:max-w-lg">
+          {detailReview && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{detailReview.customer_name}</DialogTitle>
+                <DialogDescription>
+                  {detailReview.menu_items?.name ?? "General review"} ·{" "}
+                  {new Date(detailReview.created_at).toLocaleDateString()}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-4 w-4 ${
+                        i < detailReview.rating
+                          ? "fill-primary text-primary"
+                          : "text-muted-foreground"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`capitalize ${statusColors[detailReview.status]}`}
+                >
+                  {detailReview.status}
+                </Badge>
+              </div>
+              <p className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words text-sm">
+                {detailReview.message}
+              </p>
+              <DialogFooter>
+                {detailReview.status !== "rejected" && (
+                  <Button
+                    variant="outline"
+                    className="text-red-600"
+                    onClick={() => handleModerateFromDetail("rejected")}
+                    disabled={loading.has(detailReview.id)}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Reject
+                  </Button>
+                )}
+                {detailReview.status !== "approved" && (
+                  <Button
+                    onClick={() => handleModerateFromDetail("approved")}
+                    disabled={loading.has(detailReview.id)}
+                  >
+                    {loading.has(detailReview.id) ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                    )}
+                    Approve
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete dialog */}
       <Dialog open={!!showDelete} onOpenChange={() => setShowDelete(null)}>

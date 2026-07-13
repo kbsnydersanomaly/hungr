@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { deleteSpecial } from "@/lib/data/special-actions";
+import { deleteSpecial, setSpecialActive } from "@/lib/data/special-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { SpecialEditor } from "./SpecialEditor";
 import { Pencil, Trash2, Sparkles, ImageIcon, Loader2 } from "lucide-react";
@@ -51,6 +52,24 @@ export function SpecialsList({
   onRefresh,
 }: SpecialsListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  async function handleToggleActive(special: Special, active: boolean) {
+    setTogglingId(special.id);
+    try {
+      const result = await setSpecialActive(special.id, active);
+      if (!result.ok) {
+        toast.error(result.message ?? "Failed to update special.");
+        return;
+      }
+      toast.success(active ? "Special published." : "Special unpublished.");
+      onRefresh?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update special.");
+    } finally {
+      setTogglingId(null);
+    }
+  }
 
   async function handleDelete(special: Special) {
     if (!confirm(`Delete "${special.title}"?`)) return;
@@ -123,9 +142,18 @@ export function SpecialsList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold text-sm">{special.title}</h3>
-                  <Badge variant={special.active ? "default" : "secondary"}>
-                    {special.active ? "Active" : "Inactive"}
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Switch
+                      size="sm"
+                      checked={special.active}
+                      disabled={togglingId === special.id}
+                      onCheckedChange={(checked) => handleToggleActive(special, checked)}
+                      aria-label={`${special.active ? "Unpublish" : "Publish"} ${special.title}`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {special.active ? "Published" : "Unpublished"}
+                    </span>
+                  </div>
                   <Badge variant="outline">{KIND_LABELS[special.kind]}</Badge>
                 </div>
                 {special.description && (

@@ -1,5 +1,5 @@
 import { requireOrgAccess, requireRestaurantAccess } from "@/lib/auth/role";
-import { ValidationError } from "@/lib/errors";
+import { actionError } from "@/lib/errors";
 import type { Database } from "@/lib/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -145,7 +145,7 @@ async function loadPage(
 
   if (error) {
     console.error("loadTransactionsPage error:", error);
-    throw new ValidationError("Failed to load transactions.");
+    throw actionError("Failed to load transactions", error);
   }
 
   const transactions = data ?? [];

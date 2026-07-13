@@ -26,7 +26,7 @@ export function CategoryFilter({ categories, activeId, onSelect }: CategoryFilte
           className={cn(
             "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
             activeId === null
-              ? "bg-primary text-primary-foreground"
+              ? "bg-[color:var(--color-accent,var(--secondary))] text-[color:var(--accent-foreground,var(--secondary-foreground))]"
               : "bg-muted text-muted-foreground hover:bg-muted/80"
           )}
         >
@@ -39,7 +39,7 @@ export function CategoryFilter({ categories, activeId, onSelect }: CategoryFilte
             className={cn(
               "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors inline-flex items-center gap-1.5",
               activeId === cat.id || activeParent?.id === cat.id
-                ? "bg-primary text-primary-foreground"
+                ? "bg-[color:var(--color-accent,var(--secondary))] text-[color:var(--accent-foreground,var(--secondary-foreground))]"
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             )}
           >
@@ -60,7 +60,7 @@ export function CategoryFilter({ categories, activeId, onSelect }: CategoryFilte
             className={cn(
               "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
               activeId === activeParent.id
-                ? "bg-primary/90 text-primary-foreground"
+                ? "bg-[color:var(--color-accent,var(--secondary))] text-[color:var(--accent-foreground,var(--secondary-foreground))]"
                 : "bg-background text-muted-foreground border hover:bg-muted/60"
             )}
           >
@@ -73,7 +73,7 @@ export function CategoryFilter({ categories, activeId, onSelect }: CategoryFilte
               className={cn(
                 "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 activeId === sub.id
-                  ? "bg-primary/90 text-primary-foreground"
+                  ? "bg-[color:var(--color-accent,var(--secondary))] text-[color:var(--accent-foreground,var(--secondary-foreground))]"
                   : "bg-background text-muted-foreground border hover:bg-muted/60"
               )}
             >

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ValidationError, safeAction } from "@/lib/errors";
+import { actionError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { writeAudit } from "@/lib/utils/audit";
 import { BrandingColorSchema } from "@/lib/schemas/branding";
@@ -27,7 +27,7 @@ export async function saveDraftAction(
   draft: Record<string, unknown>
 ) {
   return safeAction(async () => {
-    const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
+    const { user, supabase } = await requireRestaurantAccess(restaurantId, "manager");
 
     const colors = Object.fromEntries(
       COLOR_FIELDS.map((field) => [field, cleanColor(draft[field])])
@@ -47,11 +47,12 @@ export async function saveDraftAction(
         sub_heading: (draft.sub_heading as Record<string, string> | null) ?? null,
         body: (draft.body as Record<string, string> | null) ?? null,
         updated_at: new Date().toISOString(),
+        updated_by: user.id,
       });
 
     if (error) {
       console.error("saveDraftAction error:", error);
-      throw new ValidationError("Failed to save draft.");
+      throw actionError("Failed to save draft", error);
     }
 
     revalidatePath(`/restaurants/${restaurantId}/branding`);
@@ -69,7 +70,7 @@ export async function publishAction(restaurantId: string) {
 
     if (error) {
       console.error("publishAction error:", error);
-      throw new ValidationError("Failed to publish branding.");
+      throw actionError("Failed to publish branding", error);
     }
 
     const { data: restaurant } = await supabase
@@ -92,7 +93,7 @@ export async function publishAction(restaurantId: string) {
 
 export async function discardAction(restaurantId: string) {
   return safeAction(async () => {
-    const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
+    const { user, supabase } = await requireRestaurantAccess(restaurantId, "manager");
 
     const { data: live } = await supabase
       .from("branding")
@@ -119,6 +120,7 @@ export async function discardAction(restaurantId: string) {
         sub_heading: live.sub_heading,
         body: live.body,
         updated_at: new Date().toISOString(),
+        updated_by: user.id,
       });
     }
 

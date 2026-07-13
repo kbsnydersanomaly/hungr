@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteMenu } from "@/lib/data/menu-actions";
+import { MenuNameEditor } from "@/components/menu/MenuNameEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,9 @@ export function MenuCard({ menu, restaurantId }: MenuCardProps) {
       <CardContent>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="font-semibold truncate">{menu.name}</h3>
+            <h3 className="font-semibold">
+              <MenuNameEditor menuId={menu.id} name={menu.name} />
+            </h3>
             <p className="text-xs text-muted-foreground mt-1">/{menu.slug}</p>
           </div>
           <Badge variant={menu.status === "published" ? "default" : "secondary"}>

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ValidationError, safeAction } from "@/lib/errors";
+import { actionError, safeAction } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { safeJsonParse } from "@/lib/utils/safeJsonParse";
 import { writeAudit } from "@/lib/utils/audit";
@@ -17,7 +17,7 @@ export async function loadAboutPage(restaurantId: string) {
 
   if (error) {
     console.error("loadAboutPage error:", error);
-    throw new ValidationError("Failed to load about page.");
+    throw actionError("Failed to load about page", error);
   }
 
   return data;
@@ -55,7 +55,7 @@ export async function saveAboutPage(restaurantId: string, formData: FormData) {
 
     if (error) {
       console.error("saveAboutPage error:", error);
-      throw new ValidationError("Failed to save about page.");
+      throw actionError("Failed to save about page", error);
     }
 
     const { data: restaurant } = await supabase

@@ -13,24 +13,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { PriceInput } from "@/components/forms/PriceInput";
 import { TagAutocomplete } from "@/components/ui/autocomplete";
 import { EditorSheet } from "@/components/dashboard/EditorSheet";
+import {
+  COMMON_ALLERGENS,
+  addCustomAllergen,
+  customAllergens,
+} from "@/lib/menu/allergens";
 import { Plus, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-
-const COMMON_ALLERGENS = [
-  "gluten",
-  "peanuts",
-  "dairy",
-  "eggs",
-  "fish",
-  "shellfish",
-  "soy",
-  "tree nuts",
-  "wheat",
-  "sesame",
-];
 
 const COMMON_LABELS = [
   "vegan",
@@ -156,6 +149,7 @@ export function ItemEditSheet({
   const [suggestions, setSuggestions] =
     useState<OptionSuggestions>(EMPTY_SUGGESTIONS);
   const [pairingSearch, setPairingSearch] = useState("");
+  const [allergenInput, setAllergenInput] = useState("");
 
   // Other items in the menu that can be picked as pairings (never itself).
   const pairingChoices = menuItems.filter((m) => m.id !== item?.id);
@@ -165,6 +159,7 @@ export function ItemEditSheet({
       !form.pairingIds.includes(m.id) &&
       m.name.toLowerCase().includes(pairingSearch.trim().toLowerCase())
   );
+  const customAllergenList = customAllergens(form.allergens);
 
   // Re-derive form state every time the sheet opens so stale values never
   // leak between items (state adjustment during render, per React docs).
@@ -174,6 +169,7 @@ export function ItemEditSheet({
     if (open) {
       setForm(getInitialState(item));
       setPairingSearch("");
+      setAllergenInput("");
     }
   }
 
@@ -201,6 +197,14 @@ export function ItemEditSheet({
       })),
     []
   );
+
+  function addCustomAllergenFromInput() {
+    const next = addCustomAllergen(form.allergens, allergenInput);
+    if (next !== form.allergens) {
+      set("allergens", next);
+    }
+    setAllergenInput("");
+  }
 
   type OptionKey = "preparations" | "variations" | "sides" | "sauces";
 
@@ -381,6 +385,46 @@ export function ItemEditSheet({
                   <span className="capitalize">{a}</span>
                 </label>
               ))}
+            </div>
+            {customAllergenList.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-3">
+                {customAllergenList.map((a) => (
+                  <Badge key={a} variant="secondary" className="gap-1 pr-1 capitalize">
+                    {a}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${a}`}
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => toggleIn("allergens", a)}
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 pt-3">
+              <Input
+                value={allergenInput}
+                onChange={(e) => setAllergenInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomAllergenFromInput();
+                  }
+                }}
+                placeholder="Add another allergen…"
+                aria-label="Add another allergen"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addCustomAllergenFromInput}
+              >
+                Add
+              </Button>
             </div>
           </details>
 

@@ -232,7 +232,7 @@ export function SpecialEditor({
       <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
-              <p className="font-medium text-sm">Active</p>
+              <p className="font-medium text-sm">Published</p>
               <p className="text-xs text-muted-foreground">
                 Show this special on the public menu
               </p>

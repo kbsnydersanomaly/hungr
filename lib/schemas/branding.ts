@@ -9,11 +9,17 @@ export const ButtonStyleSchema = z.object({
   case: z.string().optional(),
 }).optional().nullable();
 
+// Font weight values offered in the branding editor. Stored inside the
+// heading/body JSON columns; missing means "use the CSS default".
+export const FontWeightSchema = z.enum(["300", "400", "500", "600", "700", "800"]);
+
 export const HeadingStyleSchema = z.object({
   color: z.string().optional(),
   typeface: z.string().optional(),
   case: z.string().optional(),
   size: z.string().optional(),
+  weight: FontWeightSchema.optional(),
+  italic: z.boolean().optional(),
 }).optional().nullable();
 
 export const BodyStyleSchema = z.object({
@@ -21,6 +27,8 @@ export const BodyStyleSchema = z.object({
   typeface: z.string().optional(),
   case: z.string().optional(),
   size: z.string().optional(),
+  weight: FontWeightSchema.optional(),
+  italic: z.boolean().optional(),
 }).optional().nullable();
 
 export const BrandingDraftSchema = z.object({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,14 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [navOpenPathname, setNavOpenPathname] = useState(pathname);
 
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
+  // Close the mobile nav on navigation: reset during render when the
+  // pathname changes (avoids setState-in-effect cascading renders).
+  if (pathname !== navOpenPathname) {
+    setNavOpenPathname(pathname);
+    if (mobileNavOpen) setMobileNavOpen(false);
+  }
 
   function closeMobileNav() {
     setMobileNavOpen(false);
