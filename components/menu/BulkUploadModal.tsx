@@ -65,6 +65,7 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
   const [replaceConfirmed, setReplaceConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [summary, setSummary] = useState<BulkUploadSummary | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function reset() {
@@ -98,8 +99,7 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
     URL.revokeObjectURL(url);
   }
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleFile(file: File | null) {
     setSummary(null);
     setParseError(null);
     setValid([]);
@@ -119,6 +119,35 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
     } catch (err) {
       setParseError(err instanceof Error ? err.message : "Failed to read the file.");
     }
+  }
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    handleFile(event.target.files?.[0] ?? null);
+  }
+
+  // Drag-and-drop mirrors the MediaUploadZone pattern: preventDefault on
+  // dragover is required or the browser navigates to the dropped file.
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+  }
+
+  function handleDragEnter(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    // Unsupported types (e.g. .txt/.png) fall through to parseSpreadsheet,
+    // which rejects them with the standard parse-error styling.
+    if (file) handleFile(file);
   }
 
   async function handleSubmit() {
@@ -220,7 +249,19 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
               <p className="text-xs text-muted-foreground">{activeMode.help}</p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div
+              data-testid="bulk-upload-dropzone"
+              data-dragging={isDragging || undefined}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`flex flex-wrap items-center gap-2 rounded-lg border-2 border-dashed p-3 transition-colors ${
+                isDragging
+                  ? "border-primary bg-primary/5"
+                  : "border-muted-foreground/20"
+              }`}
+            >
               <Button variant="outline" size="sm" onClick={handleDownloadSample}>
                 <Download className="h-4 w-4 mr-2" />
                 Download sample
@@ -234,8 +275,12 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                 {fileName ? "Choose a different file" : "Choose file"}
               </Button>
-              {fileName && (
+              {fileName ? (
                 <span className="text-sm text-muted-foreground">{fileName}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  or drag a CSV/Excel file here
+                </span>
               )}
               <input
                 ref={fileInputRef}

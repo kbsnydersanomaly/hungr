@@ -31,6 +31,15 @@ function uploadCsv(content: string) {
   fireEvent.change(input, { target: { files: [file] } });
 }
 
+function getDropZone() {
+  return screen.getByTestId("bulk-upload-dropzone");
+}
+
+function dropFile(name: string, type: string, content: string) {
+  const file = new File([content], name, { type });
+  fireEvent.drop(getDropZone(), { dataTransfer: { files: [file] } });
+}
+
 describe("BulkUploadModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -225,5 +234,74 @@ describe("BulkUploadModal", () => {
     );
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("nope"));
+  });
+
+  it("highlights the drop zone while a file is dragged over it", () => {
+    openModal();
+    const zone = getDropZone();
+
+    expect(zone).not.toHaveAttribute("data-dragging");
+    expect(zone.className).toContain("border-muted-foreground/20");
+
+    fireEvent.dragEnter(zone);
+    expect(zone).toHaveAttribute("data-dragging", "true");
+    expect(zone.className).toContain("border-primary");
+
+    fireEvent.dragLeave(zone);
+    expect(zone).not.toHaveAttribute("data-dragging");
+    expect(zone.className).toContain("border-muted-foreground/20");
+  });
+
+  it("clears the highlight after a drop", async () => {
+    openModal();
+    const zone = getDropZone();
+
+    fireEvent.dragEnter(zone);
+    expect(zone).toHaveAttribute("data-dragging", "true");
+
+    dropFile("menu.csv", "text/csv", "name,price,category\nPizza,89,Mains\n");
+    await screen.findByText("Pizza");
+    expect(zone).not.toHaveAttribute("data-dragging");
+  });
+
+  it("runs the same validation flow for a dropped CSV as the file picker", async () => {
+    openModal();
+    fireEvent.dragOver(getDropZone());
+    dropFile(
+      "menu.csv",
+      "text/csv",
+      "name,price,category\nPizza,89,Mains\nSalad,55,Starters\n"
+    );
+
+    expect(await screen.findByText("Pizza")).toBeInTheDocument();
+    expect(screen.getByText("Salad")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /upload 2 items/i })
+    ).toBeEnabled();
+  });
+
+  it("shows the parse error styling when a non-spreadsheet file is dropped", async () => {
+    openModal();
+    dropFile("notes.txt", "text/plain", "hello");
+
+    expect(
+      await screen.findByText(
+        "Unsupported file type. Upload a .csv, .xlsx, or .xls file."
+      )
+    ).toBeInTheDocument();
+    // The file name is shown but no preview renders.
+    expect(screen.getByText("notes.txt")).toBeInTheDocument();
+    expect(screen.queryByText(/valid row/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the parse error styling when an image is dropped", async () => {
+    openModal();
+    dropFile("photo.png", "image/png", "fake-png-bytes");
+
+    expect(
+      await screen.findByText(
+        "Unsupported file type. Upload a .csv, .xlsx, or .xls file."
+      )
+    ).toBeInTheDocument();
   });
 });
