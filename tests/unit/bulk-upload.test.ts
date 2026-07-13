@@ -289,7 +289,7 @@ describe("resolvePairings", () => {
     );
     expect(warnings).toHaveLength(0);
     expect(updates).toEqual([
-      { id: ID.brownie, pairing_ids: [ID.merlot, ID.tiramisu] },
+      { id: ID.brownie, pairing_ids: [ID.merlot, ID.tiramisu], fileRow: 2 },
     ]);
   });
 
@@ -306,7 +306,7 @@ describe("resolvePairings", () => {
     );
     expect(warnings).toHaveLength(0);
     expect(updates).toEqual([
-      { id: ID.brownie, pairing_ids: [ID.merlot, ID.tiramisu] },
+      { id: ID.brownie, pairing_ids: [ID.merlot, ID.tiramisu], fileRow: 2 },
     ]);
   });
 
@@ -321,7 +321,7 @@ describe("resolvePairings", () => {
       ],
       nameToId
     );
-    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot] }]);
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot], fileRow: 5 }]);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatchObject({ row: 5, field: "pairings" });
     expect(warnings[0].reason).toContain("Ghost Item");
@@ -339,7 +339,7 @@ describe("resolvePairings", () => {
       nameToId
     );
     expect(warnings).toHaveLength(0);
-    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot] }]);
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot], fileRow: 2 }]);
   });
 
   it("dedupes repeated pairing names", () => {
@@ -353,10 +353,43 @@ describe("resolvePairings", () => {
       ],
       nameToId
     );
-    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot] }]);
+    expect(updates).toEqual([{ id: ID.brownie, pairing_ids: [ID.merlot], fileRow: 2 }]);
   });
 
-  it("skips rows without pairings and rows not written to the menu", () => {
+  it("emits no update when every pairing name fails to resolve (keeps existing pairings)", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 4,
+          name: "Chocolate Brownie",
+          pairings: ["Ghost Item", "Another Ghost"],
+        },
+      ],
+      nameToId
+    );
+    expect(updates).toHaveLength(0);
+    expect(warnings).toHaveLength(2);
+    for (const warning of warnings) {
+      expect(warning).toMatchObject({ row: 4, field: "pairings" });
+    }
+  });
+
+  it("emits no update when the only pairing is the item itself", () => {
+    const { updates, warnings } = resolvePairings(
+      [
+        {
+          fileRow: 2,
+          name: "Chocolate Brownie",
+          pairings: ["Chocolate Brownie"],
+        },
+      ],
+      nameToId
+    );
+    expect(updates).toHaveLength(0);
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("skips rows without pairings and rows whose own item is not on the menu", () => {
     const { updates, warnings } = resolvePairings(
       [
         { fileRow: 2, name: "Chocolate Brownie", pairings: [] },

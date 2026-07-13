@@ -393,6 +393,8 @@ export interface PairingRow {
 export interface PairingUpdate {
   id: string;
   pairing_ids: string[];
+  /** 1-based file row (incl. header), carried through for save-failure warnings. */
+  fileRow: number;
 }
 
 /**
@@ -400,7 +402,9 @@ export interface PairingUpdate {
  * menu (keyed by lowercased, trimmed name). Mirrors the safety rules of
  * `upsertItem`: ids are deduped and an item never pairs with itself.
  * Unresolvable names become warnings (row number + unknown name), never
- * hard failures. Only rows with a non-empty `pairings` list produce updates.
+ * hard failures. A row that declared pairing names but resolved zero ids
+ * produces no update, so its existing pairings are left untouched (the
+ * warnings already tell the user); an empty `pairings` cell means "no change".
  */
 export function resolvePairings(
   rows: PairingRow[],
@@ -412,7 +416,9 @@ export function resolvePairings(
   for (const row of rows) {
     if (row.pairings.length === 0) continue;
     const ownId = nameToId.get(row.name.trim().toLowerCase());
-    if (!ownId) continue; // Row was skipped by the upload mode — nothing to update.
+    // Defensive: the action only feeds rows whose item exists on the menu
+    // (written rows, plus existing items matched in add mode).
+    if (!ownId) continue;
 
     const ids: string[] = [];
     for (const pairingName of row.pairings) {
@@ -427,7 +433,11 @@ export function resolvePairings(
       }
       if (id !== ownId) ids.push(id);
     }
-    updates.push({ id: ownId, pairing_ids: [...new Set(ids)] });
+    // Zero resolved ids (all names unknown, or only self-references): leave
+    // the item's existing pairings alone rather than wiping them.
+    if (ids.length > 0) {
+      updates.push({ id: ownId, pairing_ids: [...new Set(ids)], fileRow: row.fileRow });
+    }
   }
 
   return { updates, warnings };

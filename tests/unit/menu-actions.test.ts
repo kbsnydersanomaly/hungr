@@ -152,15 +152,20 @@ describe("createMenu", () => {
 /**
  * Stateful Supabase stub for `bulkUpsertItems`: `from()` selects the canned
  * table, selects resolve to the canned rows, mutations resolve with no error,
- * and `update(...).eq("id", ...)` calls on `menu_items` are recorded.
+ * and `update(...).eq("id", ...)` calls on `menu_items` are recorded. Pass
+ * `pairingUpdateError` to make recorded pairing updates fail at await time.
  */
-function makeBulkSupabase(tables: {
-  categories?: { id: string; name: string }[];
-  menu_items?: { id: string; name: string }[];
-}) {
+function makeBulkSupabase(
+  tables: {
+    categories?: { id: string; name: string }[];
+    menu_items?: { id: string; name: string; category_id?: string }[];
+  },
+  opts: { pairingUpdateError?: { message: string } } = {}
+) {
   const pairingUpdates: { id: string; pairing_ids: string[] }[] = [];
   let table = "";
   let pendingUpdate: Record<string, unknown> | null = null;
+  let pendingError: { message: string } | null = null;
   const builder: Record<string, unknown> = {
     from: (t: string) => {
       table = t;
@@ -180,11 +185,19 @@ function makeBulkSupabase(tables: {
           ...(pendingUpdate as { pairing_ids: string[] }),
         });
         pendingUpdate = null;
+        if (opts.pairingUpdateError) pendingError = opts.pairingUpdateError;
       }
       return builder;
     },
-    then: (resolve: (v: unknown) => void) =>
-      resolve({ data: tables[table as keyof typeof tables] ?? null, error: null }),
+    then: (resolve: (v: unknown) => void) => {
+      if (pendingError) {
+        const error = pendingError;
+        pendingError = null;
+        resolve({ data: null, error });
+        return;
+      }
+      resolve({ data: tables[table as keyof typeof tables] ?? null, error: null });
+    },
   };
   return { builder, pairingUpdates };
 }
@@ -244,5 +257,67 @@ describe("bulkUpsertItems pairing pass", () => {
     expect(result.ok).toBe(true);
     expect(result.data?.warnings).toEqual([]);
     expect(pairingUpdates).toHaveLength(0);
+  });
+
+  it("still applies pairings for items skipped in add mode because they exist", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [
+        { id: BROWNIE_ID, name: "Chocolate Brownie", category_id: "cat-1" },
+        { id: MERLOT_ID, name: "House Merlot", category_id: "cat-1" },
+      ],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "add",
+      rows: [
+        {
+          name: "Chocolate Brownie",
+          price: "55.00",
+          category: "Desserts",
+          pairings: "House Merlot",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.skipped).toBe(1);
+    expect(result.data?.added).toBe(0);
+    expect(pairingUpdates).toEqual([{ id: BROWNIE_ID, pairing_ids: [MERLOT_ID] }]);
+    expect(result.data?.warnings).toEqual([]);
+  });
+
+  it("degrades pairing-write failures to warnings without failing the upload", async () => {
+    const { builder } = makeBulkSupabase(
+      {
+        categories: [{ id: "cat-1", name: "Desserts" }],
+        menu_items: [
+          { id: BROWNIE_ID, name: "Chocolate Brownie" },
+          { id: MERLOT_ID, name: "House Merlot" },
+        ],
+      },
+      { pairingUpdateError: { message: "boom" } }
+    );
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "replace",
+      rows: [
+        {
+          name: "Chocolate Brownie",
+          price: "55.00",
+          category: "Desserts",
+          pairings: "House Merlot",
+        },
+        { name: "House Merlot", price: "80.00", category: "Desserts", pairings: "" },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.added).toBe(2);
+    expect(result.data?.warnings).toHaveLength(1);
+    expect(result.data?.warnings[0]).toMatchObject({ row: 2, field: "pairings" });
+    expect(result.data?.warnings[0].reason).toMatch(/Failed to save pairings/);
   });
 });

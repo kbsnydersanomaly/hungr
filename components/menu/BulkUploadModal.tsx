@@ -131,7 +131,11 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
       const data = result.data;
       setSummary(data);
       toast.success(
-        `Done — ${data.added} added, ${data.updated} updated, ${data.skipped} skipped, ${data.failed} failed.`
+        `Done — ${data.added} added, ${data.updated} updated, ${data.skipped} skipped, ${data.failed} failed` +
+          (data.warnings.length > 0
+            ? `, ${data.warnings.length} warning${data.warnings.length === 1 ? "" : "s"}`
+            : "") +
+          "."
       );
     } catch {
       toast.error("Bulk upload failed.");
@@ -251,8 +255,11 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
               Pairings column: semicolon-separated names of other items on this
               menu — e.g.{" "}
               <code className="font-mono">Chocolate Brownie;House Merlot</code>.
-              Names are matched case-insensitively after upload; unknown names
-              are reported as warnings, not errors.
+              Applied to rows that are added or updated, and in Add mode also to
+              items that already exist. Names are matched case-insensitively;
+              unknown names are reported as warnings, not errors, and a row
+              whose names all fail to resolve leaves its existing pairings
+              untouched.
             </p>
 
             {parseError && (

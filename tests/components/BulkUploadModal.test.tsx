@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { BulkUploadModal } from "@/components/menu/BulkUploadModal";
 
 const bulkUpsertItems = vi.fn();
@@ -118,5 +119,6 @@ describe("BulkUploadModal", () => {
     );
     expect(screen.getByText(/1 warning/i)).toBeInTheDocument();
     expect(screen.getByText(/Row 2 · pairings ·/i)).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("1 warning"));
   });
 });

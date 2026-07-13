@@ -470,7 +470,8 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       categoryId: categoryMap.get(row.category.toLowerCase())!,
     }));
 
-    // Rows actually written (inserted or updated) — only these get pairings.
+    // Rows whose pairings should be applied: written rows, plus items that
+    // already existed in add mode (explicit CSV intent wins for those).
     const pairingRows: PairingRow[] = [];
 
     if (mode === "replace") {
@@ -513,12 +514,15 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
         const existingId = itemMap.get(itemKey(categoryId, row.name));
         if (mode === "add") {
           if (existingId) {
+            // Item already exists: skip the write, but still apply its
+            // declared pairings — the name->id map covers existing items.
             summary.skipped++;
-            continue;
+          } else {
+            inserts.push(toItemRow(row, categoryId));
           }
-          inserts.push(toItemRow(row, categoryId));
         } else {
           if (!existingId) {
+            // Item isn't on the menu — nothing to pair; skip entirely.
             summary.skipped++;
             continue;
           }
@@ -563,12 +567,21 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
 
       const { updates: pairingUpdates, warnings } = resolvePairings(pairingRows, nameToId);
       summary.warnings.push(...warnings);
-      for (const { id, pairing_ids } of pairingUpdates) {
+      for (const { id, pairing_ids, fileRow } of pairingUpdates) {
         const { error: pairingError } = await supabase
           .from("menu_items")
           .update({ pairing_ids })
           .eq("id", id);
-        if (pairingError) throw actionError("Failed to save pairings", pairingError);
+        // The items themselves were saved — degrade pairing-write failures to
+        // warnings so the summary (and the upload's success) is preserved.
+        if (pairingError) {
+          console.error("bulkUpsertItems pairing update error:", pairingError);
+          summary.warnings.push({
+            row: fileRow,
+            field: "pairings",
+            reason: "Failed to save pairings for this item — its other changes were saved.",
+          });
+        }
       }
     }
 
