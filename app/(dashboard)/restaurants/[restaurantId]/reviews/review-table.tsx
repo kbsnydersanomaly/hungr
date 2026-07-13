@@ -132,6 +132,7 @@ export function ReviewTable({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (detailReview || showDelete) return;
 
       if (e.key === "j" || e.key === "J") {
         e.preventDefault();
@@ -150,7 +151,7 @@ export function ReviewTable({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered, focusedIndex, handleModerate]);
+  }, [filtered, focusedIndex, handleModerate, detailReview, showDelete]);
 
   const statusColors: Record<ReviewStatus, string> = {
     pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
