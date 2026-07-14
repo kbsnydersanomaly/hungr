@@ -29,17 +29,20 @@ interface MultiImagePickerProps {
   restaurantId: string;
   value: string[];
   onChange: (urls: string[]) => void;
+  /** Whether to highlight the first image as the cover. Defaults to true. */
+  showCover?: boolean;
 }
 
 /**
- * Manages an ordered list of images for a menu item. The first image is
- * used as the primary/cover image; the public item page shows all of them
- * in a carousel.
+ * Manages an ordered list of images for a gallery. By default the first image
+ * is highlighted as the cover image; consumers that don't use a cover treatment
+ * can disable it with `showCover={false}`.
  */
 export function MultiImagePicker({
   restaurantId,
   value,
   onChange,
+  showCover = true,
 }: MultiImagePickerProps) {
   const [open, setOpen] = useState(false);
   const [media, setMedia] = useState<MediaItem[]>([]);
@@ -98,7 +101,7 @@ export function MultiImagePicker({
                 height={112}
                 className="h-28 w-42 aspect-3/2 object-cover rounded-lg border"
               />
-              {i === 0 && (
+              {showCover && i === 0 && (
                 <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   Cover
                 </span>
@@ -108,6 +111,7 @@ export function MultiImagePicker({
                 variant="destructive"
                 size="icon"
                 className="absolute -top-2 -right-2 h-6 w-6"
+                aria-label="Remove image"
                 onClick={() => removeAt(i)}
               >
                 <X className="h-3 w-3" />

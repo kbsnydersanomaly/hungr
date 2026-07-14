@@ -23,13 +23,14 @@ export default async function AboutPage({
   const about = await loadAboutPage(restaurantId);
 
   return (
-    <div className="space-y-6">
+    <div className="h-[calc(100vh-140px)] space-y-6">
       <PageHeader
         title="About Page"
         description={`Edit the about page for ${restaurant.name}`}
       />
       <AboutEditor
         restaurantId={restaurantId}
+        restaurantSlug={restaurant.slug}
         about={about}
       />
     </div>

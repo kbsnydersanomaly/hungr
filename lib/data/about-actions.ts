@@ -73,7 +73,10 @@ export async function saveAboutPage(restaurantId: string, formData: FormData) {
 
     revalidatePath(`/restaurants/${restaurantId}/about`);
     revalidatePath(`/restaurants/${restaurantId}`);
-    if (restaurant?.slug) revalidatePath(`/m/${restaurant.slug}`);
+    if (restaurant?.slug) {
+      revalidatePath(`/m/${restaurant.slug}`);
+      revalidatePath(`/m/${restaurant.slug}/about`);
+    }
 
     return { saved: true };
   });
