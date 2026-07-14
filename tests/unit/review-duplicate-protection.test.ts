@@ -43,10 +43,22 @@ interface DedupQuery {
  * other table answers the notification lookups with a null restaurant so the
  * notify block ends quietly.
  */
-function makeClients(dedupResult: { data: unknown; error?: unknown } = { data: [] }) {
+function makeClients(
+  dedupResult: { data: unknown; error?: unknown } = { data: [] },
+  // The item→restaurant ownership check; defaults to "item found".
+  itemLookup: { data: unknown; error?: unknown } = { data: { id: REVIEW_INPUT.menu_item_id } }
+) {
   const dedupQuery: DedupQuery = { eq: [], gte: [] };
   const tablesQueried: string[] = [];
   let insertCount = 0;
+
+  // Ownership check: `.from("menu_items").select(...).eq(...).eq(...).maybeSingle()`.
+  const itemBuilder: Record<string, unknown> = {
+    select: () => itemBuilder,
+    eq: () => itemBuilder,
+    maybeSingle: () =>
+      Promise.resolve({ data: itemLookup.data, error: itemLookup.error ?? null }),
+  };
 
   const dedupBuilder: Record<string, unknown> = {
     select: () => dedupBuilder,
@@ -75,7 +87,9 @@ function makeClients(dedupResult: { data: unknown; error?: unknown } = { data: [
   const admin = {
     from: (table: string) => {
       tablesQueried.push(table);
-      return table === "reviews" ? dedupBuilder : lookupBuilder;
+      if (table === "reviews") return dedupBuilder;
+      if (table === "menu_items") return itemBuilder;
+      return lookupBuilder;
     },
   };
   const server = {
@@ -104,7 +118,20 @@ describe("submitReviewAction duplicate protection", () => {
     await submitReviewAction(REVIEW_INPUT);
 
     expect(createAdminClient).toHaveBeenCalled();
-    expect(stub.tablesQueried[0]).toBe("reviews");
+    expect(stub.tablesQueried).toContain("reviews");
+  });
+
+  it("rejects a review whose item does not belong to the given restaurant", async () => {
+    const stub = makeClients({ data: [] }, { data: null });
+    createServerClient.mockResolvedValue(stub.server);
+    createAdminClient.mockReturnValue(stub.admin);
+
+    const result = await submitReviewAction(REVIEW_INPUT);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("does not belong");
+    expect(stub.getInsertCount()).toBe(0);
+    expect(sendMail).not.toHaveBeenCalled();
   });
 
   it("returns success without inserting when an identical review exists in the last 10 minutes", async () => {
@@ -117,8 +144,9 @@ describe("submitReviewAction duplicate protection", () => {
     expect(result.ok).toBe(true);
     expect(result.data).toMatchObject({ submitted: true });
     expect(stub.getInsertCount()).toBe(0);
-    // A deduped replay must not re-notify managers.
-    expect(stub.tablesQueried).toEqual(["reviews"]);
+    // A deduped replay must not re-notify managers (ownership check + dedup
+    // check are the only admin reads).
+    expect(stub.tablesQueried).toEqual(["menu_items", "reviews"]);
     expect(sendMail).not.toHaveBeenCalled();
   });
 
@@ -138,6 +166,9 @@ describe("submitReviewAction duplicate protection", () => {
       eq: () => lookupBuilder,
       in: () => lookupBuilder,
       single: () => Promise.resolve({ data: null, error: null }),
+      // Satisfies the menu_items ownership check ("item found").
+      maybeSingle: () =>
+        Promise.resolve({ data: { id: REVIEW_INPUT.menu_item_id }, error: null }),
       then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     };
     let insertCount = 0;

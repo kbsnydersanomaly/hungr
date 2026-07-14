@@ -7,7 +7,8 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 vi.mock("@/lib/data/about-actions", () => ({
-  saveAboutPage: vi.fn().mockResolvedValue({ saved: true }),
+  // safeAction result shape — the editor checks `ok` before toasting success.
+  saveAboutPage: vi.fn().mockResolvedValue({ ok: true, data: { saved: true } }),
 }));
 
 vi.mock("sonner", () => ({

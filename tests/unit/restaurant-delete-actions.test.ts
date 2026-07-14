@@ -72,7 +72,9 @@ function makeSupabase() {
       select: () => ({
         eq: () => ({
           eq: () => ({
-            in: () => ({ maybeSingle: subscriptionsMaybeSingle }),
+            // The guard awaits the .in(...) query directly (list result);
+            // the mock keeps its historical name.
+            in: () => subscriptionsMaybeSingle(),
           }),
         }),
       }),
@@ -110,7 +112,10 @@ describe("deleteRestaurant", () => {
   });
 
   it("blocks deletion when the restaurant has a live subscription", async () => {
-    subscriptionsMaybeSingle.mockResolvedValue({ data: { id: "sub-1" }, error: null });
+    subscriptionsMaybeSingle.mockResolvedValue({
+      data: [{ id: "sub-1", status: "active", m_payment_id: "mp-1" }],
+      error: null,
+    });
 
     const result = await deleteRestaurant(RESTAURANT_ID);
 
@@ -121,6 +126,16 @@ describe("deleteRestaurant", () => {
     expect(storageList).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
     expect(writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("does not block deletion for an abandoned pending replace: row", async () => {
+    subscriptionsMaybeSingle.mockResolvedValue({
+      data: [{ id: "sub-1", status: "pending", m_payment_id: "replace:sub-0:tok:123" }],
+      error: null,
+    });
+
+    await expect(deleteRestaurant(RESTAURANT_ID)).rejects.toThrow("NEXT_REDIRECT");
+    expect(rpc).toHaveBeenCalled();
   });
 
   it("requires org admin access for the restaurant's org", async () => {

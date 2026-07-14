@@ -120,6 +120,25 @@ export async function submitReviewAction(input: {
     }
 
     const supabase = await createServerClient();
+    const admin = createAdminClient();
+
+    // The client supplies both ids; without this check anyone could attach a
+    // review (and its manager notifications) to an unrelated restaurant.
+    // Admin client: unpublished menus are invisible to the anon client's RLS.
+    const { data: item, error: itemError } = await admin
+      .from("menu_items")
+      .select("id, menus!inner(restaurant_id)")
+      .eq("id", parsed.data.menu_item_id)
+      .eq("menus.restaurant_id", parsed.data.restaurant_id)
+      .maybeSingle();
+
+    if (itemError) {
+      console.error("submitReview item check failed:", itemError);
+      throw actionError("Failed to submit review", itemError);
+    }
+    if (!item) {
+      throw new ValidationError("This item does not belong to this restaurant.");
+    }
 
     // Idempotency guard: a double-tap or retry around a slow network can fire
     // this action twice. If the exact same review (item + name + message +
@@ -135,7 +154,7 @@ export async function submitReviewAction(input: {
     // silently never match. It's a read-only existence check on zod-validated
     // input, before any privileged write.
     const dedupSince = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { data: duplicates, error: dedupError } = await createAdminClient()
+    const { data: duplicates, error: dedupError } = await admin
       .from("reviews")
       .select("id")
       .eq("menu_item_id", parsed.data.menu_item_id)

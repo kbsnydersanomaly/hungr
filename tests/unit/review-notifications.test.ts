@@ -38,6 +38,7 @@ type TableResult = { data: unknown; error?: unknown };
  */
 function makeAdmin(tables: {
   reviews?: TableResult;
+  menu_items?: TableResult;
   restaurants?: TableResult;
   organization_members?: TableResult;
   restaurant_members?: TableResult;
@@ -46,13 +47,16 @@ function makeAdmin(tables: {
   const builders: Record<string, Record<string, unknown>> = {};
   for (const table of [
     "reviews",
+    "menu_items",
     "restaurants",
     "organization_members",
     "restaurant_members",
     "profiles",
   ]) {
     const result: TableResult = (tables as Record<string, TableResult>)[table] ?? {
-      data: table === "restaurants" ? null : [],
+      // menu_items is the pre-insert ownership check — default to "item found".
+      data:
+        table === "restaurants" ? null : table === "menu_items" ? { id: "item-1" } : [],
       error: null,
     };
     const resolved = { data: result.data, error: result.error ?? null };
@@ -63,6 +67,7 @@ function makeAdmin(tables: {
       gte: () => builder,
       limit: () => builder,
       single: () => Promise.resolve(resolved),
+      maybeSingle: () => Promise.resolve(resolved),
       then: (resolve: (v: unknown) => void) => resolve(resolved),
     };
     builders[table] = builder;

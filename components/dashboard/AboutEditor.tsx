@@ -93,7 +93,11 @@ export function AboutEditor({
     formData.set("show_contact", showContact ? "on" : "");
 
     try {
-      await saveAboutPage(restaurantId, formData);
+      const result = await saveAboutPage(restaurantId, formData);
+      if (!result.ok) {
+        toast.error(result.message ?? "Failed to save.");
+        return;
+      }
       toast.success("About page saved.");
       refreshPreview();
     } catch (err) {
