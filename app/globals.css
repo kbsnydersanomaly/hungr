@@ -168,15 +168,21 @@
 .branding-scope :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
   color: var(--color-main-heading, inherit);
-  /* Unlayered like the sibling rules, so an explicit branding weight wins
-     over Tailwind font-* utilities on headings. The `revert-layer` fallback
-     is load-bearing: when no weight/style is chosen it defers back to the
-     layered author styles (utilities, then preflight), preserving each
-     heading's original weight instead of forcing a single default. Do not
-     "simplify" it to a numeric fallback — that would bold every
-     font-semibold heading on existing menus. */
-  font-weight: var(--font-main-heading-weight, revert-layer);
-  font-style: var(--font-main-heading-style, revert-layer);
+}
+/* Weight/style apply only when the branding actually sets the variable (the
+   tokens live in the wrapper's inline style attribute, so the attribute
+   selector is the "is it set?" test). Unlayered like the sibling rules, so an
+   explicit branding weight wins over Tailwind font-* utilities on headings;
+   when no weight/style is chosen these rules never match and each heading
+   keeps its original utility/preflight weight. Gating beats a `revert-layer`
+   var() fallback: CSS-wide keywords in fallbacks are invalid-at-computed-value
+   in pre-2024 engines (e.g. iOS 16 Safari), which would strip every heading's
+   weight on unbranded menus. */
+.branding-scope[style*="--font-main-heading-weight"] :is(h1, h2, h3, h4, h5, h6) {
+  font-weight: var(--font-main-heading-weight);
+}
+.branding-scope[style*="--font-main-heading-style"] :is(h1, h2, h3, h4, h5, h6) {
+  font-style: var(--font-main-heading-style);
 }
 /* Labels over image gradients must stay white regardless of branding tokens. */
 .branding-scope .text-on-image :is(h1, h2, h3, h4, h5, h6, p) {

@@ -66,6 +66,15 @@ export function brandingToCssVars(branding: Record<string, unknown> | null): Rea
     if (foreground) vars["--color-nav-bar-foreground"] = foreground;
   }
 
+  // Same for the accent: pills/tags render text on the accent background, and
+  // the global --accent-foreground is a fixed near-black that disappears on a
+  // dark accent.
+  const accentColor = branding.accent_color;
+  if (typeof accentColor === "string" && accentColor) {
+    const foreground = contrastForeground(accentColor);
+    if (foreground) vars["--accent-foreground"] = foreground;
+  }
+
   const buttonMap: [string, string][] = [
     ["main_color", "--color-primary-button"],
     ["text_color", "--color-primary-button-text"],
