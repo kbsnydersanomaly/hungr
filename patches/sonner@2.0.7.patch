@@ -1,0 +1,234 @@
+diff --git a/dist/index.js b/dist/index.js
+index bd21e898f431298b70e941833c78819a1eb53a36..323a972d70f9bf3bc8b7f70fd3b18d19bdefbf12 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -884,35 +884,26 @@ function useSonner() {
+     React__default.default.useEffect(()=>{
+         return ToastState.subscribe((toast)=>{
+             if (toast.dismiss) {
+-                setTimeout(()=>{
+-                    ReactDOM__default.default.flushSync(()=>{
+-                        setActiveToasts((toasts)=>toasts.filter((t)=>t.id !== toast.id));
+-                    });
+-                });
++                setActiveToasts((toasts)=>toasts.filter((t)=>t.id !== toast.id));
+                 return;
+             }
+-            // Prevent batching, temp solution.
+-            setTimeout(()=>{
+-                ReactDOM__default.default.flushSync(()=>{
+-                    setActiveToasts((toasts)=>{
+-                        const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
+-                        // Update the toast if it already exists
+-                        if (indexOfExistingToast !== -1) {
+-                            return [
+-                                ...toasts.slice(0, indexOfExistingToast),
+-                                {
+-                                    ...toasts[indexOfExistingToast],
+-                                    ...toast
+-                                },
+-                                ...toasts.slice(indexOfExistingToast + 1)
+-                            ];
+-                        }
+-                        return [
+-                            toast,
+-                            ...toasts
+-                        ];
+-                    });
+-                });
++            setActiveToasts((toasts)=>{
++                const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
++                // Update the toast if it already exists
++                if (indexOfExistingToast !== -1) {
++                    return [
++                        ...toasts.slice(0, indexOfExistingToast),
++                        {
++                            ...toasts[indexOfExistingToast],
++                            ...toast
++                        },
++                        ...toasts.slice(indexOfExistingToast + 1)
++                    ];
++                }
++                return [
++                    toast,
++                    ...toasts
++                ];
+             });
+         });
+     }, []);
+@@ -963,37 +954,29 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+     React__default.default.useEffect(()=>{
+         return ToastState.subscribe((toast)=>{
+             if (toast.dismiss) {
+-                // Prevent batching of other state updates
+-                requestAnimationFrame(()=>{
+-                    setToasts((toasts)=>toasts.map((t)=>t.id === toast.id ? {
+-                                ...t,
+-                                delete: true
+-                            } : t));
+-                });
++                setToasts((toasts)=>toasts.map((t)=>t.id === toast.id ? {
++                            ...t,
++                            delete: true
++                        } : t));
+                 return;
+             }
+-            // Prevent batching, temp solution.
+-            setTimeout(()=>{
+-                ReactDOM__default.default.flushSync(()=>{
+-                    setToasts((toasts)=>{
+-                        const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
+-                        // Update the toast if it already exists
+-                        if (indexOfExistingToast !== -1) {
+-                            return [
+-                                ...toasts.slice(0, indexOfExistingToast),
+-                                {
+-                                    ...toasts[indexOfExistingToast],
+-                                    ...toast
+-                                },
+-                                ...toasts.slice(indexOfExistingToast + 1)
+-                            ];
+-                        }
+-                        return [
+-                            toast,
+-                            ...toasts
+-                        ];
+-                    });
+-                });
++            setToasts((toasts)=>{
++                const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
++                // Update the toast if it already exists
++                if (indexOfExistingToast !== -1) {
++                    return [
++                        ...toasts.slice(0, indexOfExistingToast),
++                        {
++                            ...toasts[indexOfExistingToast],
++                            ...toast
++                        },
++                        ...toasts.slice(indexOfExistingToast + 1)
++                    ];
++                }
++                return [
++                    toast,
++                    ...toasts
++                ];
+             });
+         });
+     }, [
+diff --git a/dist/index.mjs b/dist/index.mjs
+index d0c7a5a1fa1ed8b19c27bea968bb404f2437a07e..2e5e1164c26d6b54322a5f7868646bcbedf60270 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -877,35 +877,26 @@ function useSonner() {
+     React.useEffect(()=>{
+         return ToastState.subscribe((toast)=>{
+             if (toast.dismiss) {
+-                setTimeout(()=>{
+-                    ReactDOM.flushSync(()=>{
+-                        setActiveToasts((toasts)=>toasts.filter((t)=>t.id !== toast.id));
+-                    });
+-                });
++                setActiveToasts((toasts)=>toasts.filter((t)=>t.id !== toast.id));
+                 return;
+             }
+-            // Prevent batching, temp solution.
+-            setTimeout(()=>{
+-                ReactDOM.flushSync(()=>{
+-                    setActiveToasts((toasts)=>{
+-                        const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
+-                        // Update the toast if it already exists
+-                        if (indexOfExistingToast !== -1) {
+-                            return [
+-                                ...toasts.slice(0, indexOfExistingToast),
+-                                {
+-                                    ...toasts[indexOfExistingToast],
+-                                    ...toast
+-                                },
+-                                ...toasts.slice(indexOfExistingToast + 1)
+-                            ];
+-                        }
+-                        return [
+-                            toast,
+-                            ...toasts
+-                        ];
+-                    });
+-                });
++            setActiveToasts((toasts)=>{
++                const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
++                // Update the toast if it already exists
++                if (indexOfExistingToast !== -1) {
++                    return [
++                        ...toasts.slice(0, indexOfExistingToast),
++                        {
++                            ...toasts[indexOfExistingToast],
++                            ...toast
++                        },
++                        ...toasts.slice(indexOfExistingToast + 1)
++                    ];
++                }
++                return [
++                    toast,
++                    ...toasts
++                ];
+             });
+         });
+     }, []);
+@@ -956,37 +947,29 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+     React.useEffect(()=>{
+         return ToastState.subscribe((toast)=>{
+             if (toast.dismiss) {
+-                // Prevent batching of other state updates
+-                requestAnimationFrame(()=>{
+-                    setToasts((toasts)=>toasts.map((t)=>t.id === toast.id ? {
+-                                ...t,
+-                                delete: true
+-                            } : t));
+-                });
++                setToasts((toasts)=>toasts.map((t)=>t.id === toast.id ? {
++                            ...t,
++                            delete: true
++                        } : t));
+                 return;
+             }
+-            // Prevent batching, temp solution.
+-            setTimeout(()=>{
+-                ReactDOM.flushSync(()=>{
+-                    setToasts((toasts)=>{
+-                        const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
+-                        // Update the toast if it already exists
+-                        if (indexOfExistingToast !== -1) {
+-                            return [
+-                                ...toasts.slice(0, indexOfExistingToast),
+-                                {
+-                                    ...toasts[indexOfExistingToast],
+-                                    ...toast
+-                                },
+-                                ...toasts.slice(indexOfExistingToast + 1)
+-                            ];
+-                        }
+-                        return [
+-                            toast,
+-                            ...toasts
+-                        ];
+-                    });
+-                });
++            setToasts((toasts)=>{
++                const indexOfExistingToast = toasts.findIndex((t)=>t.id === toast.id);
++                // Update the toast if it already exists
++                if (indexOfExistingToast !== -1) {
++                    return [
++                        ...toasts.slice(0, indexOfExistingToast),
++                        {
++                            ...toasts[indexOfExistingToast],
++                            ...toast
++                        },
++                        ...toasts.slice(indexOfExistingToast + 1)
++                    ];
++                }
++                return [
++                    toast,
++                    ...toasts
++                ];
+             });
+         });
+     }, [
