@@ -4,6 +4,7 @@ import {
   validateWithPayFast,
   nextBillingDate,
 } from "@/lib/billing/payfast";
+import { finalizeReplacementSubscription } from "@/lib/data/billing-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
@@ -81,6 +82,10 @@ export async function POST(req: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", sub.id);
+
+    // If this checkout was replacing an existing payment method, cancel the
+    // old token and mark the previous subscription row as superseded.
+    await finalizeReplacementSubscription(supabase, sub);
 
     // Generate and store invoice PDF
     try {

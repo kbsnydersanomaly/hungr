@@ -15,6 +15,7 @@ import { PaymentStatusBanner } from "@/components/dashboard/PaymentStatusBanner"
 import { upgradeToProPlan } from "@/lib/data/plan-change-actions";
 import { ServerActionForm } from "@/components/forms/ServerActionForm";
 import { SubmitButton } from "@/components/forms/SubmitButton";
+import { env } from "@/lib/env";
 import {
   Building2,
   UtensilsCrossed,
@@ -81,6 +82,7 @@ function SubscriptionRow({
           subscriptionId={subscription.id}
           status={subscription.status}
           payfastToken={subscription.payfast_token}
+          isSandbox={env.PAYFAST_SANDBOX}
         />
       )}
     </div>

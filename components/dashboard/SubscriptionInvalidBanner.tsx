@@ -24,6 +24,7 @@ const messages: Record<
   cancelled: "Your subscription was cancelled.",
   failed: "Your last payment failed.",
   pending: "Your subscription payment is still pending.",
+  superseded: "Your previous subscription was replaced.",
 };
 
 export async function SubscriptionInvalidBanner({

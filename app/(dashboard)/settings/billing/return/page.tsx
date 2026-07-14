@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { completeSubscriptionOnReturn } from "@/lib/data/billing-actions";
+import { isReplacementMPaymentId } from "@/lib/billing/payfast";
 
 export default async function OrgBillingReturnPage({
   searchParams,
@@ -16,5 +17,8 @@ export default async function OrgBillingReturnPage({
     await completeSubscriptionOnReturn(mPaymentId);
   }
 
-  redirect("/settings/billing?status=complete");
+  const status = mPaymentId && isReplacementMPaymentId(mPaymentId)
+    ? "card-updated"
+    : "complete";
+  redirect(`/settings/billing?status=${status}`);
 }

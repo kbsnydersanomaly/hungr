@@ -281,6 +281,49 @@ export function nextBillingDate(sub: {
   return base.toISOString();
 }
 
+// ── Card update URL ──────────────────────────────────────────────────────
+// PayFast provides a hosted page where buyers can update the card stored
+// against a Recurring Billing subscription token. It is a simple redirect URL;
+// no signature is required.
+// See: https://github.com/PayFast/payfast-php-sdk/blob/master/lib/PaymentIntegrations/CustomIntegration.php
+
+export function getCardUpdateUrl(token: string, returnUrl?: string): string {
+  if (env.PAYFAST_SANDBOX) {
+    throw new Error(
+      "PayFast's hosted card-update page is not available in sandbox mode."
+    );
+  }
+
+  const base = "https://www.payfast.co.za";
+  let url = `${base}/eng/recurring/update/${encodeURIComponent(token)}`;
+  if (returnUrl) {
+    url += `?return=${encodeURIComponent(returnUrl)}`;
+  }
+  return url;
+}
+
+// ── Subscription replacement helpers (fallback for sandbox / card updates) ─
+
+export function buildReplacementMPaymentId(oldSub: {
+  id: string;
+  payfast_token: string;
+}): string {
+  return `replace:${oldSub.id}:${oldSub.payfast_token}:${Date.now()}`;
+}
+
+export function isReplacementMPaymentId(mPaymentId: string): boolean {
+  return mPaymentId.startsWith("replace:");
+}
+
+export function parseReplacementMPaymentId(mPaymentId: string): {
+  oldSubId: string;
+  oldToken: string;
+} | null {
+  const parts = mPaymentId.split(":");
+  if (parts.length !== 4 || parts[0] !== "replace") return null;
+  return { oldSubId: parts[1], oldToken: parts[2] };
+}
+
 // ── PayFast API (pause / cancel / resume) ────────────────────────────────
 
 export const PAYFAST_API_BASE = env.PAYFAST_SANDBOX

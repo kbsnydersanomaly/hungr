@@ -14,6 +14,7 @@ import { CreditCard, Calendar, Lock } from "lucide-react";
 import { SubscriptionActions } from "@/components/dashboard/SubscriptionActions";
 import { PaymentStatusBanner } from "@/components/dashboard/PaymentStatusBanner";
 import { TransactionHistoryCard } from "@/components/dashboard/TransactionHistoryCard";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +101,8 @@ export default async function RestaurantBillingPage({
                   ? "default"
                   : subscription?.status === "paused"
                   ? "secondary"
-                  : subscription?.status === "pending"
+                  : subscription?.status === "pending" ||
+                    subscription?.status === "superseded"
                   ? "outline"
                   : "destructive"
               }
@@ -152,6 +154,7 @@ export default async function RestaurantBillingPage({
                 subscriptionId={subscription.id}
                 status={subscription.status}
                 payfastToken={subscription.payfast_token}
+                isSandbox={env.PAYFAST_SANDBOX}
               />
             </>
           ) : (

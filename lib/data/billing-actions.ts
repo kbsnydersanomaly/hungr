@@ -14,9 +14,14 @@ import {
   unpauseSubscription as payfastUnpause,
   nextBillingDate,
   buildPayFastCheckout,
+  getCardUpdateUrl,
+  buildReplacementMPaymentId,
+  isReplacementMPaymentId,
+  parseReplacementMPaymentId,
 } from "@/lib/billing/payfast";
 import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
+import { writeAudit } from "@/lib/utils/audit";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
@@ -130,7 +135,7 @@ export async function loadSubscriptionForRestaurant(restaurantId: string) {
     .select("*, plans(*)")
     .eq("scope", "restaurant")
     .eq("scope_id", restaurantId)
-    .in("status", ["pending", "active", "paused", "cancelled"])
+    .in("status", ["pending", "active", "paused", "cancelled", "superseded"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -170,7 +175,7 @@ export async function loadOrgBillingSummary(orgId: string) {
         .from("subscriptions")
         .select("*, plans(*)")
         .eq("org_id", orgId)
-        .in("status", ["pending", "active", "paused", "failed", "cancelled"])
+        .in("status", ["pending", "active", "paused", "failed", "cancelled", "superseded"])
         .order("created_at", { ascending: false }),
       supabase
         .from("transactions")
@@ -425,6 +430,161 @@ export async function getInvoiceDownloadUrl(invoiceId: string) {
   });
 }
 
+export async function updatePaymentMethodAction(subscriptionId: string) {
+  return safeAction(async () => {
+    const { sub } = await loadAuthorizedSubscription(subscriptionId);
+
+    if (!sub.payfast_token) {
+      throw new ValidationError(
+        "No PayFast token available for this subscription."
+      );
+    }
+
+    if (!["active", "paused"].includes(sub.status)) {
+      throw new ValidationError(
+        "Subscription must be active or paused to update the payment method."
+      );
+    }
+
+    const baseUrl = env.NEXT_PUBLIC_APP_URL;
+    const returnBase =
+      sub.scope === "restaurant"
+        ? `${baseUrl}/restaurants/${sub.scope_id}/billing`
+        : `${baseUrl}/settings/billing`;
+    const cardUpdatedReturnUrl = `${returnBase}?status=card-updated`;
+
+    // Production: PayFast hosts a card-update page for subscription tokens.
+    if (!env.PAYFAST_SANDBOX) {
+      const url = getCardUpdateUrl(sub.payfast_token, cardUpdatedReturnUrl);
+
+      await writeAudit({
+        org_id: sub.org_id,
+        restaurant_id: sub.scope === "restaurant" ? sub.scope_id : undefined,
+        action: "subscription:update_payment_method_initiated",
+        target_table: "subscriptions",
+        target_id: sub.id,
+        diff: { method: "hosted_card_update", return_url: cardUpdatedReturnUrl },
+      });
+
+      return { url };
+    }
+
+    // Sandbox fallback: start a replacement checkout for the same plan.
+    // The old token is cancelled only after the new checkout completes, so
+    // service is not interrupted.
+    const token = sub.payfast_token;
+    const mPaymentId = buildReplacementMPaymentId({
+      id: sub.id,
+      payfast_token: token,
+    });
+
+    const { error: insertError } = await createAdminClient()
+      .from("subscriptions")
+      .insert({
+        scope: sub.scope,
+        scope_id: sub.scope_id,
+        org_id: sub.org_id,
+        plan_id: sub.plan_id,
+        status: "pending",
+        amount_cents: sub.amount_cents,
+        billing_period: sub.billing_period,
+        m_payment_id: mPaymentId,
+      });
+
+    if (insertError) {
+      console.error("updatePaymentMethodAction insert error:", insertError);
+      throw actionError("Failed to start payment method update", insertError);
+    }
+
+    await writeAudit({
+      org_id: sub.org_id,
+      restaurant_id: sub.scope === "restaurant" ? sub.scope_id : undefined,
+      action: "subscription:update_payment_method_initiated",
+      target_table: "subscriptions",
+      target_id: sub.id,
+      diff: { method: "replace_subscription", new_m_payment_id: mPaymentId },
+    });
+
+    const checkoutUrl = buildPayFastCheckout({
+      m_payment_id: mPaymentId,
+      amount_cents: sub.amount_cents,
+      item_name: "Hungr — Update payment method",
+      subscription_type: 1,
+      frequency: 3,
+      cycles: 0,
+      return_url: `${returnBase}/return?m_payment_id=${encodeURIComponent(
+        mPaymentId
+      )}`,
+      cancel_url: `${returnBase}?status=cancel`,
+      notify_url: `${baseUrl}/api/webhooks/payfast`,
+      custom_str1: sub.scope_id,
+      custom_str2: sub.org_id,
+      custom_str3: sub.id,
+      custom_str4: token,
+    });
+
+    return { url: checkoutUrl };
+  });
+}
+
+/**
+ * When a replacement checkout completes, cancel the old PayFast token and mark
+ * the previous subscription row as superseded so it is not left active.
+ */
+export async function finalizeReplacementSubscription(
+  supabase: SupabaseClient<Database>,
+  newSub: {
+    id: string;
+    org_id: string;
+    scope: string;
+    scope_id: string;
+    m_payment_id: string | null;
+  }
+) {
+  if (!newSub.m_payment_id || !isReplacementMPaymentId(newSub.m_payment_id)) {
+    return;
+  }
+
+  const parsed = parseReplacementMPaymentId(newSub.m_payment_id);
+  if (!parsed) return;
+
+  const { oldSubId, oldToken } = parsed;
+  let oldTokenCancelled = false;
+
+  try {
+    await payfastCancel(oldToken);
+    oldTokenCancelled = true;
+  } catch (err) {
+    console.error("Failed to cancel replaced PayFast subscription:", err);
+  }
+
+  const { error } = await supabase
+    .from("subscriptions")
+    .update({
+      status: "superseded",
+      cancelled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", oldSubId);
+
+  if (error) {
+    console.error("Failed to mark replaced subscription as superseded:", error);
+  }
+
+  await writeAudit({
+    org_id: newSub.org_id,
+    restaurant_id: newSub.scope === "restaurant" ? newSub.scope_id : undefined,
+    action: "subscription:replaced",
+    target_table: "subscriptions",
+    target_id: oldSubId,
+    diff: {
+      replaced_by_subscription_id: newSub.id,
+      old_token_cancelled: oldTokenCancelled,
+      new_m_payment_id: newSub.m_payment_id,
+    },
+  });
+}
+
 // ── Return-page completion (webhook fallback) ────────────────────────────
 
 export async function completeSubscriptionOnReturn(mPaymentId: string) {
@@ -470,6 +630,8 @@ export async function completeSubscriptionOnReturn(mPaymentId: string) {
         })
         .eq("id", sub.id);
 
+      await finalizeReplacementSubscription(supabase, sub);
+
       // NOTE: no revalidatePath here — this runs during the return page's
       // render, which then redirects to the (dynamic) billing page.
       return { status: "active" };
@@ -502,6 +664,8 @@ export async function completeSubscriptionOnReturn(mPaymentId: string) {
         raw: { sandbox: true, source: "return_page" },
         occurred_at: now,
       });
+
+      await finalizeReplacementSubscription(supabase, sub);
 
       // NOTE: no revalidatePath here — see above.
       return { status: "active" };

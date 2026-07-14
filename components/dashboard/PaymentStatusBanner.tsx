@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, CreditCard } from "lucide-react";
 
 /**
  * Banner shown on billing pages after returning from PayFast checkout,
@@ -19,6 +19,19 @@ export function PaymentStatusBanner({
           <CheckCircle2 className="h-5 w-5 text-green-600" aria-hidden="true" />
           <p className="text-sm font-medium text-green-800 dark:text-green-300">
             Payment received. Your subscription is now active.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (status === "card-updated") {
+    return (
+      <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
+        <CardContent className="py-4 flex items-center gap-3">
+          <CreditCard className="h-5 w-5 text-green-600" aria-hidden="true" />
+          <p className="text-sm font-medium text-green-800 dark:text-green-300">
+            Payment method updated.
           </p>
         </CardContent>
       </Card>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { completeSubscriptionOnReturn } from "@/lib/data/billing-actions";
+import { isReplacementMPaymentId } from "@/lib/billing/payfast";
 
 export default async function BillingReturnPage({
   params,
@@ -38,5 +39,8 @@ export default async function BillingReturnPage({
     await completeSubscriptionOnReturn(mPaymentId);
   }
 
-  redirect(`/restaurants/${restaurantId}/billing?status=complete`);
+  const status = mPaymentId && isReplacementMPaymentId(mPaymentId)
+    ? "card-updated"
+    : "complete";
+  redirect(`/restaurants/${restaurantId}/billing?status=${status}`);
 }

@@ -5,6 +5,7 @@ import {
   cancelSubscriptionAction,
   resumeSubscriptionAction,
   retrySubscriptionCheckout,
+  updatePaymentMethodAction,
 } from "@/lib/data/billing-actions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -16,18 +17,27 @@ interface SubscriptionActionsProps {
   subscriptionId: string;
   status: string;
   payfastToken: string | null;
+  isSandbox?: boolean;
 }
 
 export function SubscriptionActions({
   subscriptionId,
   status,
   payfastToken,
+  isSandbox = false,
 }: SubscriptionActionsProps) {
   const resume = useAction(resumeSubscriptionAction, {
     successMessage: "Subscription resumed.",
   });
   // Retry redirects to PayFast on success, so it only resolves here on error.
   const retry = useAction(retrySubscriptionCheckout);
+  const updatePaymentMethod = useAction(updatePaymentMethodAction, {
+    onSuccess: (data) => {
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    },
+  });
 
   if (status === "pending") {
     return (
@@ -105,6 +115,35 @@ export function SubscriptionActions({
           )}
           Resume
         </Button>
+      )}
+
+      {(status === "active" || status === "paused") && payfastToken && (
+        <ConfirmDialog
+          title="Update payment method?"
+          description="You'll be redirected to PayFast to update your card details. Your subscription stays active and no service is interrupted."
+          confirmLabel="Continue"
+          confirmVariant="default"
+          onConfirm={async () => {
+            const result = await updatePaymentMethod.execute(subscriptionId);
+            if (!result.ok) {
+              throw new Error(result.message || "Failed to start update.");
+            }
+            // onSuccess navigates to the returned PayFast URL.
+          }}
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={updatePaymentMethod.isPending}
+          >
+            {updatePaymentMethod.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <CreditCard className="h-4 w-4 mr-2" />
+            )}
+            {isSandbox ? "Update payment method" : "Update card"}
+          </Button>
+        </ConfirmDialog>
       )}
 
       {status === "failed" && (

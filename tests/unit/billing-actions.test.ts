@@ -11,6 +11,8 @@ import {
   pauseSubscriptionAction,
   cancelSubscriptionAction,
   resumeSubscriptionAction,
+  updatePaymentMethodAction,
+  finalizeReplacementSubscription,
 } from "@/lib/data/billing-actions";
 import { ForbiddenError } from "@/lib/errors";
 import * as payfast from "@/lib/billing/payfast";
@@ -376,6 +378,95 @@ describe("billing actions", () => {
 
       expect(result.ok).toBe(false);
       expect(result.code).toBe("validation");
+    });
+  });
+
+  describe("updatePaymentMethodAction", () => {
+    it("returns the hosted card-update URL in production", async () => {
+      vi.stubEnv("PAYFAST_SANDBOX", "false");
+      vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+      setupSuccessMocks(restaurantSub);
+
+      const result = await updatePaymentMethodAction(restaurantSub.id);
+
+      expect(result.ok).toBe(true);
+      expect(result.data?.url).toBe(
+        `https://www.payfast.co.za/eng/recurring/update/${restaurantSub.payfast_token}?return=${encodeURIComponent(
+          "http://localhost:3000/restaurants/rest-123/billing?status=card-updated"
+        )}`
+      );
+    });
+
+    it("rejects when the subscription has no token", async () => {
+      mockedSession.requireSession.mockResolvedValue({ user: actor });
+      mockedCreateServerClient.mockReturnValue(
+        createMockSupabase({
+          selectSingle: { ...restaurantSub, payfast_token: null },
+        })
+      );
+      mockedRole.requireRestaurantAccess.mockResolvedValue({});
+
+      const result = await updatePaymentMethodAction(restaurantSub.id);
+
+      expect(result.ok).toBe(false);
+      expect(result.code).toBe("validation");
+    });
+
+    it("rejects when the subscription is not active or paused", async () => {
+      mockedSession.requireSession.mockResolvedValue({ user: actor });
+      mockedCreateServerClient.mockReturnValue(
+        createMockSupabase({
+          selectSingle: { ...restaurantSub, status: "cancelled" },
+        })
+      );
+      mockedRole.requireRestaurantAccess.mockResolvedValue({});
+
+      const result = await updatePaymentMethodAction(restaurantSub.id);
+
+      expect(result.ok).toBe(false);
+      expect(result.code).toBe("validation");
+    });
+  });
+
+  describe("finalizeReplacementSubscription", () => {
+    it("marks the old subscription row as superseded", async () => {
+      let updatePayload: Record<string, unknown> | null = null;
+      const mockSupabase = {
+        from: () => ({
+          update: (payload: Record<string, unknown>) => {
+            updatePayload = payload;
+            return { eq: () => Promise.resolve({ error: null }) };
+          },
+        }),
+      };
+
+      await finalizeReplacementSubscription(mockSupabase as never, {
+        id: "new-sub-123",
+        org_id: "org-123",
+        scope: "restaurant",
+        scope_id: "rest-123",
+        m_payment_id: `replace:${restaurantSub.id}:${restaurantSub.payfast_token}:123456789`,
+      });
+
+      expect(mockedPayfast.cancelSubscription).toHaveBeenCalledWith(
+        restaurantSub.payfast_token
+      );
+      expect(updatePayload).toMatchObject({ status: "superseded" });
+    });
+
+    it("does nothing for non-replacement m_payment_id", async () => {
+      await finalizeReplacementSubscription(
+        { from: () => ({ update: vi.fn() }) } as never,
+        {
+          id: "new-sub-123",
+          org_id: "org-123",
+          scope: "restaurant",
+          scope_id: "rest-123",
+          m_payment_id: "regular-mp-123",
+        }
+      );
+
+      expect(mockedPayfast.cancelSubscription).not.toHaveBeenCalled();
     });
   });
 });
