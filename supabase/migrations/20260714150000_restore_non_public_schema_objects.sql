@@ -24,7 +24,19 @@ begin
   end if;
 end $$;
 
--- 2. Storage buckets (rows in storage.buckets are data, not schema).
+-- 2. The baseline creates review_stats WITH NO DATA, but the
+--    reviews_after_change trigger refreshes it CONCURRENTLY — which errors on
+--    an unpopulated matview, breaking every write (and cascading delete) that
+--    touches reviews. Populate it once; no-op when already populated.
+
+do $$
+begin
+  if not (select relispopulated from pg_class where oid = 'public.review_stats'::regclass) then
+    refresh materialized view public.review_stats;
+  end if;
+end $$;
+
+-- 3. Storage buckets (rows in storage.buckets are data, not schema).
 
 insert into storage.buckets (id, name, public)
 values
@@ -34,7 +46,7 @@ values
   ('private', 'private', false)
 on conflict (id) do nothing;
 
--- 3. Storage policies for those buckets (verbatim from production).
+-- 4. Storage policies for those buckets (verbatim from production).
 
 drop policy if exists "menu-media manager insert" on storage.objects;
 create policy "menu-media manager insert"

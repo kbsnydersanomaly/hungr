@@ -21,6 +21,15 @@ export function anonClient() {
 
 export async function createTestUser(email: string, password: string) {
   const admin = adminClient();
+  // A crashed previous run (beforeAll threw before afterAll could clean up)
+  // can leave this user behind — remove it so fixtures are idempotent.
+  // Deleting the auth user cascades to its profile and owned organizations.
+  const { data: existing } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+  if (existing) await admin.auth.admin.deleteUser(existing.id);
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
@@ -37,12 +46,14 @@ export async function signInAs(email: string, password: string): Promise<Supabas
   return client;
 }
 
-export async function cleanupUser(userId: string) {
+export async function cleanupUser(userId: string | undefined) {
+  if (!userId) return;
   const admin = adminClient();
   await admin.auth.admin.deleteUser(userId);
 }
 
-export async function cleanupOrg(orgId: string) {
+export async function cleanupOrg(orgId: string | undefined) {
+  if (!orgId) return;
   const admin = adminClient();
   await admin.from("organizations").delete().eq("id", orgId);
 }
