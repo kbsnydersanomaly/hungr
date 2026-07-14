@@ -158,9 +158,21 @@ export default async function DashboardLayout({
         }))
     : [];
 
-  const sidebar = (mode: "desktop" | "mobile") => (
+  const sidebarDesktop = (
     <DashboardSidebar
-      mode={mode}
+      mode="desktop"
+      mainNavItems={resolvedMainNavItems}
+      restaurantNavItems={resolvedRestaurantNavItems}
+      showAddRestaurant={restaurants.length === 0 && hasMinRole(orgRole, "owner")}
+      memberships={memberships}
+      activeOrgId={activeOrgId ?? null}
+      canManageOrg={hasMinRole(orgRole, "owner")}
+    />
+  );
+
+  const sidebarMobile = (
+    <DashboardSidebar
+      mode="mobile"
       mainNavItems={resolvedMainNavItems}
       restaurantNavItems={resolvedRestaurantNavItems}
       showAddRestaurant={restaurants.length === 0 && hasMinRole(orgRole, "owner")}
@@ -195,7 +207,8 @@ export default async function DashboardLayout({
           />
         ) : undefined
       }
-      sidebar={sidebar}
+      sidebarDesktop={sidebarDesktop}
+      sidebarMobile={sidebarMobile}
       header={header}
       banners={
         effectiveRestaurant && activeOrgId && hasMinRole(orgRole, "owner") ? (
