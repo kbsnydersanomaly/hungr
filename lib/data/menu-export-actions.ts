@@ -1,6 +1,6 @@
 "use server";
 
-import { actionError, safeAction } from "@/lib/errors";
+import { actionError, safeAction, ValidationError } from "@/lib/errors";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { loadMenuById } from "@/lib/data/menus";
 import {
@@ -70,6 +70,30 @@ export async function exportMenuCsv(menuId: string) {
         .map((pairingId) => idToName.get(pairingId))
         .filter((pairingName): pairingName is string => pairingName !== undefined),
     }));
+
+    // The CSV list columns join entries with ";", so a value containing ";"
+    // would silently split into two entries on re-import. Refuse the export
+    // with a message naming the offending value instead of corrupting data.
+    for (const row of rows) {
+      const listValues: [string, string[]][] = [
+        ["allergen", row.allergens],
+        ["label", row.labels],
+        ["pairing (item name)", row.pairings],
+        ["preparations option", row.preparations.map((opt) => opt.name)],
+        ["variations option", row.variations.map((opt) => opt.name)],
+        ["sides option", row.sides.map((opt) => opt.name)],
+        ["sauces option", row.sauces.map((opt) => opt.name)],
+      ];
+      for (const [kind, values] of listValues) {
+        const bad = values.find((value) => value.includes(";"));
+        if (bad !== undefined) {
+          throw new ValidationError(
+            `Cannot export: item "${row.name}" has a ${kind} containing ";" ("${bad}"). ` +
+              `";" separates list entries in the CSV — rename it, then export again.`
+          );
+        }
+      }
+    }
 
     return { csv: buildMenuCsv(rows), slug: menu.slug };
   });

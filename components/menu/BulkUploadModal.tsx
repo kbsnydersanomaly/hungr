@@ -327,7 +327,11 @@ export function BulkUploadModal({ menuId }: BulkUploadModalProps) {
               semicolon-separated entries with an optional price in rands after
               the last colon — e.g.{" "}
               <code className="font-mono">Grilled:0;Fried:15.50;Extra cheese</code>.
-              Prices are converted to cents. Omit the column to leave options empty.
+              Prices are converted to cents. Careful when updating existing
+              items (Modify mode or an <code className="font-mono">id</code>{" "}
+              column): an empty or missing description, image_url, allergens,
+              labels or option cell <em>clears</em> that field on the matched
+              item. Only an empty pairings cell means &quot;keep existing&quot;.
             </p>
             <p className="text-xs text-muted-foreground">
               Pairings column: semicolon-separated names of other items on this

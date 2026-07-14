@@ -449,14 +449,23 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       summary.categoriesCreated = created?.length ?? 0;
     }
 
-    const toItemRow = (row: ParsedRow, categoryId: string) => ({
+    // The CSV only carries the primary image (image_url), but items edited in
+    // the app can hold a gallery in image_urls. On update, keep the extra
+    // gallery images so an export → reimport round trip doesn't truncate them.
+    const toItemRow = (
+      row: ParsedRow,
+      categoryId: string,
+      existingImageUrls?: string[] | null
+    ) => ({
       menu_id: menuId,
       category_id: categoryId,
       name: row.name,
       description: row.description,
       price_cents: row.price_cents,
       image_url: row.image_url,
-      image_urls: row.image_url ? [row.image_url] : [],
+      image_urls: row.image_url
+        ? [row.image_url, ...(existingImageUrls ?? []).slice(1)]
+        : [],
       allergens: row.allergens,
       labels: row.labels,
       preparations: row.preparations,
@@ -498,7 +507,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       // add / modify: match existing items by name within their category.
       const { data: existingItems, error: itemLoadError } = await supabase
         .from("menu_items")
-        .select("id, name, category_id")
+        .select("id, name, category_id, image_urls")
         .eq("menu_id", menuId);
       if (itemLoadError) throw actionError("Failed to load existing items", itemLoadError);
 
@@ -506,9 +515,11 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
         `${categoryId}::${name.trim().toLowerCase()}`;
       const itemMap = new Map<string, string>();
       const existingIds = new Set<string>();
+      const existingImages = new Map<string, string[] | null>();
       for (const item of existingItems ?? []) {
         itemMap.set(itemKey(item.category_id, item.name), item.id);
         existingIds.add(item.id);
+        existingImages.set(item.id, item.image_urls);
       }
 
       const inserts: ReturnType<typeof toItemRow>[] = [];
@@ -542,7 +553,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
             summary.failed++;
             continue;
           }
-          updates.push({ id: row.id, data: toItemRow(row, categoryId) });
+          updates.push({ id: row.id, data: toItemRow(row, categoryId, existingImages.get(row.id)) });
           pairingRows.push({
             fileRow: row.fileRow,
             name: row.name,
@@ -566,7 +577,7 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
             summary.skipped++;
             continue;
           }
-          updates.push({ id: existingId, data: toItemRow(row, categoryId) });
+          updates.push({ id: existingId, data: toItemRow(row, categoryId, existingImages.get(existingId)) });
         }
         pairingRows.push({
           fileRow: row.fileRow,
@@ -601,11 +612,18 @@ export async function bulkUpsertItems(menuId: string, payload: BulkUploadPayload
       if (pairingLoadError) throw actionError("Failed to load items for pairings", pairingLoadError);
 
       const nameToId = new Map<string, string>();
+      const ambiguousNames = new Set<string>();
       for (const item of allItems ?? []) {
-        nameToId.set(item.name.trim().toLowerCase(), item.id);
+        const key = item.name.trim().toLowerCase();
+        if (nameToId.has(key) && nameToId.get(key) !== item.id) ambiguousNames.add(key);
+        nameToId.set(key, item.id);
       }
 
-      const { updates: pairingUpdates, warnings } = resolvePairings(pairingRows, nameToId);
+      const { updates: pairingUpdates, warnings } = resolvePairings(
+        pairingRows,
+        nameToId,
+        ambiguousNames
+      );
       summary.warnings.push(...warnings);
       for (const { id, pairing_ids, fileRow } of pairingUpdates) {
         const { error: pairingError } = await supabase

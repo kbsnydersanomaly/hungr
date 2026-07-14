@@ -506,23 +506,45 @@ export interface PairingUpdate {
  */
 export function resolvePairings(
   rows: PairingRow[],
-  nameToId: ReadonlyMap<string, string>
+  nameToId: ReadonlyMap<string, string>,
+  // Names shared by more than one item on the menu (lowercased, trimmed).
+  // Resolving them by name could silently target the wrong item, so they
+  // warn and skip instead.
+  ambiguousNames: ReadonlySet<string> = new Set()
 ): { updates: PairingUpdate[]; warnings: RowError[] } {
   const updates: PairingUpdate[] = [];
   const warnings: RowError[] = [];
 
   for (const row of rows) {
     if (row.pairings.length === 0) continue;
+    const ownKey = row.name.trim().toLowerCase();
+    if (!row.ownId && ambiguousNames.has(ownKey)) {
+      warnings.push({
+        row: row.fileRow,
+        field: "pairings",
+        reason: `"${row.name}" matches more than one item on this menu — pairings for this row were skipped.`,
+      });
+      continue;
+    }
     // Rows that carried an explicit item id already know their own UUID;
     // no-id rows fall back to resolving their (possibly renamed) name.
-    const ownId = row.ownId ?? nameToId.get(row.name.trim().toLowerCase());
+    const ownId = row.ownId ?? nameToId.get(ownKey);
     // Defensive: the action only feeds rows whose item exists on the menu
     // (written rows, plus existing items matched in add mode).
     if (!ownId) continue;
 
     const ids: string[] = [];
     for (const pairingName of row.pairings) {
-      const id = nameToId.get(pairingName.trim().toLowerCase());
+      const key = pairingName.trim().toLowerCase();
+      if (ambiguousNames.has(key)) {
+        warnings.push({
+          row: row.fileRow,
+          field: "pairings",
+          reason: `"${pairingName}" matches more than one item on this menu — this pairing was skipped.`,
+        });
+        continue;
+      }
+      const id = nameToId.get(key);
       if (!id) {
         warnings.push({
           row: row.fileRow,

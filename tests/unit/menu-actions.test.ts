@@ -158,7 +158,7 @@ describe("createMenu", () => {
 function makeBulkSupabase(
   tables: {
     categories?: { id: string; name: string }[];
-    menu_items?: { id: string; name: string; category_id?: string }[];
+    menu_items?: { id: string; name: string; category_id?: string; image_urls?: string[] }[];
   },
   opts: { pairingUpdateError?: { message: string } } = {}
 ) {
@@ -436,6 +436,112 @@ describe("bulkUpsertItems id column", () => {
     expect(result.data?.errors[0].reason).toContain("row 2");
     expect(pairingUpdates).toHaveLength(1);
     expect(pairingUpdates[0]).toMatchObject({ id: BROWNIE_ID, name: "Brownie A" });
+  });
+
+  it("preserves gallery images beyond the first when updating by id", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [
+        {
+          id: BROWNIE_ID,
+          name: "Chocolate Brownie",
+          category_id: "cat-1",
+          image_urls: ["https://cdn.example.com/old-primary.jpg", "https://cdn.example.com/gallery-1.jpg", "https://cdn.example.com/gallery-2.jpg"],
+        },
+      ],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "modify",
+      rows: [
+        {
+          id: BROWNIE_ID,
+          name: "Chocolate Brownie",
+          price: "55.00",
+          category: "Desserts",
+          image_url: "https://cdn.example.com/new-primary.jpg",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    // The CSV's image_url replaces the primary image only; the rest of the
+    // gallery survives the round trip.
+    expect(pairingUpdates[0]).toMatchObject({
+      id: BROWNIE_ID,
+      image_url: "https://cdn.example.com/new-primary.jpg",
+      image_urls: ["https://cdn.example.com/new-primary.jpg", "https://cdn.example.com/gallery-1.jpg", "https://cdn.example.com/gallery-2.jpg"],
+    });
+  });
+
+  it("round-trips an unchanged image_url without touching the gallery", async () => {
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [
+        {
+          id: BROWNIE_ID,
+          name: "Chocolate Brownie",
+          category_id: "cat-1",
+          image_urls: ["https://cdn.example.com/primary.jpg", "https://cdn.example.com/gallery-1.jpg"],
+        },
+      ],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "modify",
+      rows: [
+        {
+          id: BROWNIE_ID,
+          name: "Chocolate Brownie",
+          price: "55.00",
+          category: "Desserts",
+          image_url: "https://cdn.example.com/primary.jpg",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(pairingUpdates[0]).toMatchObject({
+      id: BROWNIE_ID,
+      image_urls: ["https://cdn.example.com/primary.jpg", "https://cdn.example.com/gallery-1.jpg"],
+    });
+  });
+
+  it("warns and skips pairings that match more than one item by name", async () => {
+    const COKE_MAINS_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const COKE_DRINKS_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const { builder, pairingUpdates } = makeBulkSupabase({
+      categories: [{ id: "cat-1", name: "Desserts" }],
+      menu_items: [
+        { id: BROWNIE_ID, name: "Chocolate Brownie", category_id: "cat-1" },
+        { id: COKE_MAINS_ID, name: "Coke", category_id: "cat-2" },
+        { id: COKE_DRINKS_ID, name: "Coke", category_id: "cat-3" },
+      ],
+    });
+    requireRestaurantAccess.mockResolvedValue({ supabase: builder });
+
+    const result = await bulkUpsertItems(MENU_ID, {
+      mode: "modify",
+      rows: [
+        {
+          id: BROWNIE_ID,
+          name: "Chocolate Brownie",
+          price: "55.00",
+          category: "Desserts",
+          pairings: "Coke",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    // Resolving "Coke" by name could silently rewire to the wrong duplicate —
+    // it must warn and skip instead.
+    const pairingWrite = pairingUpdates.find((u) => u.pairing_ids !== undefined);
+    expect(pairingWrite).toBeUndefined();
+    expect(result.data?.warnings).toHaveLength(1);
+    expect(result.data?.warnings[0].reason).toContain("more than one item");
   });
 
   it("routes pairings by the row's id even when its new name collides with another item", async () => {
