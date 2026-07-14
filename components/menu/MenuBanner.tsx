@@ -1,49 +1,55 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Autoplay } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
+import { formatSpecialLabel } from "@/lib/utils/specials";
 import { cn } from "@/lib/utils";
+import {
+  SpecialDetailSheet,
+  type SpecialDetailSheetSpecial,
+} from "./SpecialDetailSheet";
 
-interface BannerSpecial {
-  id: string;
-  title: string;
-  description: string | null;
+interface BannerSpecial extends SpecialDetailSheetSpecial {
   image_url: string;
-  discount_pct: number | null;
-  discount_amount_cents: number | null;
-  discount_type: string | null;
-  combo_price_cents: number | null;
-  kind: string;
 }
 
 interface MenuBannerProps {
   bannerImageUrls: string[];
   specials: BannerSpecial[];
+  restaurantSlug: string;
+  menuSlug: string;
+  items?: Array<{ id: string; name: string }>;
 }
 
-function formatDiscountLabel(special: BannerSpecial): string | null {
-  if (special.kind === "combo" && special.combo_price_cents) {
-    return `Combo · R ${(special.combo_price_cents / 100).toFixed(2)}`;
-  }
-  if (special.discount_pct) {
-    return `${special.discount_pct}% off`;
-  }
-  if (special.discount_amount_cents) {
-    return `R ${(special.discount_amount_cents / 100).toFixed(2)} off`;
-  }
-  return null;
-}
+export function MenuBanner({
+  bannerImageUrls,
+  specials,
+  restaurantSlug,
+  menuSlug,
+  items = [],
+}: MenuBannerProps) {
+  const [selectedSpecial, setSelectedSpecial] = useState<BannerSpecial | null>(
+    null
+  );
 
-export function MenuBanner({ bannerImageUrls, specials }: MenuBannerProps) {
   const slides: (
     | { type: "image"; id: string; url: string }
     | { type: "special"; id: string; special: BannerSpecial }
   )[] = [
-    ...bannerImageUrls.map((url, index) => ({ type: "image" as const, id: `banner-${index}`, url })),
-    ...specials.map((special) => ({ type: "special" as const, id: special.id, special })),
+    ...bannerImageUrls.map((url, index) => ({
+      type: "image" as const,
+      id: `banner-${index}`,
+      url,
+    })),
+    ...specials.map((special) => ({
+      type: "special" as const,
+      id: special.id,
+      special,
+    })),
   ];
 
   if (slides.length === 0) return null;
@@ -51,75 +57,109 @@ export function MenuBanner({ bannerImageUrls, specials }: MenuBannerProps) {
   const multipleSlides = slides.length > 1;
 
   return (
-    <div className="px-4 pt-3 pb-1">
-      <Swiper
-        modules={multipleSlides ? [Pagination, Autoplay] : []}
-        pagination={
-          multipleSlides ? { clickable: true, dynamicBullets: true } : false
-        }
-        autoplay={
-          multipleSlides
-            ? { delay: 5000, disableOnInteraction: false }
-            : undefined
-        }
-        spaceBetween={12}
-        slidesPerView={1}
-        className={cn(
-          multipleSlides && "!pb-8",
-          "[--swiper-theme-color:var(--primary)] [--swiper-pagination-bullet-inactive-color:var(--primary)]"
-        )}
-      >
-        {slides.map((slide) => (
-          <SwiperSlide key={slide.id}>
-            <div className="relative overflow-hidden rounded-xl border bg-card shadow-sm">
-              <div className="relative aspect-[21/9] w-full overflow-hidden bg-muted">
-                {slide.type === "image" ? (
-                  <Image
-                    src={slide.url}
-                    alt="Restaurant banner"
-                    fill
-                    className="object-cover"
-                    sizes="100vw"
-                    priority
-                  />
-                ) : (
-                  <>
-                    <Image
-                      src={slide.special.image_url}
-                      alt={slide.special.title}
-                      fill
-                      className="object-cover"
-                      sizes="100vw"
-                      priority
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    <div className="text-on-image absolute bottom-0 left-0 right-0 p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="inline-flex items-center rounded-md bg-[color:var(--color-accent,var(--secondary))] px-2 py-0.5 text-[10px] font-bold text-[color:var(--accent-foreground,var(--secondary-foreground))] uppercase">
-                          {slide.special.kind === "combo" ? "Combo" : "Special"}
-                        </span>
-                        {formatDiscountLabel(slide.special) && (
-                          <span className="text-xs font-bold drop-shadow">
-                            {formatDiscountLabel(slide.special)}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-base font-bold drop-shadow">
-                        {slide.special.title}
-                      </h3>
-                      {slide.special.description && (
-                        <p className="text-on-image-muted text-xs line-clamp-1 drop-shadow">
-                          {slide.special.description}
-                        </p>
-                      )}
-                    </div>
-                  </>
+    <>
+      <div className="px-4 pt-3 pb-1">
+        <Swiper
+          modules={multipleSlides ? [Pagination, Autoplay] : []}
+          pagination={
+            multipleSlides ? { clickable: true, dynamicBullets: true } : false
+          }
+          autoplay={
+            multipleSlides
+              ? { delay: 5000, disableOnInteraction: false }
+              : undefined
+          }
+          spaceBetween={12}
+          slidesPerView={1}
+          className={cn(
+            multipleSlides && "!pb-8",
+            "[--swiper-theme-color:var(--primary)] [--swiper-pagination-bullet-inactive-color:var(--primary)]"
+          )}
+        >
+          {slides.map((slide) => (
+            <SwiperSlide key={slide.id}>
+              {slide.type === "special" ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedSpecial(slide.special)}
+                  className="block w-full text-left"
+                  aria-label={`View details for ${slide.special.title}`}
+                >
+                  <SpecialBannerSlide special={slide.special} />
+                </button>
+              ) : (
+                <SpecialBannerSlide special={null} imageUrl={slide.url} />
+              )}
+            </SwiperSlide>
+          ))}
+        </Swiper>
+      </div>
+      <SpecialDetailSheet
+        special={selectedSpecial}
+        open={!!selectedSpecial}
+        onOpenChange={(open) => {
+          if (!open) setSelectedSpecial(null);
+        }}
+        restaurantSlug={restaurantSlug}
+        menuSlug={menuSlug}
+        items={items}
+      />
+    </>
+  );
+}
+
+function SpecialBannerSlide({
+  special,
+  imageUrl,
+}: {
+  special: BannerSpecial | null;
+  imageUrl?: string;
+}) {
+  const label = special ? formatSpecialLabel(special) : null;
+  return (
+    <div className="relative overflow-hidden rounded-xl border bg-card shadow-sm">
+      <div className="relative aspect-[21/9] w-full overflow-hidden bg-muted">
+        {special ? (
+          <>
+            <Image
+              src={special.image_url}
+              alt={special.title}
+              fill
+              className="object-cover"
+              sizes="100vw"
+              priority
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+            <div className="text-on-image absolute bottom-0 left-0 right-0 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-flex items-center rounded-md bg-[color:var(--color-accent,var(--secondary))] px-2 py-0.5 text-[10px] font-bold text-[color:var(--accent-foreground,var(--secondary-foreground))] uppercase">
+                  {special.kind === "combo" ? "Combo" : "Special"}
+                </span>
+                {label && (
+                  <span className="text-xs font-bold drop-shadow">
+                    {label}
+                  </span>
                 )}
               </div>
+              <span className="text-base font-bold drop-shadow">{special.title}</span>
+              {special.description && (
+                <span className="text-on-image-muted text-xs line-clamp-1 drop-shadow">
+                  {special.description}
+                </span>
+              )}
             </div>
-          </SwiperSlide>
-        ))}
-      </Swiper>
+          </>
+        ) : (
+          <Image
+            src={imageUrl!}
+            alt="Restaurant banner"
+            fill
+            className="object-cover"
+            sizes="100vw"
+            priority
+          />
+        )}
+      </div>
     </div>
   );
 }

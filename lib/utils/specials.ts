@@ -7,6 +7,8 @@
  * price an item should show.
  */
 
+import { formatZar } from "@/lib/utils/money";
+
 /** Schedules are evaluated in South African wall-clock time (UTC+2, no DST). */
 export const SPECIAL_TIME_ZONE = "Africa/Johannesburg";
 
@@ -40,6 +42,32 @@ export interface DiscountableSpecial extends SchedulableSpecial {
   discount_pct: number | null;
   discount_amount_cents: number | null;
   special_targets?: SpecialTarget[] | null;
+}
+
+/** Format a short label like "Combo · R 12.34", "25% off", or "R 5.00 off". */
+export function formatSpecialLabel(special: {
+  kind: string;
+  discount_type?: string | null;
+  discount_pct?: number | null;
+  discount_amount_cents?: number | null;
+  combo_price_cents?: number | null;
+}): string | null {
+  if (special.kind === "combo" && special.combo_price_cents) {
+    return `Combo · ${formatZar(special.combo_price_cents)}`;
+  }
+  if (special.discount_type === "percentage" && special.discount_pct) {
+    return `${special.discount_pct}% off`;
+  }
+  if (special.discount_type === "fixed" && special.discount_amount_cents) {
+    return `${formatZar(special.discount_amount_cents)} off`;
+  }
+  if (special.discount_pct) {
+    return `${special.discount_pct}% off`;
+  }
+  if (special.discount_amount_cents) {
+    return `${formatZar(special.discount_amount_cents)} off`;
+  }
+  return null;
 }
 
 /**
@@ -190,4 +218,103 @@ export function applicableItemDiscount(
   }
 
   return best;
+}
+
+const DAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+
+const DAY_LABELS: Record<string, string> = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun",
+};
+
+/** Normalise a weekday key and return a short label. */
+export function formatDayLabel(dayKey: string): string {
+  return DAY_LABELS[dayKey.toLowerCase()] ?? dayKey;
+}
+
+/** Format a list of weekday keys, e.g. ["mon", "wed"] → "Mon, Wed". */
+export function formatSelectedDays(days: string[] | null): string | null {
+  if (!days || days.length === 0) return null;
+  const ordered = days
+    .filter((d) => DAY_LABELS[d.toLowerCase()])
+    .sort((a, b) => {
+      const ai = DAY_ORDER.indexOf(a.toLowerCase() as (typeof DAY_ORDER)[number]);
+      const bi = DAY_ORDER.indexOf(b.toLowerCase() as (typeof DAY_ORDER)[number]);
+      return ai - bi;
+    });
+  if (ordered.length === 0) return null;
+  if (ordered.length === 7) return "Every day";
+  return ordered.map(formatDayLabel).join(", ");
+}
+
+/** Format a single time window as "HH:MM – HH:MM". */
+export function formatTimeWindow(
+  from: string | null,
+  to: string | null
+): string | null {
+  if (!from && !to) return null;
+  const start = from ? from.slice(0, 5) : null;
+  const end = to ? to.slice(0, 5) : null;
+  if (start && end) return `${start} – ${end}`;
+  if (start) return `From ${start}`;
+  if (end) return `Until ${end}`;
+  return null;
+}
+
+/** Format a date range as "YYYY-MM-DD to YYYY-MM-DD". */
+export function formatDateRange(
+  from: string | null,
+  to: string | null
+): string | null {
+  if (!from && !to) return null;
+  if (from && to) return `${from} to ${to}`;
+  if (from) return `From ${from}`;
+  if (to) return `Until ${to}`;
+  return null;
+}
+
+/** A time window object as stored in `specials.time_windows`. */
+export interface TimeWindow {
+  from?: string;
+  to?: string;
+}
+
+/** Format the optional `time_windows` JSON array. */
+export function formatTimeWindows(windows: unknown): string[] | null {
+  if (!Array.isArray(windows) || windows.length === 0) return null;
+  const lines: string[] = [];
+  for (const window of windows) {
+    if (window && typeof window === "object") {
+      const w = window as TimeWindow;
+      const from = typeof w.from === "string" ? w.from : null;
+      const to = typeof w.to === "string" ? w.to : null;
+      const formatted = formatTimeWindow(from, to);
+      if (formatted) lines.push(formatted);
+    }
+  }
+  return lines.length > 0 ? lines : null;
+}
+
+/**
+ * Build a concise, human-readable description of when a special is valid.
+ * Returns an array of lines that can be rendered as a list.
+ */
+export function formatSpecialSchedule(
+  special: SchedulableSpecial & { time_windows?: unknown }
+): string[] {
+  const lines: string[] = [];
+  const dateRange = formatDateRange(special.date_from, special.date_to);
+  if (dateRange) lines.push(dateRange);
+  const days = formatSelectedDays(special.selected_days);
+  if (days) lines.push(days);
+  const time = formatTimeWindow(special.time_from, special.time_to);
+  if (time) lines.push(time);
+  const windows = formatTimeWindows(special.time_windows);
+  if (windows) lines.push(...windows);
+  return lines;
 }

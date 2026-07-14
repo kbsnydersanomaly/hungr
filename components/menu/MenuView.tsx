@@ -67,6 +67,7 @@ interface MenuViewProps {
     id: string;
     title: string;
     description: string | null;
+    custom_promotional_text?: string | null;
     image_url: string | null;
     discount_pct: number | null;
     discount_amount_cents: number | null;
@@ -80,9 +81,13 @@ interface MenuViewProps {
     time_from: string | null;
     time_to: string | null;
     selected_days: string[] | null;
+    time_windows?: unknown;
     special_targets: Array<{
       item_id: string | null;
       category_id: string | null;
+      combo_item_ids?: string[] | null;
+      menu_items?: { name: string } | null;
+      categories?: { name: string } | null;
     }> | null;
   }>;
   menus?: Array<{ id: string; name: string; slug: string; is_default?: boolean | null }>;
@@ -212,7 +217,13 @@ export function MenuView({
       </Header>
 
       {bannerSpecials.length > 0 || bannerImageUrls.length > 0 ? (
-        <MenuBanner bannerImageUrls={bannerImageUrls} specials={bannerSpecials} />
+        <MenuBanner
+          bannerImageUrls={bannerImageUrls}
+          specials={bannerSpecials}
+          restaurantSlug={restaurant.slug}
+          menuSlug={menu.slug}
+          items={items}
+        />
       ) : null}
 
       <SearchBar value={search} onChange={setSearch} />
@@ -225,7 +236,14 @@ export function MenuView({
         />
       )}
 
-      {sliderSpecials.length > 0 && <SpecialsSlider specials={sliderSpecials} />}
+      {sliderSpecials.length > 0 && (
+        <SpecialsSlider
+          specials={sliderSpecials}
+          restaurantSlug={restaurant.slug}
+          menuSlug={menu.slug}
+          items={items}
+        />
+      )}
 
       <div className="flex-1 px-4 py-4">
         {filteredItems.length > 0 ? (

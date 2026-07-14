@@ -4,7 +4,7 @@ export async function loadActiveSpecialsForRestaurant(restaurantId: string) {
   const supabase = await createServerClient();
   const { data, error } = await supabase
     .from("specials")
-    .select("*, special_targets(*)")
+    .select("*, special_targets(*, menu_items(name), categories(name))")
     .eq("restaurant_id", restaurantId)
     .eq("active", true)
     .order("priority", { ascending: false });

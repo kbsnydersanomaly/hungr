@@ -1,5 +1,3 @@
-type TimeWindow = { from?: string; to?: string };
-
 type SpecialLike = {
   active: boolean;
   menu_id?: string | null;
@@ -8,7 +6,7 @@ type SpecialLike = {
   time_from?: string | null;
   time_to?: string | null;
   selected_days?: string[] | null;
-  time_windows?: TimeWindow[] | null;
+  time_windows?: unknown;
 };
 
 const DAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
