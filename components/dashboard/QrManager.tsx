@@ -9,13 +9,50 @@ import { Badge } from "@/components/ui/badge";
 import { Download, RefreshCw, QrCode, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-interface MenuQr {
+export interface MenuQr {
   id: string;
   name: string;
   slug: string;
   status: string;
   qr_assigned: boolean;
   qr_url: string | null;
+}
+
+export function qrDownloadUrl(menuId: string, format: "png" | "svg") {
+  return `/api/qr/${menuId}?format=${format}`;
+}
+
+interface QrDownloadLinksProps {
+  menus: MenuQr[];
+}
+
+export function QrDownloadLinks({ menus }: QrDownloadLinksProps) {
+  const assignedMenus = menus.filter((menu) => menu.qr_assigned && menu.qr_url);
+  if (assignedMenus.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      {assignedMenus.map((menu) => (
+        <div key={menu.id} className="space-y-2">
+          <p className="text-sm font-medium">{menu.name}</p>
+          <div className="flex flex-col gap-2">
+            <Button variant="outline" size="sm" className="w-full" asChild>
+              <a href={qrDownloadUrl(menu.id, "png")} download>
+                <Download className="h-4 w-4 mr-2" />
+                Download PNG
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" className="w-full" asChild>
+              <a href={qrDownloadUrl(menu.id, "svg")} download>
+                <Download className="h-4 w-4 mr-2" />
+                Download SVG
+              </a>
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 interface QrManagerProps {
@@ -25,10 +62,6 @@ interface QrManagerProps {
 
 export function QrManager({ restaurantSlug, menus }: QrManagerProps) {
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
-
-  function downloadUrl(menuId: string, format: "png" | "svg") {
-    return `/api/qr/${menuId}?format=${format}`;
-  }
 
   const publicUrl = (menuSlug?: string) =>
     menuSlug
@@ -90,7 +123,7 @@ export function QrManager({ restaurantSlug, menus }: QrManagerProps) {
                         className="w-full"
                         asChild
                       >
-                        <a href={downloadUrl(menu.id, "png")} download>
+                        <a href={qrDownloadUrl(menu.id, "png")} download>
                           <Download className="h-4 w-4 mr-2" />
                           Download PNG
                         </a>
@@ -101,7 +134,7 @@ export function QrManager({ restaurantSlug, menus }: QrManagerProps) {
                         className="w-full"
                         asChild
                       >
-                        <a href={downloadUrl(menu.id, "svg")} download>
+                        <a href={qrDownloadUrl(menu.id, "svg")} download>
                           <Download className="h-4 w-4 mr-2" />
                           Download SVG
                         </a>

@@ -80,7 +80,7 @@ export default async function RestaurantHomePage({
           </CardHeader>
           <CardContent className="space-y-3">
             {checklist.map((item) => (
-              <div key={item.label} className="flex items-center gap-3">
+              <div key={item.label} className="flex flex-wrap items-center gap-3">
                 {item.done ? (
                   <CheckCircle2 className="h-5 w-5 text-accent shrink-0" />
                 ) : (

@@ -83,49 +83,51 @@ export function TransactionHistoryCard({
         <TransactionFilters />
 
         {transactions.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Payment ID</TableHead>
-                <TableHead>Invoice</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.map((tx) => (
-                <TableRow key={tx.id}>
-                  <TableCell className="whitespace-nowrap text-sm">
-                    {new Date(tx.occurred_at).toLocaleString(undefined, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <StatusCell status={tx.payment_status} />
-                  </TableCell>
-                  <TableCell className="max-w-40 truncate font-mono text-xs text-muted-foreground">
-                    {tx.payfast_payment_id ?? tx.m_payment_id ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    {tx.invoice ? (
-                      <InvoiceDownloadButton
-                        invoiceId={tx.invoice.id}
-                        invoiceNumber={tx.invoice.number}
-                        variant="link"
-                      />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right text-sm font-medium">
-                    {formatZar(tx.amount_gross_cents)}
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Payment ID</TableHead>
+                  <TableHead>Invoice</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {transactions.map((tx) => (
+                  <TableRow key={tx.id}>
+                    <TableCell className="whitespace-nowrap text-sm">
+                      {new Date(tx.occurred_at).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <StatusCell status={tx.payment_status} />
+                    </TableCell>
+                    <TableCell className="max-w-40 truncate font-mono text-xs text-muted-foreground">
+                      {tx.payfast_payment_id ?? tx.m_payment_id ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      {tx.invoice ? (
+                        <InvoiceDownloadButton
+                          invoiceId={tx.invoice.id}
+                          invoiceNumber={tx.invoice.number}
+                          variant="link"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium">
+                      {formatZar(tx.amount_gross_cents)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-8">
             {hasFilters

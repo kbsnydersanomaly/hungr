@@ -48,6 +48,12 @@ interface MediaLibraryProps {
   usedBytes?: number;
   /** Total storage quota for this restaurant, in bytes. */
   limitBytes?: number;
+  /**
+   * When true, the library is displayed in read-only mode: the upload control,
+   * rename button, and delete button are all hidden. Useful for mobile fallback
+   * views where editing actions are not supported.
+   */
+  readOnly?: boolean;
 }
 
 export function MediaLibrary({
@@ -60,6 +66,7 @@ export function MediaLibrary({
   showUpload = true,
   usedBytes,
   limitBytes,
+  readOnly = false,
 }: MediaLibraryProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,6 +78,7 @@ export function MediaLibrary({
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
 
   const showUsage = usedBytes != null && limitBytes != null && limitBytes > 0;
+  const effectiveShowUpload = showUpload && !readOnly;
   const remainingBytes = showUsage ? Math.max(limitBytes - usedBytes, 0) : undefined;
   const usagePct = showUsage ? Math.min((usedBytes / limitBytes) * 100, 100) : 0;
 
@@ -154,7 +162,7 @@ export function MediaLibrary({
         {usageBar}
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-muted-foreground">0 images</h3>
-          {showUpload && (
+          {effectiveShowUpload && (
             <MediaUploadDialog
               restaurantId={restaurantId}
               onUpload={onRefresh}
@@ -181,7 +189,7 @@ export function MediaLibrary({
         <h3 className="text-sm font-medium text-muted-foreground">
           {filteredMedia.length} image{filteredMedia.length === 1 ? "" : "s"}
         </h3>
-        {showUpload && (
+        {effectiveShowUpload && (
           <MediaUploadDialog
             restaurantId={restaurantId}
             onUpload={onRefresh}
@@ -251,7 +259,7 @@ export function MediaLibrary({
                   <p className="text-[10px] text-white/70">{formatBytes(item.size)}</p>
                 </div>
 
-                {!selectable && editingId === item.id ? (
+                {!selectable && !readOnly && editingId === item.id ? (
                   <div
                     className="absolute inset-x-2 top-2 flex items-center gap-1 rounded-md bg-background/95 p-1 shadow-sm"
                     onClick={(e) => e.stopPropagation()}
@@ -301,7 +309,7 @@ export function MediaLibrary({
                     </Button>
                   </div>
                 ) : (
-                  !selectable && (
+                  !selectable && !readOnly && (
                     <>
                       <Button
                         type="button"

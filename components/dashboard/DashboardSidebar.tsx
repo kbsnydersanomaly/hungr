@@ -4,18 +4,6 @@ import { OrgSwitcher } from "@/components/dashboard/OrgSwitcher";
 import { SidebarNavLink } from "@/components/dashboard/SidebarNavLink";
 import { SidebarPlainLink } from "@/components/dashboard/SidebarPlainLink";
 import {
-  LayoutDashboard,
-  BarChart3,
-  UtensilsCrossed,
-  Sparkles,
-  Palette,
-  Info,
-  QrCode,
-  Star,
-  Image as ImageIcon,
-  Users,
-  CreditCard,
-  Settings,
   Plus,
   LifeBuoy,
   type LucideIcon,
@@ -25,6 +13,7 @@ type RestaurantNavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  desktopOnly?: boolean;
 };
 
 type MainNavItem = {
@@ -46,6 +35,7 @@ export function DashboardSidebar({
   memberships,
   activeOrgId,
   canManageOrg,
+  mode = "desktop",
 }: {
   mainNavItems: MainNavItem[];
   restaurantNavItems: RestaurantNavItem[];
@@ -53,7 +43,12 @@ export function DashboardSidebar({
   memberships: OrgMembership[];
   activeOrgId: string | null;
   canManageOrg: boolean;
+  mode?: "desktop" | "mobile";
 }) {
+  const visibleRestaurantNavItems =
+    mode === "mobile"
+      ? restaurantNavItems.filter((item) => !item.desktopOnly)
+      : restaurantNavItems;
   return (
     <>
       <div className="mb-6 px-2 lg:mb-8">
@@ -79,7 +74,7 @@ export function DashboardSidebar({
           );
         })}
 
-        {restaurantNavItems.map((item) => {
+        {visibleRestaurantNavItems.map((item) => {
           const Icon = item.icon;
           return (
             <SidebarNavLink key={item.href} href={item.href} label={item.label}>

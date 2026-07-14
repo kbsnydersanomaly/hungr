@@ -19,7 +19,7 @@ export function DashboardShell({
   children,
 }: {
   impersonationBanner?: React.ReactNode;
-  sidebar: React.ReactNode;
+  sidebar: React.ReactNode | ((mode: "desktop" | "mobile") => React.ReactNode);
   header: React.ReactNode;
   banners?: React.ReactNode;
   children: React.ReactNode;
@@ -39,13 +39,17 @@ export function DashboardShell({
     setMobileNavOpen(false);
   }
 
+  function renderSidebar(mode: "desktop" | "mobile") {
+    return typeof sidebar === "function" ? sidebar(mode) : sidebar;
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       {impersonationBanner}
 
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-[260px] shrink-0 flex-col border-r bg-muted/30 px-4 py-6 lg:flex">
-          {sidebar}
+          {renderSidebar("desktop")}
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -77,7 +81,7 @@ export function DashboardShell({
         >
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           <MobileNavProvider onNavigate={closeMobileNav}>
-            <div className="flex h-full flex-col px-4 py-6">{sidebar}</div>
+            <div className="flex h-full flex-col px-4 py-6">{renderSidebar("mobile")}</div>
           </MobileNavProvider>
         </SheetContent>
       </Sheet>

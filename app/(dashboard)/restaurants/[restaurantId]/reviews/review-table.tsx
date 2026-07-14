@@ -162,7 +162,7 @@ export function ReviewTable({
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(["all", "pending", "approved", "rejected"] as const).map((s) => (
           <Button
             key={s}
@@ -182,7 +182,7 @@ export function ReviewTable({
 
       {/* Bulk actions */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted">
+        <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-muted">
           <span className="text-sm">{selected.size} selected</span>
           <Button size="sm" variant="outline" onClick={() => handleBulkModerate("approved")}>
             <CheckCircle className="h-4 w-4 mr-1" />
@@ -196,7 +196,7 @@ export function ReviewTable({
       )}
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

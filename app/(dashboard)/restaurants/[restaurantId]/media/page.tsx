@@ -4,6 +4,7 @@ import { requireRestaurantManagement } from "@/lib/billing/management-guard";
 import { listMediaForRestaurant, getRestaurantStorageUsage } from "@/lib/data/media-actions";
 import { PageHeader } from "@/components/PageHeader";
 import { MediaLibrary } from "@/components/dashboard/MediaLibrary";
+import { DesktopOnlyPage } from "@/components/dashboard/DesktopOnlyPage";
 
 export default async function MediaPage({
   params,
@@ -26,17 +27,33 @@ export default async function MediaPage({
   ]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Media Library"
-        description={`Manage images for ${restaurant.name}`}
-      />
-      <MediaLibrary
-        restaurantId={restaurantId}
-        media={media}
-        usedBytes={usage.usedBytes}
-        limitBytes={usage.limitBytes}
-      />
-    </div>
+    <DesktopOnlyPage
+      title="Media Library"
+      mobileExtra={
+        <div className="mt-4 space-y-4">
+          <MediaLibrary
+            restaurantId={restaurantId}
+            media={media}
+            usedBytes={usage.usedBytes}
+            limitBytes={usage.limitBytes}
+            showUpload={false}
+            readOnly
+          />
+        </div>
+      }
+    >
+      <div className="space-y-6">
+        <PageHeader
+          title="Media Library"
+          description={`Manage images for ${restaurant.name}`}
+        />
+        <MediaLibrary
+          restaurantId={restaurantId}
+          media={media}
+          usedBytes={usage.usedBytes}
+          limitBytes={usage.limitBytes}
+        />
+      </div>
+    </DesktopOnlyPage>
   );
 }

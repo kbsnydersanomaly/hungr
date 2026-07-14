@@ -5,6 +5,8 @@ import { loadBranding, loadBrandingDraft } from "@/lib/data/branding";
 import { BrandingEditor } from "@/components/branding/BrandingEditor";
 import { PageHeader } from "@/components/PageHeader";
 
+import { DesktopOnlyPage } from "@/components/dashboard/DesktopOnlyPage";
+
 export default async function BrandingPage({
   params,
 }: {
@@ -25,16 +27,24 @@ export default async function BrandingPage({
     loadBrandingDraft(restaurantId),
   ]);
 
+  const publicUrl = `/m/${restaurant.slug}`;
+
   return (
-    <div className="h-[calc(100vh-140px)]">
-      <BrandingEditor
-        restaurantId={restaurantId}
-        restaurantSlug={restaurant.slug}
-        live={live}
-        draft={draft}
-      >
-        <PageHeader title="Branding" description="Customize your menu appearance" />
-      </BrandingEditor>
-    </div>
+    <DesktopOnlyPage
+      title="Branding"
+      seeCurrentHref={publicUrl}
+      seeCurrentLabel="see current branding"
+    >
+      <div className="h-[calc(100vh-140px)]">
+        <BrandingEditor
+          restaurantId={restaurantId}
+          restaurantSlug={restaurant.slug}
+          live={live}
+          draft={draft}
+        >
+          <PageHeader title="Branding" description="Customize your menu appearance" />
+        </BrandingEditor>
+      </div>
+    </DesktopOnlyPage>
   );
 }

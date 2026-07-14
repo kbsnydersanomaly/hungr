@@ -24,6 +24,7 @@ import {
   Users,
   CreditCard,
   Settings,
+  type LucideIcon,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -35,18 +36,24 @@ const mainNavItems = [
 
 // minRole: lowest org role that sees this entry. Staff only get overview-style
 // pages; managers can edit the restaurant; billing/settings stay owner-only.
-const restaurantNavItems = [
+const restaurantNavItems: readonly {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  minRole: string;
+  desktopOnly?: boolean;
+}[] = [
   { href: "/menus", label: "Menus", icon: UtensilsCrossed, minRole: "manager" },
   { href: "/specials", label: "Specials", icon: Sparkles, minRole: "manager" },
-  { href: "/branding", label: "Branding", icon: Palette, minRole: "manager" },
+  { href: "/branding", label: "Branding", icon: Palette, minRole: "manager", desktopOnly: true },
   { href: "/about", label: "About", icon: Info, minRole: "manager" },
-  { href: "/qr", label: "QR Codes", icon: QrCode, minRole: "manager" },
+  { href: "/qr", label: "QR Codes", icon: QrCode, minRole: "manager", desktopOnly: true },
   { href: "/reviews", label: "Reviews", icon: Star, minRole: "manager" },
-  { href: "/media", label: "Media", icon: ImageIcon, minRole: "manager" },
+  { href: "/media", label: "Media", icon: ImageIcon, minRole: "manager", desktopOnly: true },
   { href: "/team", label: "Team", icon: Users, minRole: "manager" },
   { href: "/billing", label: "Billing", icon: CreditCard, minRole: "owner" },
   { href: "/settings", label: "Settings", icon: Settings, minRole: "owner" },
-] as const;
+];
 
 const ORG_ROLE_RANK: Record<string, number> = {
   owner: 100,
@@ -147,11 +154,13 @@ export default async function DashboardLayout({
           href: `/restaurants/${effectiveRestaurant.id}${item.href}`,
           label: item.label,
           icon: item.icon,
+          desktopOnly: item.desktopOnly,
         }))
     : [];
 
-  const sidebar = (
+  const sidebar = (mode: "desktop" | "mobile") => (
     <DashboardSidebar
+      mode={mode}
       mainNavItems={resolvedMainNavItems}
       restaurantNavItems={resolvedRestaurantNavItems}
       showAddRestaurant={restaurants.length === 0 && hasMinRole(orgRole, "owner")}

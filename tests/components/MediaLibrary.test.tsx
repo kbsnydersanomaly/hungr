@@ -174,4 +174,23 @@ describe("MediaLibrary", () => {
     expect(screen.queryByLabelText("Rename media")).not.toBeInTheDocument();
     expect(screen.getByText("burger.jpg")).toBeInTheDocument();
   });
+
+  it("hides upload, rename, and delete controls when readOnly is true", () => {
+    render(
+      <MediaLibrary
+        restaurantId="r1"
+        media={media}
+        showUpload
+        readOnly
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /upload/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(`Rename ${media[0].name}`)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: new RegExp(`Delete ${media[0].name}`, "i") })
+    ).not.toBeInTheDocument();
+  });
 });

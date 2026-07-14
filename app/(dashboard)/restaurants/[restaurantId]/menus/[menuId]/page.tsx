@@ -82,7 +82,9 @@ export default async function MenuWorkspacePage({
         <span className="text-sm text-muted-foreground">/{menu.slug}</span>
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <BulkUploadModal menuId={menuId} restaurantId={restaurantId} />
+          <div className="hidden lg:block">
+            <BulkUploadModal menuId={menuId} restaurantId={restaurantId} />
+          </div>
           <ExportMenuButton menuId={menuId} />
 
           {isPublished && (
