@@ -47,8 +47,11 @@ Open [http://localhost:3000](http://localhost:3000).
 `supabase/schemas/baseline.sql` is a documentation-only snapshot of the production `public` schema. It is **not** a migration. To rebuild an environment from scratch:
 
 1. Start a fresh local Supabase instance (`supabase start` or `supabase db reset`).
-2. Apply migrations with `pnpm db:migrate` (runs `supabase migration up`).
-3. Seed demo data with `pnpm db:seed`.
+2. Apply the baseline: `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f supabase/schemas/baseline.sql`.
+3. Apply migrations with `pnpm db:migrate` (runs `supabase migration up`).
+4. Seed demo data with `pnpm db:seed`.
+
+Note the baseline only covers the `public` schema. Objects outside it (the `on_auth_user_created` trigger on `auth.users`, storage buckets and their policies) are restored by the `20260714150000_restore_non_public_schema_objects` migration in step 3 — if signups or uploads fail after a rebuild, check that it ran.
 
 Reviewers should check that any schema-level change has a corresponding migration in `supabase/migrations/`; the baseline makes the starting state visible.
 
