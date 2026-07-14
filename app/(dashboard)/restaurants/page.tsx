@@ -1,5 +1,6 @@
 import { getActiveOrg } from "@/lib/auth/active-org";
-import { loadRestaurantsForOrg } from "@/lib/data/restaurants";
+import { getSession } from "@/lib/auth/session";
+import { loadRestaurantsForUser } from "@/lib/data/restaurants";
 import { PageHeader } from "@/components/PageHeader";
 import { LinkButton } from "@/components/ui/link-button";
 import { RestaurantCard } from "@/components/dashboard/RestaurantCard";
@@ -7,9 +8,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { UtensilsCrossed, Plus } from "lucide-react";
 
 export default async function RestaurantsPage() {
-  const org = await getActiveOrg();
+  const [org, session] = await Promise.all([getActiveOrg(), getSession()]);
   const orgId = org?.orgId;
-  const restaurants = orgId ? await loadRestaurantsForOrg(orgId) : [];
+  const userId = session?.user.id;
+  const restaurants = orgId && userId ? await loadRestaurantsForUser(userId, orgId) : [];
+  const canAddRestaurant = org?.role === "owner" || org?.role === "admin";
 
   return (
     <div className="space-y-6">
@@ -17,9 +20,11 @@ export default async function RestaurantsPage() {
         title="Restaurants"
         description="Manage your restaurant locations"
         action={
-          <LinkButton href="/restaurants/new" icon={<Plus />}>
-            Add restaurant
-          </LinkButton>
+          canAddRestaurant ? (
+            <LinkButton href="/restaurants/new" icon={<Plus />}>
+              Add restaurant
+            </LinkButton>
+          ) : undefined
         }
       />
 
@@ -29,11 +34,15 @@ export default async function RestaurantsPage() {
             <UtensilsCrossed className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium">No restaurants yet</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Create your first restaurant to get started.
+              {canAddRestaurant
+                ? "Create your first restaurant to get started."
+                : "You're not assigned to any restaurants yet. Ask an organization admin to add you from a restaurant's Team page."}
             </p>
-            <LinkButton href="/restaurants/new" icon={<Plus />} className="mt-4">
-              Add restaurant
-            </LinkButton>
+            {canAddRestaurant && (
+              <LinkButton href="/restaurants/new" icon={<Plus />} className="mt-4">
+                Add restaurant
+              </LinkButton>
+            )}
           </CardContent>
         </Card>
       ) : (

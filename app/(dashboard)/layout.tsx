@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getActiveOrg } from "@/lib/auth/active-org";
 import { getActiveRestaurant } from "@/lib/auth/active-restaurant";
-import { loadRestaurantsForOrg } from "@/lib/data/restaurants";
+import { loadRestaurantsForUser } from "@/lib/data/restaurants";
 import { RestaurantBreadcrumb } from "@/components/dashboard/RestaurantBreadcrumb";
 import { AvatarMenu } from "@/components/dashboard/AvatarMenu";
 import { NotificationBellServer } from "@/components/dashboard/NotificationBellServer";
@@ -98,12 +98,18 @@ export default async function DashboardLayout({
       (m.organizations as { name?: string } | null)?.name ?? "Unnamed organization",
   }));
 
-  const restaurants = activeOrgId ? await loadRestaurantsForOrg(activeOrgId) : [];
+  // Scoped to the current user: restaurant-scoped staff only see the
+  // restaurants they were explicitly assigned to, never the whole org.
+  const restaurants = activeOrgId ? await loadRestaurantsForUser(user.id, activeOrgId) : [];
   const activeRestaurant = await getActiveRestaurant();
 
-  // Fallback to first restaurant if none is active but restaurants exist
+  // Fall back to the first restaurant the user can actually see when none is
+  // active — or when the active one is no longer in their visible set (e.g. a
+  // restaurant-scoped staff member whose cookie points at another restaurant).
+  const activeRestaurantVisible =
+    activeRestaurant !== null && restaurants.some((r) => r.id === activeRestaurant.id);
   const effectiveRestaurant =
-    activeRestaurant ??
+    (activeRestaurantVisible ? activeRestaurant : null) ??
     (restaurants.length > 0
       ? { id: restaurants[0].id, name: restaurants[0].name, slug: restaurants[0].slug }
       : null);

@@ -1,5 +1,6 @@
 import { getActiveOrg } from "@/lib/auth/active-org";
-import { loadRestaurantsForOrg } from "@/lib/data/restaurants";
+import { getSession } from "@/lib/auth/session";
+import { loadRestaurantsForUser } from "@/lib/data/restaurants";
 import {
   getDailyStatsForRestaurant,
   getTopItemsForRestaurant,
@@ -14,10 +15,11 @@ import { TrendingUp } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function InsightsPage() {
-  const org = await getActiveOrg();
+  const [org, session] = await Promise.all([getActiveOrg(), getSession()]);
   const orgId = org?.orgId;
+  const userId = session?.user.id;
 
-  if (!orgId) {
+  if (!orgId || !userId) {
     return (
       <div className="space-y-6">
         <PageHeader title="Insights" description="Menu and visitor analytics" />
@@ -30,7 +32,9 @@ export default async function InsightsPage() {
     );
   }
 
-  const restaurants = await loadRestaurantsForOrg(orgId);
+  // Scoped to the current user: restaurant-scoped staff only see analytics for
+  // the restaurants they were explicitly assigned to.
+  const restaurants = await loadRestaurantsForUser(userId, orgId);
 
   if (restaurants.length === 0) {
     return (

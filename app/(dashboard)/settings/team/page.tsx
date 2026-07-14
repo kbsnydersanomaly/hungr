@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getActiveOrg } from "@/lib/auth/active-org";
@@ -6,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InviteMemberDialog } from "@/components/dashboard/team/InviteMemberDialog";
 import { MemberActionsMenu } from "@/components/dashboard/team/MemberActionsMenu";
 import { InvitationList, type InvitationRow } from "@/components/dashboard/team/InvitationList";
-import { TeamMemberRow } from "@/components/dashboard/team/TeamMemberRow";
-import { rel, type ProfileRef } from "@/lib/types/relations";
+import { TeamMemberRow, type RestaurantAssignment } from "@/components/dashboard/team/TeamMemberRow";
+import { rel, type ProfileRef, type RestaurantRef } from "@/lib/types/relations";
 
 type Member = { role: string; joined_at?: string; profiles: unknown };
 
@@ -23,28 +25,53 @@ export default async function TeamSettingsPage() {
 
   const supabase = await createServerClient();
 
-  const [{ data: members }, { data: invitations }, { data: org }] =
-    await Promise.all([
-      supabase
-        .from("organization_members")
-        .select(
-          "role, joined_at, profiles(id, email, first_name, last_name, display_name)"
-        )
-        .eq("org_id", activeOrg.orgId)
-        .order("joined_at", { ascending: false }),
-      supabase
-        .from("invitations")
-        .select(
-          "id, email, role, restaurant_id, invited_by, expires_at, accepted_at, revoked_at, created_at, profiles!invited_by(display_name, email)"
-        )
-        .eq("org_id", activeOrg.orgId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("organizations")
-        .select("name")
-        .eq("id", activeOrg.orgId)
-        .single(),
-    ]);
+  const [
+    { data: members },
+    { data: invitations },
+    { data: org },
+    { data: restaurants },
+    { data: restaurantMemberships },
+  ] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select(
+        "role, joined_at, profiles(id, email, first_name, last_name, display_name)"
+      )
+      .eq("org_id", activeOrg.orgId)
+      .order("joined_at", { ascending: false }),
+    supabase
+      .from("invitations")
+      .select(
+        "id, email, role, restaurant_id, invited_by, expires_at, accepted_at, revoked_at, created_at, profiles!invited_by(display_name, email)"
+      )
+      .eq("org_id", activeOrg.orgId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", activeOrg.orgId)
+      .single(),
+    supabase
+      .from("restaurants")
+      .select("id, name")
+      .eq("org_id", activeOrg.orgId)
+      .order("name"),
+    supabase
+      .from("restaurant_members")
+      .select("user_id, role, restaurants!inner(id, name)")
+      .eq("restaurants.org_id", activeOrg.orgId),
+  ]);
+
+  // Restaurant-scoped memberships grouped by user, so the org team list shows
+  // at a glance who is assigned to which restaurant and in what role.
+  const assignmentsByUser = new Map<string, RestaurantAssignment[]>();
+  for (const rm of restaurantMemberships ?? []) {
+    const restaurant = rel<RestaurantRef>(rm.restaurants);
+    if (!restaurant?.id || !restaurant.name) continue;
+    const list = assignmentsByUser.get(rm.user_id) ?? [];
+    list.push({ restaurantId: restaurant.id, name: restaurant.name, role: rm.role });
+    assignmentsByUser.set(rm.user_id, list);
+  }
 
   const isOwner = activeOrg.role === "owner";
   const isAdmin = activeOrg.role === "admin" || isOwner;
@@ -52,6 +79,24 @@ export default async function TeamSettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <PageHeader title="Team" description={`Manage members of ${org?.name ?? "your organization"}`} />
+
+      {restaurants && restaurants.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Want someone to manage only one restaurant? Invite them from that
+          restaurant&apos;s Team page:{" "}
+          {restaurants.map((r, i) => (
+            <Fragment key={r.id}>
+              {i > 0 && ", "}
+              <Link
+                href={`/restaurants/${r.id}/team`}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                {r.name}
+              </Link>
+            </Fragment>
+          ))}
+        </p>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -68,6 +113,7 @@ export default async function TeamSettingsPage() {
                     key={profile?.id}
                     profiles={m.profiles}
                     role={m.role}
+                    assignments={profile?.id ? assignmentsByUser.get(profile.id) : undefined}
                     actions={
                       isAdmin && profile?.id ? (
                         <MemberActionsMenu

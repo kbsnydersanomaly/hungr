@@ -40,12 +40,13 @@ export async function loadRestaurantsForOrg(orgId: string) {
 export async function loadRestaurantsForUser(userId: string, orgId: string) {
   const supabase = await createServerClient();
 
-  const [{ data: orgRestaurants }, { data: memberRestaurants }] = await Promise.all([
+  const [{ data: orgMember }, { data: memberRestaurants }] = await Promise.all([
     supabase
-      .from("restaurants")
-      .select("*")
+      .from("organization_members")
+      .select("role")
       .eq("org_id", orgId)
-      .order("created_at", { ascending: false }),
+      .eq("user_id", userId)
+      .maybeSingle(),
     supabase
       .from("restaurant_members")
       .select("restaurants(*)")
@@ -54,10 +55,23 @@ export async function loadRestaurantsForUser(userId: string, orgId: string) {
       .order("joined_at", { ascending: false }),
   ]);
 
-  const fromOrg = orgRestaurants ?? [];
   const fromMemberships = (memberRestaurants ?? [])
     .map((m) => m.restaurants)
     .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  // Org 'staff' is the baseline role handed out with restaurant-scoped invites:
+  // those users must only see the restaurants they were explicitly assigned to.
+  if (!orgMember || orgMember.role === "staff") {
+    return fromMemberships;
+  }
+
+  const { data: orgRestaurants } = await supabase
+    .from("restaurants")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false });
+
+  const fromOrg = orgRestaurants ?? [];
 
   const seen = new Set<string>();
   const merged: typeof fromOrg = [];

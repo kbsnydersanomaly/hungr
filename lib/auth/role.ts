@@ -33,12 +33,47 @@ export async function requireRestaurantAccess(
   min: "manager" | "staff" = "staff"
 ) {
   const { user, supabase } = await requireSession();
-  const { data } = await supabase.rpc("has_restaurant_access", {
-    rid: restaurantId,
-    min_role: min,
-  });
-  if (!data) throw new ForbiddenError();
-  return { user, supabase };
+
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("org_id")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  if (!restaurant) throw new ForbiddenError();
+
+  // Org roles manager and above get org-wide access. Org 'staff' is only the
+  // baseline membership handed out with restaurant-scoped invites, so it must
+  // NOT unlock every restaurant in the org — those users need an explicit
+  // restaurant_members row.
+  const { data: orgMember } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("org_id", restaurant.org_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const orgRole = orgMember?.role as OrgRole | undefined;
+  if (orgRole && orgRole !== "staff" && ORG_RANK[orgRole] >= ORG_RANK[min]) {
+    return { user, supabase };
+  }
+
+  const { data: restaurantMember } = await supabase
+    .from("restaurant_members")
+    .select("role")
+    .eq("restaurant_id", restaurantId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (
+    restaurantMember &&
+    ORG_RANK[restaurantMember.role as RestaurantRole] >= ORG_RANK[min]
+  ) {
+    return { user, supabase };
+  }
+
+  if (await isSuperAdmin(user.id)) return { user, supabase };
+
+  throw new ForbiddenError();
 }
 
 type MenuOwnedTable = "categories" | "menu_items";

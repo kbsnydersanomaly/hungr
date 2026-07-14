@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRestaurantAccess } from "@/lib/auth/role";
 import { PageHeader } from "@/components/PageHeader";
@@ -62,6 +63,18 @@ export default async function RestaurantTeamPage({
         title="Team"
         description={`Manage team members for ${restaurant.name}`}
       />
+
+      <p className="text-sm text-muted-foreground">
+        Org-wide roles (owner, admin) and members with access to all restaurants
+        are managed from the{" "}
+        <Link
+          href="/settings/team"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          organization Team page
+        </Link>
+        .
+      </p>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
