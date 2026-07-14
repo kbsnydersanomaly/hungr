@@ -12,8 +12,8 @@ import {
   cancelSubscriptionAction,
   resumeSubscriptionAction,
   updatePaymentMethodAction,
-  finalizeReplacementSubscription,
 } from "@/lib/data/billing-actions";
+import { finalizeReplacementSubscription } from "@/lib/billing/replacement";
 import { ForbiddenError } from "@/lib/errors";
 import * as payfast from "@/lib/billing/payfast";
 import * as mail from "@/lib/mail";
@@ -429,16 +429,31 @@ describe("billing actions", () => {
   });
 
   describe("finalizeReplacementSubscription", () => {
-    it("marks the old subscription row as superseded", async () => {
+    // The old row is claimed with update(...).eq(id).not(status in
+    // superseded/cancelled).select(); `claimed` is what that select returns.
+    function makeFinalizeSupabase(claimed: { id: string }[]) {
       let updatePayload: Record<string, unknown> | null = null;
       const mockSupabase = {
         from: () => ({
           update: (payload: Record<string, unknown>) => {
             updatePayload = payload;
-            return { eq: () => Promise.resolve({ error: null }) };
+            return {
+              eq: () => ({
+                not: () => ({
+                  select: () => Promise.resolve({ data: claimed, error: null }),
+                }),
+              }),
+            };
           },
         }),
       };
+      return { mockSupabase, getUpdatePayload: () => updatePayload };
+    }
+
+    it("marks the old subscription row as superseded and cancels its token", async () => {
+      const { mockSupabase, getUpdatePayload } = makeFinalizeSupabase([
+        { id: restaurantSub.id },
+      ]);
 
       await finalizeReplacementSubscription(mockSupabase as never, {
         id: "new-sub-123",
@@ -451,7 +466,24 @@ describe("billing actions", () => {
       expect(mockedPayfast.cancelSubscription).toHaveBeenCalledWith(
         restaurantSub.payfast_token
       );
-      expect(updatePayload).toMatchObject({ status: "superseded" });
+      expect(getUpdatePayload()).toMatchObject({ status: "superseded" });
+    });
+
+    it("does not cancel again when the old row was already finalized", async () => {
+      // PayFast re-delivers COMPLETE for every recurring charge of the
+      // replacement subscription — the claim comes back empty and the token
+      // must not be cancelled a second time.
+      const { mockSupabase } = makeFinalizeSupabase([]);
+
+      await finalizeReplacementSubscription(mockSupabase as never, {
+        id: "new-sub-123",
+        org_id: "org-123",
+        scope: "restaurant",
+        scope_id: "rest-123",
+        m_payment_id: `replace:${restaurantSub.id}:${restaurantSub.payfast_token}:123456789`,
+      });
+
+      expect(mockedPayfast.cancelSubscription).not.toHaveBeenCalled();
     });
 
     it("does nothing for non-replacement m_payment_id", async () => {

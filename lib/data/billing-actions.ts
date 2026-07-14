@@ -16,9 +16,8 @@ import {
   buildPayFastCheckout,
   getCardUpdateUrl,
   buildReplacementMPaymentId,
-  isReplacementMPaymentId,
-  parseReplacementMPaymentId,
 } from "@/lib/billing/payfast";
+import { finalizeReplacementSubscription } from "@/lib/billing/replacement";
 import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
 import { writeAudit } from "@/lib/utils/audit";
@@ -128,8 +127,9 @@ export async function loadSubscriptionForRestaurant(restaurantId: string) {
   const { supabase } = await requireRestaurantAccess(restaurantId, "staff");
 
   // A restaurant can accumulate more than one subscription row over its
-  // lifetime (e.g. cancel then re-subscribe). Take the most recent so
-  // `.maybeSingle()` never trips the "multiple rows" error.
+  // lifetime (e.g. cancel then re-subscribe). Take the most recent, but skip
+  // pending `replace:` rows — an abandoned update-payment-method checkout must
+  // not shadow the still-active subscription on the billing page.
   const { data, error } = await supabase
     .from("subscriptions")
     .select("*, plans(*)")
@@ -137,15 +137,18 @@ export async function loadSubscriptionForRestaurant(restaurantId: string) {
     .eq("scope_id", restaurantId)
     .in("status", ["pending", "active", "paused", "cancelled", "superseded"])
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
   if (error) {
     console.error("loadSubscriptionForRestaurant error:", error);
     throw actionError("Failed to load subscription", error);
   }
 
-  return data;
+  return (
+    (data ?? []).find(
+      (sub) => !(sub.status === "pending" && sub.m_payment_id?.startsWith("replace:"))
+    ) ?? null
+  );
 }
 
 export async function loadTransactionsForRestaurant(restaurantId: string) {
@@ -478,7 +481,17 @@ export async function updatePaymentMethodAction(subscriptionId: string) {
       payfast_token: token,
     });
 
-    const { error: insertError } = await createAdminClient()
+    const admin = createAdminClient();
+
+    // Remove replacement rows from earlier abandoned attempts for this
+    // subscription so they don't accumulate as pending rows forever.
+    await admin
+      .from("subscriptions")
+      .delete()
+      .eq("status", "pending")
+      .like("m_payment_id", `replace:${sub.id}:%`);
+
+    const { error: insertError } = await admin
       .from("subscriptions")
       .insert({
         scope: sub.scope,
@@ -524,64 +537,6 @@ export async function updatePaymentMethodAction(subscriptionId: string) {
     });
 
     return { url: checkoutUrl };
-  });
-}
-
-/**
- * When a replacement checkout completes, cancel the old PayFast token and mark
- * the previous subscription row as superseded so it is not left active.
- */
-export async function finalizeReplacementSubscription(
-  supabase: SupabaseClient<Database>,
-  newSub: {
-    id: string;
-    org_id: string;
-    scope: string;
-    scope_id: string;
-    m_payment_id: string | null;
-  }
-) {
-  if (!newSub.m_payment_id || !isReplacementMPaymentId(newSub.m_payment_id)) {
-    return;
-  }
-
-  const parsed = parseReplacementMPaymentId(newSub.m_payment_id);
-  if (!parsed) return;
-
-  const { oldSubId, oldToken } = parsed;
-  let oldTokenCancelled = false;
-
-  try {
-    await payfastCancel(oldToken);
-    oldTokenCancelled = true;
-  } catch (err) {
-    console.error("Failed to cancel replaced PayFast subscription:", err);
-  }
-
-  const { error } = await supabase
-    .from("subscriptions")
-    .update({
-      status: "superseded",
-      cancelled_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", oldSubId);
-
-  if (error) {
-    console.error("Failed to mark replaced subscription as superseded:", error);
-  }
-
-  await writeAudit({
-    org_id: newSub.org_id,
-    restaurant_id: newSub.scope === "restaurant" ? newSub.scope_id : undefined,
-    action: "subscription:replaced",
-    target_table: "subscriptions",
-    target_id: oldSubId,
-    diff: {
-      replaced_by_subscription_id: newSub.id,
-      old_token_cancelled: oldTokenCancelled,
-      new_m_payment_id: newSub.m_payment_id,
-    },
   });
 }
 

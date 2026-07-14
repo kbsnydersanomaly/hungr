@@ -42,11 +42,14 @@ begin
   -- first). 'active' is obvious; 'paused' PayFast mandates auto-resume and
   -- would bill a deleted restaurant, and 'pending' rows can be activated by
   -- an in-flight ITN webhook. Only terminal rows are removed below.
+  -- Pending 'replace:%' rows are exempt: abandoned update-payment-method
+  -- checkouts that never show on the billing page and can't be cancelled.
   if exists (
     select 1 from subscriptions
     where scope = 'restaurant'
       and scope_id = p_restaurant_id
       and status in ('active', 'paused', 'pending')
+      and not (status = 'pending' and m_payment_id like 'replace:%')
   ) then
     raise exception 'restaurant has an active or paused subscription; cancel billing before deleting';
   end if;

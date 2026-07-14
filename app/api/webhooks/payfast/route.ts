@@ -4,7 +4,7 @@ import {
   validateWithPayFast,
   nextBillingDate,
 } from "@/lib/billing/payfast";
-import { finalizeReplacementSubscription } from "@/lib/data/billing-actions";
+import { finalizeReplacementSubscription } from "@/lib/billing/replacement";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "@/lib/mail";
 import { env } from "@/lib/env";
@@ -146,6 +146,8 @@ export async function POST(req: Request) {
       });
     }
   } else if (params.payment_status === "CANCELLED" && sub) {
+    // PayFast sends a CANCELLED ITN after we cancel a replaced subscription's
+    // token — don't let it downgrade `superseded` to `cancelled`.
     await supabase
       .from("subscriptions")
       .update({
@@ -153,7 +155,8 @@ export async function POST(req: Request) {
         cancelled_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", sub.id);
+      .eq("id", sub.id)
+      .neq("status", "superseded");
   }
 
   // 7. Audit log

@@ -180,13 +180,18 @@ export async function deleteRestaurant(
     // effect of deleting a restaurant. 'active' is obvious; 'paused' PayFast
     // mandates auto-resume, and 'pending' rows can be activated by an
     // in-flight ITN webhook. The user must cancel on the billing page first.
-    const { data: liveSub } = await supabase
+    // Pending `replace:` rows are exempt: they are abandoned update-payment-
+    // method checkouts, invisible on the billing page and uncancellable there.
+    const { data: liveSubs } = await supabase
       .from("subscriptions")
-      .select("id")
+      .select("id, status, m_payment_id")
       .eq("scope", "restaurant")
       .eq("scope_id", restaurantId)
-      .in("status", ["active", "paused", "pending"])
-      .maybeSingle();
+      .in("status", ["active", "paused", "pending"]);
+
+    const liveSub = (liveSubs ?? []).find(
+      (sub) => !(sub.status === "pending" && sub.m_payment_id?.startsWith("replace:"))
+    );
 
     if (liveSub) {
       throw new BillingError(
