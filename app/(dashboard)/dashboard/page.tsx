@@ -14,12 +14,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UtensilsCrossed, TrendingUp, Users, Star, Plus, CheckCircle2, Circle } from "lucide-react";
 
+const ORG_ROLE_RANK: Record<OrgRole, number> = {
+  owner: 100,
+  admin: 80,
+  manager: 60,
+  staff: 40,
+};
+
+function hasMinRole(role: OrgRole | undefined, min: OrgRole) {
+  return (ORG_ROLE_RANK[role ?? "staff"] ?? 0) >= ORG_ROLE_RANK[min];
+}
+
 export default async function DashboardPage() {
   const [org, session] = await Promise.all([getActiveOrg(), getSession()]);
   const orgId = org?.orgId;
   const userId = session?.user.id;
   const restaurants = orgId && userId ? await loadRestaurantsForUser(userId, orgId) : [];
-  const billing = orgId ? await getRestaurantBillingContext(orgId) : null;
+  const canAddRestaurant = hasMinRole((org?.role as OrgRole) ?? "staff", "owner");
+  const billing = orgId && canAddRestaurant ? await getRestaurantBillingContext(orgId) : null;
 
   if (restaurants.length === 0) {
     return (
@@ -31,13 +43,17 @@ export default async function DashboardPage() {
         <Card>
           <CardContent className="py-16 text-center">
             <UtensilsCrossed className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
-            <h2 className="text-xl font-semibold mb-2">Add your first restaurant</h2>
+            <h2 className="text-xl font-semibold mb-2">{canAddRestaurant ? "Add your first restaurant" : "Not assigned to any restaurants"}</h2>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-              Create a restaurant to start building menus, generating QR codes, and managing your brand.
+              {canAddRestaurant
+                ? "Create a restaurant to start building menus, generating QR codes, and managing your brand."
+                : "Ask an organization admin to assign you to a restaurant. Once assigned, you’ll see it here."}
             </p>
-            <LinkButton href="/restaurants/new" icon={<Plus />} size="lg">
-              Add restaurant
-            </LinkButton>
+            {canAddRestaurant && (
+              <LinkButton href="/restaurants/new" icon={<Plus />} size="lg">
+                Add restaurant
+              </LinkButton>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -155,7 +171,7 @@ export default async function DashboardPage() {
           {restaurants.map((r) => (
             <RestaurantCard key={r.id} restaurant={r} />
           ))}
-          <AddRestaurantCard />
+          {canAddRestaurant && <AddRestaurantCard />}
         </div>
       </section>
 

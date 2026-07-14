@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getActiveOrg } from "@/lib/auth/active-org";
 import { getRestaurantBillingContext } from "@/lib/billing/pricing";
@@ -18,7 +19,11 @@ export default async function NewRestaurantPage() {
   const org = await getActiveOrg();
   const orgId = org?.orgId;
 
-  const billing = orgId ? await getRestaurantBillingContext(orgId) : null;
+  if (!orgId || (org.role !== "owner" && org.role !== "admin")) {
+    redirect("/restaurants");
+  }
+
+  const billing = await getRestaurantBillingContext(orgId);
 
   return (
     <div className="space-y-6 max-w-xl">

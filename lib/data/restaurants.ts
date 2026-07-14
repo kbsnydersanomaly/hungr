@@ -40,7 +40,10 @@ export async function loadRestaurantsForOrg(orgId: string) {
 export async function loadRestaurantsForUser(userId: string, orgId: string) {
   const supabase = await createServerClient();
 
-  const [{ data: orgMember }, { data: memberRestaurants }] = await Promise.all([
+  const [
+    { data: orgMember, error: orgError },
+    { data: memberRestaurants, error: rmError },
+  ] = await Promise.all([
     supabase
       .from("organization_members")
       .select("role")
@@ -55,6 +58,9 @@ export async function loadRestaurantsForUser(userId: string, orgId: string) {
       .order("joined_at", { ascending: false }),
   ]);
 
+  if (orgError) throw orgError;
+  if (rmError) throw rmError;
+
   const fromMemberships = (memberRestaurants ?? [])
     .map((m) => m.restaurants)
     .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -65,11 +71,13 @@ export async function loadRestaurantsForUser(userId: string, orgId: string) {
     return fromMemberships;
   }
 
-  const { data: orgRestaurants } = await supabase
+  const { data: orgRestaurants, error: rError } = await supabase
     .from("restaurants")
     .select("*")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
+
+  if (rError) throw rError;
 
   const fromOrg = orgRestaurants ?? [];
 

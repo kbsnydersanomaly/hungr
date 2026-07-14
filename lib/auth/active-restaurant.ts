@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { getActiveOrg } from "@/lib/auth/active-org";
+import { requireRestaurantAccess } from "@/lib/auth/role";
 import { ValidationError } from "@/lib/errors";
 
 export async function getActiveRestaurant() {
@@ -33,16 +34,9 @@ export async function getActiveRestaurant() {
     }
   }
 
-  // No (valid) selection yet — default to the org's first restaurant.
-  const { data: first } = await supabase
-    .from("restaurants")
-    .select("id, name, slug")
-    .eq("org_id", activeOrg.orgId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  return first ? { id: first.id, name: first.name, slug: first.slug } : null;
+  // No (valid) selection yet — let the layout fall back to the first
+  // restaurant the user is actually allowed to see.
+  return null;
 }
 
 export async function setActiveRestaurant(
@@ -52,6 +46,8 @@ export async function setActiveRestaurant(
   const { supabase } = await requireSession();
   const activeOrg = await getActiveOrg();
   if (!activeOrg?.orgId) throw new ValidationError("No organization found.");
+
+  await requireRestaurantAccess(restaurantId, "staff");
 
   const { data: restaurant } = await supabase
     .from("restaurants")

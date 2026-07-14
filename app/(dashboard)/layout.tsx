@@ -41,7 +41,7 @@ const restaurantNavItems = [
   { href: "/branding", label: "Branding", icon: Palette, minRole: "manager" },
   { href: "/about", label: "About", icon: Info, minRole: "manager" },
   { href: "/qr", label: "QR Codes", icon: QrCode, minRole: "manager" },
-  { href: "/reviews", label: "Reviews", icon: Star, minRole: "staff" },
+  { href: "/reviews", label: "Reviews", icon: Star, minRole: "manager" },
   { href: "/media", label: "Media", icon: ImageIcon, minRole: "manager" },
   { href: "/team", label: "Team", icon: Users, minRole: "manager" },
   { href: "/billing", label: "Billing", icon: CreditCard, minRole: "owner" },
@@ -165,7 +165,7 @@ export default async function DashboardLayout({
     <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
       <RestaurantBreadcrumb
         restaurants={restaurants.map((r) => ({ id: r.id, name: r.name, slug: r.slug }))}
-        activeRestaurant={activeRestaurant}
+        activeRestaurant={effectiveRestaurant}
         orgName={orgName}
         canAddRestaurant={hasMinRole(orgRole, "owner")}
       />

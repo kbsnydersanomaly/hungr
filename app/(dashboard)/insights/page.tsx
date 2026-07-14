@@ -42,7 +42,7 @@ export default async function InsightsPage() {
         <PageHeader title="Insights" description="Menu and visitor analytics" />
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Create a restaurant to see analytics.
+            No restaurants are available to show analytics for.
           </CardContent>
         </Card>
       </div>

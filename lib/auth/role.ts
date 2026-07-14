@@ -34,35 +34,38 @@ export async function requireRestaurantAccess(
 ) {
   const { user, supabase } = await requireSession();
 
-  const { data: restaurant } = await supabase
+  const { data: restaurant, error: restaurantError } = await supabase
     .from("restaurants")
     .select("org_id")
     .eq("id", restaurantId)
     .maybeSingle();
+  if (restaurantError) throw restaurantError;
   if (!restaurant) throw new ForbiddenError();
 
   // Org roles manager and above get org-wide access. Org 'staff' is only the
   // baseline membership handed out with restaurant-scoped invites, so it must
   // NOT unlock every restaurant in the org — those users need an explicit
   // restaurant_members row.
-  const { data: orgMember } = await supabase
+  const { data: orgMember, error: orgError } = await supabase
     .from("organization_members")
     .select("role")
     .eq("org_id", restaurant.org_id)
     .eq("user_id", user.id)
     .maybeSingle();
+  if (orgError) throw orgError;
 
   const orgRole = orgMember?.role as OrgRole | undefined;
   if (orgRole && orgRole !== "staff" && ORG_RANK[orgRole] >= ORG_RANK[min]) {
     return { user, supabase };
   }
 
-  const { data: restaurantMember } = await supabase
+  const { data: restaurantMember, error: rmError } = await supabase
     .from("restaurant_members")
     .select("role")
     .eq("restaurant_id", restaurantId)
     .eq("user_id", user.id)
     .maybeSingle();
+  if (rmError) throw rmError;
 
   if (
     restaurantMember &&
