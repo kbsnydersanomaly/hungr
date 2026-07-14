@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "public/firebase-messaging-sw.js",
+    // Local git worktrees checked out inside the repo.
+    ".worktrees/**",
   ]),
 ]);
 

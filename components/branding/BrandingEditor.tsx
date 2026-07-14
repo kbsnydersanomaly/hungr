@@ -112,7 +112,7 @@ const GENERAL_COLOR_ROLES: ColorRole[] = [
   {
     key: "accent_color",
     label: "Accent",
-    description: "Active category pills and the specials tag",
+    description: "Active category pills, item label chips and the specials tag",
     fallback: "#3CE1AF",
   },
 ];

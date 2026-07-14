@@ -86,7 +86,7 @@ export function ItemCard({ item, restaurantSlug, menuSlug, menuId, compact, disc
             {item.labels.map((label) => (
               <span
                 key={label}
-                className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                className="inline-flex items-center rounded-full bg-[color:var(--color-accent,var(--secondary))] px-2 py-0.5 text-[10px] font-medium text-[color:var(--accent-foreground,var(--secondary-foreground))]"
               >
                 {label}
               </span>

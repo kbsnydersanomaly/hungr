@@ -21,6 +21,7 @@ import {
   COMMON_ALLERGENS,
   addCustomAllergen,
   customAllergens,
+  normalizeAllergen,
 } from "@/lib/menu/allergens";
 import { Plus, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -195,6 +196,22 @@ export function ItemEditSheet({
           ? prev[key].filter((v) => v !== value)
           : [...prev[key], value],
       })),
+    []
+  );
+
+  // Common-allergen checkboxes match case-insensitively so a CSV-imported
+  // "Gluten" checks (and can be removed via) the "gluten" box.
+  const toggleCommonAllergen = useCallback(
+    (value: string) =>
+      setForm((prev) => {
+        const has = prev.allergens.some((a) => normalizeAllergen(a) === value);
+        return {
+          ...prev,
+          allergens: has
+            ? prev.allergens.filter((a) => normalizeAllergen(a) !== value)
+            : [...prev.allergens, value],
+        };
+      }),
     []
   );
 
@@ -379,8 +396,8 @@ export function ItemEditSheet({
               {COMMON_ALLERGENS.map((a) => (
                 <label key={a} className="flex items-center gap-2 text-sm">
                   <Checkbox
-                    checked={form.allergens.includes(a)}
-                    onCheckedChange={() => toggleIn("allergens", a)}
+                    checked={form.allergens.some((x) => normalizeAllergen(x) === a)}
+                    onCheckedChange={() => toggleCommonAllergen(a)}
                   />
                   <span className="capitalize">{a}</span>
                 </label>
