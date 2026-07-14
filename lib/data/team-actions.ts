@@ -263,6 +263,57 @@ export async function changeMemberRole(orgId: string, userId: string, role: OrgR
   });
 }
 
+/**
+ * Switch a staff member between organisation-wide access (every restaurant in
+ * the org at staff rank) and restaurant-only access (just the restaurants they
+ * hold restaurant_members rows for). Only meaningful for role=staff — other
+ * org roles are always org-wide.
+ */
+export async function setStaffScope(
+  orgId: string,
+  userId: string,
+  restaurantScoped: boolean
+) {
+  return safeAction(async () => {
+    const { supabase } = await requireOrgAccess(orgId, "admin");
+
+    const { data: current } = await supabase
+      .from("organization_members")
+      .select("role, restaurant_scoped")
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .single();
+
+    if (!current) throw new ValidationError("Member not found.");
+    if (current.role !== "staff") {
+      throw new ValidationError("Access scope only applies to staff members.");
+    }
+    if (current.restaurant_scoped === restaurantScoped) {
+      return { updated: false };
+    }
+
+    const { error } = await supabase
+      .from("organization_members")
+      .update({ restaurant_scoped: restaurantScoped })
+      .eq("org_id", orgId)
+      .eq("user_id", userId);
+    if (error) throw actionError("Failed to change access scope", error);
+
+    await writeAudit({
+      action: "team.scope.change",
+      org_id: orgId,
+      target_table: "organization_members",
+      target_id: userId,
+      diff: { restaurant_scoped: restaurantScoped },
+    });
+
+    revalidatePath("/settings/team");
+    revalidatePath("/dashboard");
+
+    return { updated: true };
+  });
+}
+
 export async function removeMember(orgId: string, userId: string) {
   return safeAction(async () => {
     const { supabase } = await requireOrgAccess(orgId, "admin");

@@ -649,7 +649,7 @@ export type Database = {
           period_start: string
           restaurant_id: string | null
           status: string
-          subscription_id: string
+          subscription_id: string | null
           subtotal_cents: number
           total_cents: number
         }
@@ -665,7 +665,7 @@ export type Database = {
           period_start: string
           restaurant_id?: string | null
           status?: string
-          subscription_id: string
+          subscription_id?: string | null
           subtotal_cents: number
           total_cents: number
         }
@@ -681,7 +681,7 @@ export type Database = {
           period_start?: string
           restaurant_id?: string | null
           status?: string
-          subscription_id?: string
+          subscription_id?: string | null
           subtotal_cents?: number
           total_cents?: number
         }
@@ -991,6 +991,7 @@ export type Database = {
           invited_by: string | null
           joined_at: string
           org_id: string
+          restaurant_scoped: boolean
           role: Database["public"]["Enums"]["org_role"]
           user_id: string
         }
@@ -998,6 +999,7 @@ export type Database = {
           invited_by?: string | null
           joined_at?: string
           org_id: string
+          restaurant_scoped?: boolean
           role: Database["public"]["Enums"]["org_role"]
           user_id: string
         }
@@ -1005,6 +1007,7 @@ export type Database = {
           invited_by?: string | null
           joined_at?: string
           org_id?: string
+          restaurant_scoped?: boolean
           role?: Database["public"]["Enums"]["org_role"]
           user_id?: string
         }
@@ -1710,7 +1713,9 @@ export type Database = {
         Returns: boolean
       }
       increment_invoice_counter: { Args: { p_org_id: string }; Returns: number }
-      is_super_admin: { Args: never; Returns: boolean }
+      is_super_admin:
+        | { Args: never; Returns: boolean }
+        | { Args: { user_id: string }; Returns: boolean }
       publish_branding: {
         Args: { p_restaurant_id: string }
         Returns: undefined

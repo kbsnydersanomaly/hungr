@@ -7,6 +7,7 @@ import {
   removeMember,
   changeRestaurantMemberRole,
   removeRestaurantMember,
+  setStaffScope,
 } from "@/lib/data/team-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,11 @@ type MemberActionsMenuProps =
       currentRole: string;
       /** Owners can also assign the owner role. */
       isOwner: boolean;
+      /**
+       * Staff only: true = access limited to assigned restaurants,
+       * false = organisation-wide staff access. Enables the scope items.
+       */
+      restaurantScoped?: boolean;
     }
   | {
       scope: "restaurant";
@@ -81,6 +87,23 @@ export function MemberActionsMenu(props: MemberActionsMenuProps) {
     router.refresh();
   }
 
+  async function handleScopeChange(restaurantScoped: boolean) {
+    if (props.scope !== "org") return;
+    setLoading(true);
+    const result = await setStaffScope(props.orgId, props.userId, restaurantScoped);
+    setLoading(false);
+    if (!result.ok) {
+      toast.error(result.message ?? "Failed to change access scope.");
+      return;
+    }
+    toast.success(
+      restaurantScoped
+        ? "Access limited to assigned restaurants."
+        : "Organisation-wide access granted."
+    );
+    router.refresh();
+  }
+
   async function handleRemove() {
     setLoading(true);
     const result =
@@ -117,6 +140,27 @@ export function MemberActionsMenu(props: MemberActionsMenuProps) {
               {role === props.currentRole ? `${role} (current)` : `Make ${role}`}
             </DropdownMenuItem>
           ))}
+          {props.scope === "org" && props.currentRole === "staff" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={loading || props.restaurantScoped === false}
+                onClick={() => handleScopeChange(false)}
+              >
+                {props.restaurantScoped === false
+                  ? "Organisation-wide access (current)"
+                  : "Grant organisation-wide access"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={loading || props.restaurantScoped === true}
+                onClick={() => handleScopeChange(true)}
+              >
+                {props.restaurantScoped === true
+                  ? "Assigned restaurants only (current)"
+                  : "Limit to assigned restaurants"}
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={loading}

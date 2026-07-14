@@ -51,7 +51,9 @@ function escapeForOr(value: string): string {
 type InvoiceMatchRow = {
   id: string;
   number: string;
-  subscription_id: string;
+  // Null once delete_restaurant_cascade severs the invoice → subscription
+  // link; such invoices can't be matched to a transaction and are skipped.
+  subscription_id: string | null;
   period_start: string;
   period_end: string;
   paid_at: string | null;
@@ -65,6 +67,7 @@ export function attachInvoicesToTransactions(
 ): TransactionWithInvoice[] {
   const invoicesBySub = new Map<string, InvoiceMatchRow[]>();
   for (const inv of invoices) {
+    if (!inv.subscription_id) continue;
     const list = invoicesBySub.get(inv.subscription_id) ?? [];
     list.push(inv);
     invoicesBySub.set(inv.subscription_id, list);

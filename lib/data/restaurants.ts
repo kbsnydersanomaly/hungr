@@ -46,7 +46,7 @@ export async function loadRestaurantsForUser(userId: string, orgId: string) {
   ] = await Promise.all([
     supabase
       .from("organization_members")
-      .select("role")
+      .select("role, restaurant_scoped")
       .eq("org_id", orgId)
       .eq("user_id", userId)
       .maybeSingle(),
@@ -65,9 +65,10 @@ export async function loadRestaurantsForUser(userId: string, orgId: string) {
     .map((m) => m.restaurants)
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
-  // Org 'staff' is the baseline role handed out with restaurant-scoped invites:
-  // those users must only see the restaurants they were explicitly assigned to.
-  if (!orgMember || orgMember.role === "staff") {
+  // Restaurant-scoped staff (organization_members.restaurant_scoped) only see
+  // the restaurants they were explicitly assigned to; org-wide staff fall
+  // through and see every restaurant in the org like other org roles.
+  if (!orgMember || (orgMember.role === "staff" && orgMember.restaurant_scoped)) {
     return fromMemberships;
   }
 

@@ -61,9 +61,9 @@ beforeEach(() => {
 });
 
 describe("loadRestaurantsForUser", () => {
-  it("returns only assigned restaurants for org 'staff' and never queries the org-wide list", async () => {
+  it("returns only assigned restaurants for scoped staff and never queries the org-wide list", async () => {
     const { root, fromCalls } = makeSupabase({
-      organization_members: { data: { role: "staff" } },
+      organization_members: { data: { role: "staff", restaurant_scoped: true } },
       restaurant_members: {
         data: [{ restaurants: restaurantA }, { restaurants: null }],
       },
@@ -75,6 +75,19 @@ describe("loadRestaurantsForUser", () => {
 
     expect(result).toEqual([restaurantA]);
     expect(fromCalls).not.toContain("restaurants");
+  });
+
+  it("returns every org restaurant for org-wide staff", async () => {
+    const { root } = makeSupabase({
+      organization_members: { data: { role: "staff", restaurant_scoped: false } },
+      restaurant_members: { data: [] },
+      restaurants: { data: [restaurantA, restaurantB] },
+    });
+    createServerClient.mockResolvedValue(root);
+
+    const result = await loadRestaurantsForUser(USER_ID, ORG_ID);
+
+    expect(result).toEqual([restaurantA, restaurantB]);
   });
 
   it("returns only assigned restaurants when the user has no org membership row", async () => {
@@ -123,17 +136,40 @@ describe("requireRestaurantAccess", () => {
     await expect(requireRestaurantAccess(REST_A, "manager")).resolves.toBeDefined();
   });
 
-  it("denies an org 'staff' user with no restaurant_members row", async () => {
+  it("denies a scoped staff user with no restaurant_members row", async () => {
     mockSession(
       {
         restaurants: { data: { org_id: ORG_ID } },
-        organization_members: { data: { role: "staff" } },
+        organization_members: { data: { role: "staff", restaurant_scoped: true } },
         restaurant_members: { data: null },
       },
       { profiles: { data: { is_super_admin: false } } }
     );
 
     await expect(requireRestaurantAccess(REST_A, "staff")).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("allows an org-wide staff user with no restaurant_members row at staff rank", async () => {
+    mockSession({
+      restaurants: { data: { org_id: ORG_ID } },
+      organization_members: { data: { role: "staff", restaurant_scoped: false } },
+      restaurant_members: { data: null },
+    });
+
+    await expect(requireRestaurantAccess(REST_A, "staff")).resolves.toBeDefined();
+  });
+
+  it("denies an org-wide staff user when 'manager' is required", async () => {
+    mockSession(
+      {
+        restaurants: { data: { org_id: ORG_ID } },
+        organization_members: { data: { role: "staff", restaurant_scoped: false } },
+        restaurant_members: { data: null },
+      },
+      { profiles: { data: { is_super_admin: false } } }
+    );
+
+    await expect(requireRestaurantAccess(REST_A, "manager")).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it("allows an org admin without a restaurant_members row", async () => {

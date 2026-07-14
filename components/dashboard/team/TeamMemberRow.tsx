@@ -36,6 +36,7 @@ export function TeamMemberRow({
   role,
   badgeVariant = "secondary",
   assignments,
+  restaurantScoped,
   actions,
 }: {
   /** Raw Supabase relation value; resolved via rel(). */
@@ -44,6 +45,8 @@ export function TeamMemberRow({
   badgeVariant?: "secondary" | "outline";
   /** Restaurant-scoped memberships to show as badges under the name. */
   assignments?: RestaurantAssignment[];
+  /** Staff only: shows whether access is org-wide or assigned-restaurants. */
+  restaurantScoped?: boolean;
   actions?: React.ReactNode;
 }) {
   const profile = rel<ProfileRef>(profiles);
@@ -72,6 +75,11 @@ export function TeamMemberRow({
         </div>
       </div>
       <div className="flex items-center gap-3">
+        {role === "staff" && restaurantScoped !== undefined && (
+          <Badge variant="outline" className="font-normal text-muted-foreground">
+            {restaurantScoped ? "Assigned restaurants only" : "Org-wide"}
+          </Badge>
+        )}
         <Badge variant={badgeVariant} className="capitalize">
           {role}
         </Badge>

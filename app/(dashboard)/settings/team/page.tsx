@@ -12,7 +12,12 @@ import { TeamMemberRow, type RestaurantAssignment } from "@/components/dashboard
 import { rel, type ProfileRef, type RestaurantRef } from "@/lib/types/relations";
 import { OrgTeamHelpBox } from "@/components/help/OrgTeamHelpBox";
 
-type Member = { role: string; joined_at?: string; profiles: unknown };
+type Member = {
+  role: string;
+  restaurant_scoped: boolean;
+  joined_at?: string;
+  profiles: unknown;
+};
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +41,7 @@ export default async function TeamSettingsPage() {
     supabase
       .from("organization_members")
       .select(
-        "role, joined_at, profiles(id, email, first_name, last_name, display_name)"
+        "role, restaurant_scoped, joined_at, profiles(id, email, first_name, last_name, display_name)"
       )
       .eq("org_id", activeOrg.orgId)
       .order("joined_at", { ascending: false }),
@@ -104,7 +109,9 @@ export default async function TeamSettingsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Members</CardTitle>
-          {isAdmin && <InviteMemberDialog orgId={activeOrg.orgId} />}
+          {isAdmin && (
+            <InviteMemberDialog orgId={activeOrg.orgId} restaurants={restaurants ?? []} />
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {members && members.length > 0 ? (
@@ -116,6 +123,7 @@ export default async function TeamSettingsPage() {
                     key={profile?.id}
                     profiles={m.profiles}
                     role={m.role}
+                    restaurantScoped={m.restaurant_scoped}
                     assignments={profile?.id ? assignmentsByUser.get(profile.id) : undefined}
                     actions={
                       isAdmin && profile?.id ? (
@@ -125,6 +133,7 @@ export default async function TeamSettingsPage() {
                           userId={profile.id}
                           currentRole={m.role}
                           isOwner={isOwner}
+                          restaurantScoped={m.restaurant_scoped}
                         />
                       ) : undefined
                     }
