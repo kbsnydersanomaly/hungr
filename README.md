@@ -42,6 +42,22 @@ Open [http://localhost:3000](http://localhost:3000).
 | `pnpm db:gen-types` | Regenerate `lib/database.types.ts` |
 | `pnpm deploy:edge-functions` | Deploy Supabase edge functions |
 
+## Switching between local and hosted Supabase
+
+The app reads its database config from `.env.local`, which is a copy of one of
+two (gitignored) presets:
+
+| Command | Points `.env.local` at |
+| --- | --- |
+| `pnpm env:local` | The local Supabase instance (`127.0.0.1:54321`, console mail) |
+| `pnpm env:remote` | The hosted dev project (`*.supabase.co`, Brevo mail) |
+| `pnpm env:which` | Print which one is currently active |
+
+The presets live in `.env.local-db` and `.env.remote-db` — edit those, not
+`.env.local` (it gets overwritten on switch). Restart `pnpm dev` after
+switching. The RLS test suite creates and deletes users, so it refuses to run
+unless the active database is local (`RLS_ALLOW_REMOTE=1` overrides).
+
 ## Database baseline and migrations
 
 `supabase/schemas/baseline.sql` is a documentation-only snapshot of the production `public` schema. It is **not** a migration. To rebuild an environment from scratch:

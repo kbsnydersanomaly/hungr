@@ -9,6 +9,19 @@ const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// These specs create and delete users/orgs with the service-role key. With
+// `pnpm env:remote` active, .env.local points at the HOSTED project — refuse
+// to run there rather than write test fixtures into a shared database.
+// Set RLS_ALLOW_REMOTE=1 to override deliberately.
+const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(URL ?? "");
+if (!isLocal && process.env.RLS_ALLOW_REMOTE !== "1") {
+  throw new Error(
+    `RLS tests refused to run: NEXT_PUBLIC_SUPABASE_URL (${URL}) is not a local ` +
+      "Supabase instance. Switch with `pnpm env:local`, or set RLS_ALLOW_REMOTE=1 " +
+      "if you really mean to run against a remote database."
+  );
+}
+
 export function adminClient() {
   return createClient(URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
