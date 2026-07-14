@@ -42,6 +42,16 @@ Open [http://localhost:3000](http://localhost:3000).
 | `pnpm db:gen-types` | Regenerate `lib/database.types.ts` |
 | `pnpm deploy:edge-functions` | Deploy Supabase edge functions |
 
+## Database baseline and migrations
+
+`supabase/schemas/baseline.sql` is a documentation-only snapshot of the production `public` schema. It is **not** a migration. To rebuild an environment from scratch:
+
+1. Start a fresh local Supabase instance (`supabase start` or `supabase db reset`).
+2. Apply migrations with `pnpm db:migrate` (runs `supabase migration up`).
+3. Seed demo data with `pnpm db:seed`.
+
+Reviewers should check that any schema-level change has a corresponding migration in `supabase/migrations/`; the baseline makes the starting state visible.
+
 ## Project structure
 
 ```
