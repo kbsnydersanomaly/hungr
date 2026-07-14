@@ -81,6 +81,89 @@ async function seed() {
   }
 
   console.log("Seeded 3 plans.");
+
+  console.log("Seeding help content...");
+
+  const { data: existingCategory } = await supabase
+    .from("help_categories")
+    .select("id")
+    .eq("slug", "getting-started")
+    .maybeSingle();
+
+  let categoryId = existingCategory?.id;
+  if (!categoryId) {
+    const { data: category, error: categoryError } = await supabase
+      .from("help_categories")
+      .insert({
+        name: "Getting started",
+        slug: "getting-started",
+        sort_order: 1,
+      })
+      .select("id")
+      .single();
+
+    if (categoryError) {
+      console.error("Failed to seed help category:", categoryError);
+      process.exit(1);
+    }
+    categoryId = category.id;
+  }
+
+  const articleSlug = "how-organisations-restaurants-and-teams-fit-together";
+  const { data: existingArticle } = await supabase
+    .from("help_articles")
+    .select("id")
+    .eq("slug", articleSlug)
+    .maybeSingle();
+
+  if (!existingArticle) {
+    const { error: articleError } = await supabase.from("help_articles").insert({
+      title: "How organisations, restaurants and teams fit together",
+      slug: articleSlug,
+      category_id: categoryId,
+      topics: ["organisations", "restaurants", "teams", "getting-started"],
+      content: `Hungr is organised in three levels:
+
+1. Organisation — your business account.
+   • Owns the subscription and billing.
+   • Contains one or more restaurants.
+
+2. Restaurant — a single location or brand.
+   • Has its own menus, branding, media library, QR codes, reviews and about page.
+   • Has its own team with restaurant-specific roles.
+
+3. Team members — people who can access the organisation or a restaurant.
+   • Organisation roles: owner, admin, manager, staff.
+   • Restaurant roles: manager, staff.
+
+Think of it like this:
+
+  Organisation (your company)
+  └── Restaurant A (location/brand)
+  │     ├── Menus
+  │     ├── Branding
+  │     ├── Media
+  │     └── Team
+  └── Restaurant B (location/brand)
+        ├── Menus
+        ├── Branding
+        ├── Media
+        └── Team
+
+Tip: Invite someone from your organisation Team page if they need access to everything, or from a restaurant Team page if they only need access to that restaurant.`,
+      screenshots: [],
+      video_url: null,
+      published: true,
+    });
+
+    if (articleError) {
+      console.error("Failed to seed help article:", articleError);
+      process.exit(1);
+    }
+    console.log("Seeded help article.");
+  } else {
+    console.log("Help article already exists, skipping.");
+  }
 }
 
 seed();

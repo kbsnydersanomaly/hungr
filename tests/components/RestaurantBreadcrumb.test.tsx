@@ -1,9 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { RestaurantBreadcrumb } from "@/components/dashboard/RestaurantBreadcrumb";
 
+const RESTAURANT_ID_1 = "11111111-1111-1111-1111-111111111111";
+const RESTAURANT_ID_2 = "22222222-2222-2222-2222-222222222222";
+
+let mockPathname = `/restaurants/${RESTAURANT_ID_1}`;
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => mockPathname,
 }));
 
 vi.mock("@/lib/auth/active-restaurant", () => ({
@@ -11,8 +17,8 @@ vi.mock("@/lib/auth/active-restaurant", () => ({
 }));
 
 const restaurants = [
-  { id: "r1", name: "Bistro One", slug: "bistro-one" },
-  { id: "r2", name: "Bistro Two", slug: "bistro-two" },
+  { id: RESTAURANT_ID_1, name: "Bistro One", slug: "bistro-one" },
+  { id: RESTAURANT_ID_2, name: "Bistro Two", slug: "bistro-two" },
 ];
 
 const baseProps = {
@@ -27,6 +33,10 @@ function openDropdown() {
 }
 
 describe("RestaurantBreadcrumb", () => {
+  beforeEach(() => {
+    mockPathname = `/restaurants/${RESTAURANT_ID_1}`;
+  });
+
   it("does not render a rename option", () => {
     render(<RestaurantBreadcrumb {...baseProps} canAddRestaurant />);
     openDropdown();
@@ -43,5 +53,29 @@ describe("RestaurantBreadcrumb", () => {
     render(<RestaurantBreadcrumb {...baseProps} canAddRestaurant={false} />);
     openDropdown();
     expect(screen.queryByText("Add restaurant")).not.toBeInTheDocument();
+  });
+
+  it("renders Org → Restaurant → Section on restaurant-scoped paths", () => {
+    mockPathname = `/restaurants/${RESTAURANT_ID_1}/team`;
+    render(<RestaurantBreadcrumb {...baseProps} canAddRestaurant />);
+    expect(screen.getAllByText("Acme Inc.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bistro One").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Team").length).toBeGreaterThan(0);
+  });
+
+  it("renders Org → Section on non-restaurant-scoped paths", () => {
+    mockPathname = "/settings/team";
+    render(<RestaurantBreadcrumb {...baseProps} canAddRestaurant />);
+    expect(screen.getAllByText("Acme Inc.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Team").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Bistro One")).not.toBeInTheDocument();
+  });
+
+  it("does not treat /restaurants/new as restaurant-scoped", () => {
+    mockPathname = "/restaurants/new";
+    render(<RestaurantBreadcrumb {...baseProps} canAddRestaurant />);
+    expect(screen.getAllByText("Acme Inc.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("New restaurant").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Bistro One")).not.toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ import { MemberActionsMenu } from "@/components/dashboard/team/MemberActionsMenu
 import { InvitationList, type InvitationRow } from "@/components/dashboard/team/InvitationList";
 import { TeamMemberRow } from "@/components/dashboard/team/TeamMemberRow";
 import { rel, type ProfileRef } from "@/lib/types/relations";
+import { OrgTeamHelpBox } from "@/components/help/OrgTeamHelpBox";
 
 type TeamMember = {
   role: string;
@@ -75,6 +76,8 @@ export default async function RestaurantTeamPage({
         </Link>
         .
       </p>
+
+      <OrgTeamHelpBox />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

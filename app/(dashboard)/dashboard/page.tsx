@@ -9,10 +9,12 @@ import type { OrgRole } from "@/lib/auth/role";
 import { PageHeader } from "@/components/PageHeader";
 import { AddRestaurantButton } from "@/components/dashboard/AddRestaurantButton";
 import { AddRestaurantCard, RestaurantCard } from "@/components/dashboard/RestaurantCard";
+import { OrgStructureExplainer } from "@/components/dashboard/OrgStructureExplainer";
 import { LinkButton } from "@/components/ui/link-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { UtensilsCrossed, TrendingUp, Users, Star, Plus, CheckCircle2, Circle } from "lucide-react";
+import { orgStructureHelpPath } from "@/lib/help/constants";
+import { UtensilsCrossed, TrendingUp, Users, Star, Plus, CheckCircle2, Circle, HelpCircle } from "lucide-react";
 
 const ORG_ROLE_RANK: Record<OrgRole, number> = {
   owner: 100,
@@ -33,6 +35,12 @@ export default async function DashboardPage() {
   const canAddRestaurant = hasMinRole((org?.role as OrgRole) ?? "staff", "owner");
   const billing = orgId && canAddRestaurant ? await getRestaurantBillingContext(orgId) : null;
 
+  const supabase = await createServerClient();
+  const { data: orgData } = orgId
+    ? await supabase.from("organizations").select("name").eq("id", orgId).single()
+    : { data: null };
+  const orgName = orgData?.name ?? "your organisation";
+
   if (restaurants.length === 0) {
     return (
       <div className="space-y-6">
@@ -40,6 +48,7 @@ export default async function DashboardPage() {
           title="Dashboard"
           description="Get started with your first restaurant"
         />
+        <OrgStructureExplainer orgName={orgName} />
         <Card>
           <CardContent className="py-16 text-center">
             <UtensilsCrossed className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
@@ -60,7 +69,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const supabase = await createServerClient();
+  const firstRestaurant = restaurants[0];
 
   // Query real stats
   const restaurantIds = restaurants.map((r) => r.id);
@@ -84,8 +93,7 @@ export default async function DashboardPage() {
       ),
     ]);
 
-  const publishedMenus =
-    menuCount ?? 0;
+  const publishedMenus = menuCount ?? 0;
 
   const pendingReviews =
     reviewsData?.filter((r) => r.status === "pending").length ?? 0;
@@ -108,7 +116,6 @@ export default async function DashboardPage() {
       : "—";
 
   // Setup checklist based on first restaurant (or most incomplete)
-  const firstRestaurant = restaurants[0];
   const [{ data: menus }, { data: branding }, { data: about }] = await Promise.all([
     supabase.from("menus").select("id, status, qr_assigned").eq("restaurant_id", firstRestaurant.id),
     supabase.from("branding").select("restaurant_id").eq("restaurant_id", firstRestaurant.id).maybeSingle(),
@@ -143,6 +150,8 @@ export default async function DashboardPage() {
           <AddRestaurantButton role={(org?.role as OrgRole) ?? "staff"} billing={billing} />
         }
       />
+
+      {restaurants.length <= 1 && <OrgStructureExplainer orgName={orgName} />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -211,6 +220,15 @@ export default async function DashboardPage() {
                 </span>
               </div>
             ))}
+            <div className="pt-2 border-t">
+              <Link
+                href={orgStructureHelpPath()}
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <HelpCircle className="h-4 w-4" />
+                How organisations, restaurants and teams fit together
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>

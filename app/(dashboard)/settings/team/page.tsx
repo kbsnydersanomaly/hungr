@@ -10,6 +10,7 @@ import { MemberActionsMenu } from "@/components/dashboard/team/MemberActionsMenu
 import { InvitationList, type InvitationRow } from "@/components/dashboard/team/InvitationList";
 import { TeamMemberRow, type RestaurantAssignment } from "@/components/dashboard/team/TeamMemberRow";
 import { rel, type ProfileRef, type RestaurantRef } from "@/lib/types/relations";
+import { OrgTeamHelpBox } from "@/components/help/OrgTeamHelpBox";
 
 type Member = { role: string; joined_at?: string; profiles: unknown };
 
@@ -97,6 +98,8 @@ export default async function TeamSettingsPage() {
           ))}
         </p>
       )}
+
+      <OrgTeamHelpBox />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

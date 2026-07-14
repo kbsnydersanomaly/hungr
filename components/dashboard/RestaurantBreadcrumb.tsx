@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,62 @@ interface Restaurant {
   slug: string;
 }
 
+const SECTION_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  insights: "Insights",
+  restaurants: "Restaurants",
+  menus: "Menus",
+  branding: "Branding",
+  about: "About",
+  qr: "QR Codes",
+  reviews: "Reviews",
+  media: "Media",
+  team: "Team",
+  specials: "Specials",
+  settings: "Settings",
+  billing: "Billing",
+  organization: "Organization",
+  profile: "Profile",
+  notifications: "Notifications",
+  security: "Security",
+  help: "Help",
+  admin: "Admin",
+};
+
+function getSectionLabel(pathname: string): string | null {
+  if (!pathname) return null;
+
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return "Dashboard";
+
+  const [first] = segments;
+
+  if (first === "restaurants") {
+    // /restaurants/new
+    if (segments[1] === "new") return "New restaurant";
+    // /restaurants/[id]/*
+    if (segments.length >= 3) {
+      return SECTION_LABELS[segments[2]] ?? null;
+    }
+    // /restaurants or /restaurants/[id]
+    return segments.length === 1 ? "Restaurants" : "Overview";
+  }
+
+  if (first === "settings") {
+    return SECTION_LABELS[segments[1]] ?? "Settings";
+  }
+
+  if (first === "help") {
+    return "Help";
+  }
+
+  if (first === "admin") {
+    return "Admin";
+  }
+
+  return SECTION_LABELS[first] ?? null;
+}
+
 export function RestaurantBreadcrumb({
   restaurants,
   activeRestaurant,
@@ -31,20 +87,22 @@ export function RestaurantBreadcrumb({
   canAddRestaurant: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const pathname = usePathname();
+  const sectionLabel = getSectionLabel(pathname ?? "");
+  const isRestaurantScoped =
+    /^\/restaurants\/[0-9a-fA-F-]{36,}/.test(pathname ?? "");
 
   return (
     <div className="min-w-0 flex-1">
       {/* Full breadcrumb on sm+ */}
       <div className="hidden min-w-0 items-center gap-2 text-sm text-muted-foreground sm:flex">
-        <span className="shrink-0">Dashboard</span>
-        <ChevronRight className="h-3 w-3 shrink-0" />
         <Link
           href="/settings/organization"
           className="truncate font-medium text-foreground hover:underline"
         >
           {orgName}
         </Link>
-        {restaurants.length > 0 && (
+        {isRestaurantScoped && restaurants.length > 0 && (
           <>
             <ChevronRight className="h-3 w-3 shrink-0" />
             <RestaurantSwitcher
@@ -56,26 +114,48 @@ export function RestaurantBreadcrumb({
             />
           </>
         )}
+        {sectionLabel && (
+          <>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            <span className="truncate">{sectionLabel}</span>
+          </>
+        )}
       </div>
 
       {/* Compact breadcrumb on mobile */}
       <div className="min-w-0 sm:hidden">
-        {restaurants.length > 0 ? (
-          <RestaurantSwitcher
-            restaurants={restaurants}
-            activeRestaurant={activeRestaurant}
-            isPending={isPending}
-            startTransition={startTransition}
-            canAddRestaurant={canAddRestaurant}
-            compact
-          />
+        {isRestaurantScoped && restaurants.length > 0 ? (
+          <div className="flex min-w-0 items-center gap-1 text-sm">
+            <RestaurantSwitcher
+              restaurants={restaurants}
+              activeRestaurant={activeRestaurant}
+              isPending={isPending}
+              startTransition={startTransition}
+              canAddRestaurant={canAddRestaurant}
+              compact
+            />
+            {sectionLabel && (
+              <>
+                <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="truncate text-muted-foreground">{sectionLabel}</span>
+              </>
+            )}
+          </div>
         ) : (
-          <Link
-            href="/settings/organization"
-            className="block truncate text-sm font-medium text-foreground hover:underline"
-          >
-            {orgName}
-          </Link>
+          <div className="flex min-w-0 items-center gap-1 text-sm">
+            <Link
+              href="/settings/organization"
+              className="block truncate font-medium text-foreground hover:underline"
+            >
+              {orgName}
+            </Link>
+            {sectionLabel && (
+              <>
+                <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="truncate text-muted-foreground">{sectionLabel}</span>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>
