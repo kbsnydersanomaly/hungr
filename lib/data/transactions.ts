@@ -33,11 +33,18 @@ export function parseTransactionFilters(sp: {
   const str = (v: string | string[] | undefined) =>
     typeof v === "string" && v.trim() ? v.trim() : undefined;
   const page = Math.max(1, parseInt(str(sp.page) ?? "1", 10) || 1);
+  // Whitelist real payment statuses — the billing page also uses ?status= for
+  // checkout-return banners (complete / cancel / card-updated), which must not
+  // leak into the transaction filter. The filter UI writes uppercase enum
+  // values; the banner params are lowercase, so exact matching separates them.
+  const status = str(sp.status);
   return {
     page,
     pageSize: 10,
     q: str(sp.q),
-    status: str(sp.status),
+    status: ["COMPLETE", "FAILED", "PENDING", "CANCELLED"].includes(status ?? "")
+      ? status
+      : undefined,
     from: str(sp.from),
     to: str(sp.to),
   };

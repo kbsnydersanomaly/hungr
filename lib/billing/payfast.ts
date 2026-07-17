@@ -116,12 +116,22 @@ export function generateCheckoutSignature(
 /**
  * Generate an API signature using alphabetical ordering.
  * Used for REST API calls (pause / cancel / resume subscriptions).
+ *
+ * NOTE: unlike checkout/ITN signatures (where the passphrase is appended at
+ * the end), the PayFast API expects the passphrase sorted in with the other
+ * parameters alphabetically. Appending it at the end is rejected with
+ * 401 "Merchant authorization failed." (verified against the live API).
  */
 export function generateApiSignature(
   params: Record<string, string>,
   passphrase?: string
 ): string {
-  const entries = Object.entries(params)
+  const all: Record<string, string> = { ...params };
+  if (passphrase) {
+    all.passphrase = passphrase;
+  }
+
+  const entries = Object.entries(all)
     .filter(([k, v]) => k !== "signature" && v !== "" && v != null)
     .sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -130,10 +140,6 @@ export function generateApiSignature(
     sigString += `${key}=${urlEncodePayFast(value)}&`;
   }
   sigString = sigString.slice(0, -1);
-
-  if (passphrase) {
-    sigString += `&passphrase=${urlEncodePayFast(passphrase)}`;
-  }
 
   return crypto.createHash("md5").update(sigString).digest("hex");
 }
@@ -326,35 +332,51 @@ export function parseReplacementMPaymentId(mPaymentId: string): {
 
 // ── PayFast API (pause / cancel / resume) ────────────────────────────────
 
-export const PAYFAST_API_BASE = env.PAYFAST_SANDBOX
-  ? "https://sandbox.payfast.co.za"
-  : "https://api.payfast.co.za";
+export const PAYFAST_API_BASE = "https://api.payfast.co.za";
+
+/**
+ * Timestamp format required by the PayFast API: `2026-07-17T08:12:34+00:00`
+ * (no milliseconds, numeric offset). Date#toISOString() (`...Z`) is rejected
+ * with 400 "'timestamp': Format not recognised".
+ */
+function payfastTimestamp(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 19) + "+00:00";
+}
 
 export async function payfastApi(
   path: string,
   method: "PUT" | "GET" | "POST" = "PUT",
-  body?: unknown
+  body?: Record<string, unknown>
 ) {
-  const ts = new Date().toISOString();
-
-  const headers: Record<string, string> = {
+  // Only these three auth params are signed — content-type must NOT be part
+  // of the signature.
+  const authParams: Record<string, string> = {
     "merchant-id": env.PAYFAST_MERCHANT_ID,
     version: "v1",
-    timestamp: ts,
-    "content-type": "application/json",
+    timestamp: payfastTimestamp(),
   };
 
-  const signaturePayload: Record<string, string> = { ...headers };
+  // Body fields are merged into the signature individually (matching
+  // PayFast's official PHP SDK), not as a serialized `body` parameter.
+  const signaturePayload: Record<string, string> = { ...authParams };
   if (body) {
-    signaturePayload.body = JSON.stringify(body);
+    for (const [key, value] of Object.entries(body)) {
+      signaturePayload[key] = String(value);
+    }
   }
 
-  headers.signature = generateApiSignature(
-    signaturePayload,
-    env.PAYFAST_PASSPHRASE
-  );
+  const headers: Record<string, string> = {
+    ...authParams,
+    "content-type": "application/json",
+    signature: generateApiSignature(signaturePayload, env.PAYFAST_PASSPHRASE),
+  };
 
-  const res = await fetch(`${PAYFAST_API_BASE}${path}`, {
+  // There is no separate sandbox API host — sandbox calls go to the same API
+  // with `?testing=true`. (sandbox.payfast.co.za serves no JSON API; it
+  // returns the marketing site with HTTP 200.)
+  const url = `${PAYFAST_API_BASE}${path}${env.PAYFAST_SANDBOX ? "?testing=true" : ""}`;
+
+  const res = await fetch(url, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -365,7 +387,20 @@ export async function payfastApi(
     throw new Error(`PayFast API ${res.status}: ${text}`);
   }
 
-  return res.json();
+  const data = await res.json();
+
+  // PayFast frequently reports failures as HTTP 200 with a failure payload,
+  // e.g. {"code": 400, "status": "failed", "data": {...}}.
+  if (
+    data?.status === "failed" ||
+    (typeof data?.code === "number" && data.code >= 400)
+  ) {
+    const detail =
+      data?.data?.response || data?.data?.message || JSON.stringify(data);
+    throw new Error(`PayFast API failed: ${detail}`);
+  }
+
+  return data;
 }
 
 export async function pauseSubscription(token: string, cycles = 1) {

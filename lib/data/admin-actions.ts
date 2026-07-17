@@ -2,7 +2,10 @@
 
 import { ValidationError, actionError, safeAction, NotFoundError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/auth/role";
-import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  deleteOrganizationUnsafe,
+  purgeMediaStorage,
+} from "@/lib/data/deletion";
 import type { Database, Json } from "@/lib/database.types";
 import { paginatedQuery, type PaginationResult } from "@/lib/data/admin-pagination";
 import { parsePaginationParams } from "@/lib/utils/pagination";
@@ -542,74 +545,11 @@ export async function updateRestaurantStorageLimit(
 
 // ── Deletions ────────────────────────────────────────────────────────────
 
-/**
- * Removes the storage objects backing the given media rows. FK cascades
- * (media.org_id / media.owner_user_id `on delete cascade`) clean up the DB
- * rows when an org or user is deleted, but those cascades never touch Supabase
- * storage — without this the underlying files are orphaned. Best-effort: a
- * storage failure is logged but does not abort the surrounding deletion.
- */
-async function purgeMediaStorage(
-  media: { bucket: string; path: string }[] | null | undefined
-) {
-  if (!media || media.length === 0) return;
-
-  const byBucket = new Map<string, string[]>();
-  for (const { bucket, path } of media) {
-    const paths = byBucket.get(bucket) ?? [];
-    paths.push(path);
-    byBucket.set(bucket, paths);
-  }
-
-  const admin = createAdminClient();
-  for (const [bucket, paths] of byBucket) {
-    const { error } = await admin.storage.from(bucket).remove(paths);
-    if (error) {
-      console.error(`purgeMediaStorage error on bucket ${bucket}:`, error);
-    }
-  }
-}
-
-async function deleteOrganizationUnsafe(orgId: string) {
-  const { supabase } = await requireSuperAdmin();
-
-  // Remove the storage files behind this org's media before the FK cascade
-  // drops the rows (the cascade only deletes rows, not storage objects).
-  const { data: orgMedia } = await supabase
-    .from("media")
-    .select("bucket, path")
-    .eq("org_id", orgId);
-  await purgeMediaStorage(orgMedia);
-
-  // Delete dependent data in FK-safe order.
-  // Adjust order based on actual schema constraints.
-  const tables = [
-    "transactions",
-    "invoices",
-    "subscriptions",
-    "restaurants",
-    "organization_members",
-  ] as const;
-
-  for (const table of tables) {
-    const { error } = await supabase.from(table).delete().eq("org_id", orgId);
-    if (error) {
-      console.error(`deleteOrganization cascade error on ${table}:`, error);
-      throw actionError(`Failed to delete related ${table}`, error);
-    }
-  }
-
-  const { error } = await supabase.from("organizations").delete().eq("id", orgId);
-  if (error) {
-    console.error("deleteOrganization error:", error);
-    throw actionError("Failed to delete organization", error);
-  }
-
-  return { deleted: true };
-}
-
 export async function deleteOrganization(orgId: string) {
-  return safeAction(() => deleteOrganizationUnsafe(orgId));
+  return safeAction(async () => {
+    const { supabase } = await requireSuperAdmin();
+    return deleteOrganizationUnsafe(supabase, orgId);
+  });
 }
 
 export async function deleteSubscription(subscriptionId: string) {
@@ -734,7 +674,7 @@ export async function deleteUser(userId: string) {
 
     // Cascade-delete each owned organization (also purges its media storage).
     for (const org of ownedOrgs ?? []) {
-      await deleteOrganizationUnsafe(org.id);
+      await deleteOrganizationUnsafe(supabase, org.id);
     }
 
     // Remove storage for any remaining media owned by this user (e.g. uploaded

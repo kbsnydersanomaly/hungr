@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DeleteAccountDialog } from "@/components/dashboard/DeleteAccountDialog";
 
 export default async function ProfileSettingsPage() {
   const { user } = await requireSession();
@@ -76,6 +77,17 @@ export default async function ProfileSettingsPage() {
               <SubmitButton>Save changes</SubmitButton>
             </FormFieldset>
           </ServerActionForm>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="font-medium">Delete account</p>
+            <p className="text-sm text-muted-foreground">
+              Permanently delete your account and everything you own.
+            </p>
+          </div>
+          <DeleteAccountDialog email={user.email ?? ""} />
         </CardContent>
       </Card>
     </div>

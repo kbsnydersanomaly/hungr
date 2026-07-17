@@ -33,6 +33,13 @@ export function TransactionFilters() {
 
   const [q, setQ] = useState(searchParams.get("q") ?? "");
 
+  // The billing page also uses ?status= for checkout-return banners
+  // (complete / cancel / card-updated); only treat known values as filters.
+  const statusParam = searchParams.get("status");
+  const statusValue = STATUS_ITEMS.some((i) => i.value === statusParam)
+    ? statusParam!
+    : "all";
+
   function apply(changes: Record<string, string>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(changes)) {
@@ -65,7 +72,7 @@ export function TransactionFilters() {
       </div>
       <Select
         items={STATUS_ITEMS}
-        value={searchParams.get("status") ?? "all"}
+        value={statusValue}
         onValueChange={(v) => apply({ status: v && v !== "all" ? v : "" })}
       >
         <SelectTrigger className="w-36">

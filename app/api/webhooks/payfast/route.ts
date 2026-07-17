@@ -70,6 +70,12 @@ export async function POST(req: Request) {
   if (params.payment_status === "COMPLETE" && sub) {
     const nextBilling = nextBillingDate(sub);
 
+    // If this checkout was replacing an existing payment method, cancel the
+    // old token and mark the previous subscription row as superseded BEFORE
+    // activating the new row — the `subscriptions_one_active` unique index
+    // forbids two active rows per scope.
+    await finalizeReplacementSubscription(supabase, sub);
+
     await supabase
       .from("subscriptions")
       .update({
@@ -82,10 +88,6 @@ export async function POST(req: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", sub.id);
-
-    // If this checkout was replacing an existing payment method, cancel the
-    // old token and mark the previous subscription row as superseded.
-    await finalizeReplacementSubscription(supabase, sub);
 
     // Generate and store invoice PDF
     try {

@@ -93,7 +93,11 @@ export function SubscriptionActions({
               toast.success("Subscription cancelled.");
             }}
           >
-            <Button variant="destructive" size="sm" disabled={!payfastToken}>
+            {/* Unlike pause/resume, cancel works without a PayFast token — the
+                action then only cancels the local row (see
+                cancelSubscriptionAction), which is the only way out for old
+                subscriptions that never received a token. */}
+            <Button variant="destructive" size="sm">
               <XCircle className="h-4 w-4 mr-2" />
               Cancel
             </Button>

@@ -1402,7 +1402,7 @@ CREATE INDEX "specials_restaurant_idx" ON "public"."specials" USING "btree" ("re
 
 
 
-CREATE UNIQUE INDEX "subscriptions_one_active" ON "public"."subscriptions" USING "btree" ("scope", "scope_id") WHERE ("status" = ANY (ARRAY['pending'::"public"."subscription_status", 'active'::"public"."subscription_status", 'paused'::"public"."subscription_status"]));
+CREATE UNIQUE INDEX "subscriptions_one_active" ON "public"."subscriptions" USING "btree" ("scope", "scope_id") WHERE (("status" = ANY (ARRAY['active'::"public"."subscription_status", 'paused'::"public"."subscription_status"])) OR (("status" = 'pending'::"public"."subscription_status") AND (("m_payment_id" IS NULL) OR ("m_payment_id" !~~ 'replace:%'::text))));
 
 
 

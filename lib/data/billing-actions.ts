@@ -573,7 +573,13 @@ export async function completeSubscriptionOnReturn(mPaymentId: string) {
     const now = new Date().toISOString();
 
     if (tx) {
-      // Webhook arrived — update subscription
+      // Webhook arrived — update subscription.
+      // Finalize the old subscription FIRST: the `subscriptions_one_active`
+      // unique index forbids two active rows per scope, so activating the
+      // replacement before superseding the old row would fail. The finalize
+      // is claim-based and idempotent, so the webhook doing the same is safe.
+      await finalizeReplacementSubscription(supabase, sub);
+
       await supabase
         .from("subscriptions")
         .update({
@@ -585,8 +591,6 @@ export async function completeSubscriptionOnReturn(mPaymentId: string) {
         })
         .eq("id", sub.id);
 
-      await finalizeReplacementSubscription(supabase, sub);
-
       // NOTE: no revalidatePath here — this runs during the return page's
       // render, which then redirects to the (dynamic) billing page.
       return { status: "active" };
@@ -594,6 +598,10 @@ export async function completeSubscriptionOnReturn(mPaymentId: string) {
 
     // No transaction yet — in sandbox, auto-complete since payments always succeed
     if (env.PAYFAST_SANDBOX) {
+      // Supersede the old subscription before activating (see above — the
+      // unique index forbids two active rows per scope).
+      await finalizeReplacementSubscription(supabase, sub);
+
       await supabase
         .from("subscriptions")
         .update({
@@ -619,8 +627,6 @@ export async function completeSubscriptionOnReturn(mPaymentId: string) {
         raw: { sandbox: true, source: "return_page" },
         occurred_at: now,
       });
-
-      await finalizeReplacementSubscription(supabase, sub);
 
       // NOTE: no revalidatePath here — see above.
       return { status: "active" };
