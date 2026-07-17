@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { resetPasswordAction } from "@/lib/auth/actions";
 
 export default function ResetPasswordPage() {
@@ -73,6 +74,7 @@ export default function ResetPasswordPage() {
         )}
 
         <Button type="submit" className="w-full" disabled={loading}>
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {loading ? "Updating..." : "Update password"}
         </Button>
       </form>

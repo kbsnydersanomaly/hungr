@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useCloseMobileNav } from "@/components/dashboard/MobileNavContext";
+import { LinkPendingHint } from "@/components/dashboard/LinkPendingHint";
 
 export function SidebarNavLink({
   href,
@@ -35,6 +36,7 @@ export function SidebarNavLink({
     >
       {children}
       {label}
+      <LinkPendingHint />
     </Link>
   );
 }

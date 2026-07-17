@@ -1,25 +1,59 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { OrgSwitcher } from "@/components/dashboard/OrgSwitcher";
 import { SidebarNavLink } from "@/components/dashboard/SidebarNavLink";
 import { SidebarPlainLink } from "@/components/dashboard/SidebarPlainLink";
 import {
   Plus,
   LifeBuoy,
+  LayoutDashboard,
+  BarChart3,
+  UtensilsCrossed,
+  Sparkles,
+  Palette,
+  Info,
+  QrCode,
+  Star,
+  Image as ImageIcon,
+  Users,
+  CreditCard,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
+
+// Icons travel across the server→client boundary as names; the components
+// themselves can't be serialized into a Client Component's props.
+const sidebarIcons = {
+  LayoutDashboard,
+  BarChart3,
+  UtensilsCrossed,
+  Sparkles,
+  Palette,
+  Info,
+  QrCode,
+  Star,
+  Image: ImageIcon,
+  Users,
+  CreditCard,
+  Settings,
+} satisfies Record<string, LucideIcon>;
+
+export type SidebarIconName = keyof typeof sidebarIcons;
 
 type RestaurantNavItem = {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: SidebarIconName;
   desktopOnly?: boolean;
 };
 
 type MainNavItem = {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: SidebarIconName;
 };
 
 type OrgMembership = {
@@ -31,6 +65,7 @@ type OrgMembership = {
 export function DashboardSidebar({
   mainNavItems,
   restaurantNavItems,
+  restaurantOverviewHref,
   showAddRestaurant,
   memberships,
   activeOrgId,
@@ -39,12 +74,20 @@ export function DashboardSidebar({
 }: {
   mainNavItems: MainNavItem[];
   restaurantNavItems: RestaurantNavItem[];
+  /** Href of the active restaurant's home page; null when there is none. */
+  restaurantOverviewHref: string | null;
   showAddRestaurant: boolean;
   memberships: OrgMembership[];
   activeOrgId: string | null;
   canManageOrg: boolean;
   mode?: "desktop" | "mobile";
 }) {
+  const pathname = usePathname();
+  // Restaurant context only on restaurant pages (/restaurants/new is org
+  // context). Everywhere else the sidebar shows the organisation menu.
+  const inRestaurant =
+    pathname.startsWith("/restaurants/") && !pathname.startsWith("/restaurants/new");
+
   const visibleRestaurantNavItems =
     mode === "mobile"
       ? restaurantNavItems.filter((item) => !item.desktopOnly)
@@ -66,22 +109,27 @@ export function DashboardSidebar({
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto">
         {mainNavItems.map((item) => {
-          const Icon = item.icon;
+          const Icon = sidebarIcons[item.icon];
+          const href =
+            item.label === "Overview" && inRestaurant && restaurantOverviewHref
+              ? restaurantOverviewHref
+              : item.href;
           return (
-            <SidebarNavLink key={item.href} href={item.href} label={item.label} exact>
+            <SidebarNavLink key={item.label} href={href} label={item.label} exact>
               <Icon className="h-4 w-4 shrink-0" />
             </SidebarNavLink>
           );
         })}
 
-        {visibleRestaurantNavItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <SidebarNavLink key={item.href} href={item.href} label={item.label}>
-              <Icon className="h-4 w-4 shrink-0" />
-            </SidebarNavLink>
-          );
-        })}
+        {inRestaurant &&
+          visibleRestaurantNavItems.map((item) => {
+            const Icon = sidebarIcons[item.icon];
+            return (
+              <SidebarNavLink key={item.href} href={item.href} label={item.label}>
+                <Icon className="h-4 w-4 shrink-0" />
+              </SidebarNavLink>
+            );
+          })}
 
         {showAddRestaurant && (
           <div className="px-3 pt-4">

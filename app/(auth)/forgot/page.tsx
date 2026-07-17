@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { forgotPasswordAction } from "@/lib/auth/actions";
 
 export default function ForgotPasswordPage() {
@@ -63,6 +64,7 @@ export default function ForgotPasswordPage() {
         )}
 
         <Button type="submit" className="w-full" disabled={loading}>
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {loading ? "Sending..." : "Send reset link"}
         </Button>
       </form>

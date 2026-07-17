@@ -11,27 +11,13 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { ImpersonationBanner } from "@/components/dashboard/ImpersonationBanner";
 import { SubscriptionInvalidBanner } from "@/components/dashboard/SubscriptionInvalidBanner";
 import { getImpersonationState } from "@/lib/auth/impersonation";
-import {
-  LayoutDashboard,
-  BarChart3,
-  UtensilsCrossed,
-  Sparkles,
-  Palette,
-  Info,
-  QrCode,
-  Star,
-  Image as ImageIcon,
-  Users,
-  CreditCard,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
+import type { SidebarIconName } from "@/components/dashboard/DashboardSidebar";
 
 export const dynamic = "force-dynamic";
 
-const mainNavItems = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/insights", label: "Insights", icon: BarChart3 },
+const mainNavItems: { href: string; label: string; icon: SidebarIconName }[] = [
+  { href: "/dashboard", label: "Overview", icon: "LayoutDashboard" },
+  { href: "/insights", label: "Insights", icon: "BarChart3" },
 ];
 
 // minRole: lowest org role that sees this entry. Staff only get overview-style
@@ -39,20 +25,20 @@ const mainNavItems = [
 const restaurantNavItems: readonly {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: SidebarIconName;
   minRole: string;
   desktopOnly?: boolean;
 }[] = [
-  { href: "/menus", label: "Menus", icon: UtensilsCrossed, minRole: "manager" },
-  { href: "/specials", label: "Specials", icon: Sparkles, minRole: "manager" },
-  { href: "/branding", label: "Branding", icon: Palette, minRole: "manager", desktopOnly: true },
-  { href: "/about", label: "About", icon: Info, minRole: "manager" },
-  { href: "/qr", label: "QR Codes", icon: QrCode, minRole: "manager", desktopOnly: true },
-  { href: "/reviews", label: "Reviews", icon: Star, minRole: "manager" },
-  { href: "/media", label: "Media", icon: ImageIcon, minRole: "manager", desktopOnly: true },
-  { href: "/team", label: "Team", icon: Users, minRole: "manager" },
-  { href: "/billing", label: "Billing", icon: CreditCard, minRole: "owner" },
-  { href: "/settings", label: "Settings", icon: Settings, minRole: "owner" },
+  { href: "/menus", label: "Menus", icon: "UtensilsCrossed", minRole: "manager" },
+  { href: "/specials", label: "Specials", icon: "Sparkles", minRole: "manager" },
+  { href: "/branding", label: "Branding", icon: "Palette", minRole: "manager", desktopOnly: true },
+  { href: "/about", label: "About", icon: "Info", minRole: "manager" },
+  { href: "/qr", label: "QR Codes", icon: "QrCode", minRole: "manager", desktopOnly: true },
+  { href: "/reviews", label: "Reviews", icon: "Star", minRole: "manager" },
+  { href: "/media", label: "Media", icon: "Image", minRole: "manager", desktopOnly: true },
+  { href: "/team", label: "Team", icon: "Users", minRole: "manager" },
+  { href: "/billing", label: "Billing", icon: "CreditCard", minRole: "owner" },
+  { href: "/settings", label: "Settings", icon: "Settings", minRole: "owner" },
 ];
 
 const ORG_ROLE_RANK: Record<string, number> = {
@@ -139,13 +125,11 @@ export default async function DashboardLayout({
 
   const impersonation = await getImpersonationState();
 
-  const resolvedMainNavItems = mainNavItems.map((item) => ({
-    ...item,
-    href:
-      item.label === "Overview" && effectiveRestaurant
-        ? `/restaurants/${effectiveRestaurant.id}`
-        : item.href,
-  }));
+  // The sidebar decides org vs restaurant context from the URL; when in
+  // restaurant context it points Overview at this href instead of /dashboard.
+  const restaurantOverviewHref = effectiveRestaurant
+    ? `/restaurants/${effectiveRestaurant.id}`
+    : null;
 
   const resolvedRestaurantNavItems = effectiveRestaurant
     ? restaurantNavItems
@@ -161,8 +145,9 @@ export default async function DashboardLayout({
   const sidebarDesktop = (
     <DashboardSidebar
       mode="desktop"
-      mainNavItems={resolvedMainNavItems}
+      mainNavItems={mainNavItems}
       restaurantNavItems={resolvedRestaurantNavItems}
+      restaurantOverviewHref={restaurantOverviewHref}
       showAddRestaurant={restaurants.length === 0 && hasMinRole(orgRole, "owner")}
       memberships={memberships}
       activeOrgId={activeOrgId ?? null}
@@ -173,8 +158,9 @@ export default async function DashboardLayout({
   const sidebarMobile = (
     <DashboardSidebar
       mode="mobile"
-      mainNavItems={resolvedMainNavItems}
+      mainNavItems={mainNavItems}
       restaurantNavItems={resolvedRestaurantNavItems}
+      restaurantOverviewHref={restaurantOverviewHref}
       showAddRestaurant={restaurants.length === 0 && hasMinRole(orgRole, "owner")}
       memberships={memberships}
       activeOrgId={activeOrgId ?? null}

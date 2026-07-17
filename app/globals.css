@@ -9,6 +9,41 @@
   display: none;
 }
 
+/*
+ * Link pending hint: fixed-size dot that fades in (after a short delay, so
+ * fast navigations never flash it) while a <Link> navigation is pending.
+ * Used by components/dashboard/LinkPendingHint.tsx.
+ */
+.link-hint {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background-color: currentColor;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.link-hint.is-pending {
+  visibility: visible;
+  animation:
+    link-hint-fade-in 200ms ease 120ms forwards,
+    link-hint-pulse 1s ease-in-out 120ms infinite;
+}
+
+@keyframes link-hint-fade-in {
+  to {
+    opacity: 0.4;
+  }
+}
+
+@keyframes link-hint-pulse {
+  50% {
+    opacity: 0.15;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

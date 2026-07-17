@@ -29,9 +29,13 @@ export async function loadOptionSuggestions(
   const result = await safeAction(async () => {
     const { supabase } = await requireRestaurantAccess(restaurantId, "manager");
 
+    // FK hint required: analytics_daily adds a many-to-many menu_items↔menus
+    // path, so a bare `menus` embed fails with PGRST201.
     const { data, error } = await supabase
       .from("menu_items")
-      .select("preparations, variations, sides, sauces, menus!inner(restaurant_id)")
+      .select(
+        "preparations, variations, sides, sauces, menus!menu_items_menu_id_fkey!inner(restaurant_id)"
+      )
       .eq("menus.restaurant_id", restaurantId);
 
     if (error) {

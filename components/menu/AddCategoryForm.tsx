@@ -16,6 +16,8 @@ interface AddCategoryFormProps {
   placeholder?: string;
   /** Label for the inline trigger button. */
   buttonLabel?: string;
+  /** Overrides the inline trigger button's layout classes. */
+  buttonClassName?: string;
 }
 
 export function AddCategoryForm({
@@ -24,6 +26,7 @@ export function AddCategoryForm({
   inline = false,
   placeholder = "Category name",
   buttonLabel,
+  buttonClassName,
 }: AddCategoryFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -48,7 +51,7 @@ export function AddCategoryForm({
         type="button"
         variant="ghost"
         size="sm"
-        className="w-full justify-start text-muted-foreground"
+        className={buttonClassName ?? "w-full justify-start text-muted-foreground"}
         onClick={() => setOpen(true)}
       >
         <Plus className="h-4 w-4 mr-2" />

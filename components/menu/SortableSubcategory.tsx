@@ -207,7 +207,7 @@ export function SortableSubcategory({
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-muted-foreground"
+          className="ml-auto flex text-muted-foreground"
           onClick={() => setShowItemForm(true)}
         >
           <Plus className="h-4 w-4 mr-2" />

@@ -215,40 +215,22 @@ export function SortableCategory({
         </CardHeader>
 
         <CardContent className="space-y-3">
-          <SortableContext items={directItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {directItems.map((item) => (
-                <SortableItem
-                  key={item.id}
-                  item={item}
-                  menuItems={menuItems}
-                  menuId={menuId}
-                  restaurantId={restaurantId}
-                  onDelete={onDeleteItem}
-                />
-              ))}
-            </div>
-          </SortableContext>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-muted-foreground"
-            onClick={() => setShowItemForm(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add item
-          </Button>
-
-          <ItemEditSheet
-            open={showItemForm}
-            onOpenChange={setShowItemForm}
-            menuId={menuId}
-            categoryId={category.id}
-            restaurantId={restaurantId}
-            item={null}
-            menuItems={menuItems}
-          />
+          {directItems.length > 0 && (
+            <SortableContext items={directItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {directItems.map((item) => (
+                  <SortableItem
+                    key={item.id}
+                    item={item}
+                    menuItems={menuItems}
+                    menuId={menuId}
+                    restaurantId={restaurantId}
+                    onDelete={onDeleteItem}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          )}
 
           {subcategories.length > 0 && (
             <SortableContext items={subcategories.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -271,12 +253,37 @@ export function SortableCategory({
             </SortableContext>
           )}
 
-          <AddCategoryForm
+          <div className="flex items-center justify-end gap-1">
+            {directItems.length === 0 && subcategories.length === 0 && (
+              <p className="mr-auto text-sm text-muted-foreground">No items yet</p>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => setShowItemForm(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add item
+            </Button>
+            <AddCategoryForm
+              menuId={menuId}
+              parentId={category.id}
+              inline
+              buttonLabel="Add sub-category"
+              placeholder="Sub-category name"
+              buttonClassName="text-muted-foreground"
+            />
+          </div>
+
+          <ItemEditSheet
+            open={showItemForm}
+            onOpenChange={setShowItemForm}
             menuId={menuId}
-            parentId={category.id}
-            inline
-            buttonLabel="Add sub-category"
-            placeholder="Sub-category name"
+            categoryId={category.id}
+            restaurantId={restaurantId}
+            item={null}
+            menuItems={menuItems}
           />
         </CardContent>
       </Card>

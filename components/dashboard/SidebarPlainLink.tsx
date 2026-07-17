@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCloseMobileNav } from "@/components/dashboard/MobileNavContext";
+import { LinkPendingHint } from "@/components/dashboard/LinkPendingHint";
 
 export function SidebarPlainLink({
   href,
@@ -17,6 +18,7 @@ export function SidebarPlainLink({
   return (
     <Link href={href} onClick={() => closeMobileNav?.()} className={className}>
       {children}
+      <LinkPendingHint />
     </Link>
   );
 }

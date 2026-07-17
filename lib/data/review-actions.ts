@@ -125,9 +125,11 @@ export async function submitReviewAction(input: {
     // The client supplies both ids; without this check anyone could attach a
     // review (and its manager notifications) to an unrelated restaurant.
     // Admin client: unpublished menus are invisible to the anon client's RLS.
+    // FK hint required: analytics_daily adds a many-to-many menu_items↔menus
+    // path, so a bare `menus` embed fails with PGRST201.
     const { data: item, error: itemError } = await admin
       .from("menu_items")
-      .select("id, menus!inner(restaurant_id)")
+      .select("id, menus!menu_items_menu_id_fkey!inner(restaurant_id)")
       .eq("id", parsed.data.menu_item_id)
       .eq("menus.restaurant_id", parsed.data.restaurant_id)
       .maybeSingle();

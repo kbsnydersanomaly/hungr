@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins, Figtree } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/components/analytics/PostHogProvider";
+import { NavigationProgress } from "@/components/NavigationProgress";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -40,6 +41,7 @@ export default function RootLayout({
         >
           {children}
         </PostHogProvider>
+        <NavigationProgress />
         <Toaster position="bottom-right" richColors />
       </body>
     </html>

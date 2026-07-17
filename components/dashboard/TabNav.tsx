@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LinkPendingHint } from "@/components/dashboard/LinkPendingHint";
 
 // Icons are resolved here by name because server components can't pass
 // component functions across the client boundary.
@@ -68,6 +69,7 @@ export function TabNav({ items }: { items: TabNavItem[] }) {
           >
             <Icon className="h-4 w-4" />
             {item.label}
+            <LinkPendingHint />
           </Link>
         );
       })}

@@ -5,6 +5,7 @@ import { signOutAction } from "@/lib/auth/actions";
 import { loadInvitationByToken } from "@/lib/data/invitations";
 import { acceptInvitation, acceptInviteAndSignUp } from "@/lib/auth/invitations";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,9 +118,9 @@ export default async function AcceptInvitePage({
               );
             }}
           >
-            <Button type="submit" className="w-full">
+            <SubmitButton type="submit" className="w-full">
               Accept invitation
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -140,9 +141,9 @@ export default async function AcceptInvitePage({
         </CardHeader>
         <CardContent className="space-y-3">
           <form action={signOutAction}>
-            <Button type="submit" variant="outline" className="w-full">
+            <SubmitButton type="submit" variant="outline" className="w-full">
               Sign out and use the correct email
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>
@@ -206,9 +207,9 @@ function SignUpForm({ token, email }: { token: string; email: string }) {
         <Input id="password" name="password" type="password" required minLength={8} />
       </div>
 
-      <Button type="submit" className="w-full">
+      <SubmitButton type="submit" className="w-full">
         Create account &amp; accept
-      </Button>
+      </SubmitButton>
     </form>
   );
 }

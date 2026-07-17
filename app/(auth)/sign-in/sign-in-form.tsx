@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { signInAction, resendVerificationEmail } from "@/lib/auth/actions";
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -25,6 +26,7 @@ export default function SignInForm({
   const [resendCountdown, setResendCountdown] = useState(0);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const router = useRouter();
+  const [isNavigating, startTransition] = useTransition();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
   // Only allow same-site relative paths to prevent open redirects.
@@ -50,15 +52,21 @@ export default function SignInForm({
     const formData = new FormData(e.currentTarget);
     const result = await signInAction(formData);
 
-    setLoading(false);
     if (!result.ok) {
+      setLoading(false);
       setError(result.message ?? "Something went wrong");
       return;
     }
 
-    router.push(next);
-    router.refresh();
+    // Keep the button busy until the navigation commits — the dashboard
+    // layout is dynamic and can take a moment to render.
+    startTransition(() => {
+      router.push(next);
+      router.refresh();
+    });
   }
+
+  const busy = loading || isNavigating;
 
   const isUnconfirmedError =
     error?.toLowerCase().includes("not confirmed") ?? false;
@@ -133,6 +141,7 @@ export default function SignInForm({
                   resendLoading || resendCountdown > 0 || !email || !password
                 }
               >
+                {resendLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                 {resendLoading
                   ? "Sending..."
                   : resendCountdown > 0
@@ -147,8 +156,9 @@ export default function SignInForm({
           <p className="text-sm text-muted-foreground">{resendMessage}</p>
         )}
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Signing in..." : "Log in"}
+        <Button type="submit" className="w-full" disabled={busy}>
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+          {busy ? "Signing in..." : "Log in"}
         </Button>
       </form>
 

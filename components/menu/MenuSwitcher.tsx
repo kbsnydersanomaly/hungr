@@ -1,8 +1,9 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,7 @@ interface MenuSwitcherProps {
 
 export function MenuSwitcher({ restaurantSlug, currentMenuSlug, menus }: MenuSwitcherProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   if (menus.length <= 1) return null;
 
@@ -25,9 +27,16 @@ export function MenuSwitcher({ restaurantSlug, currentMenuSlug, menus }: MenuSwi
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors outline-none">
+      <DropdownMenuTrigger
+        aria-busy={isPending}
+        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors outline-none"
+      >
         {currentMenu?.name ?? "Menu"}
-        <ChevronDown className="h-3.5 w-3.5" />
+        {isPending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" />
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {menus.map((menu) => {
@@ -39,7 +48,11 @@ export function MenuSwitcher({ restaurantSlug, currentMenuSlug, menus }: MenuSwi
                 "flex items-center justify-between gap-4 cursor-pointer",
                 isActive && "font-medium"
               )}
-              onClick={() => router.push(`/m/${restaurantSlug}/${menu.slug}`)}
+              onClick={() =>
+                startTransition(() =>
+                  router.push(`/m/${restaurantSlug}/${menu.slug}`)
+                )
+              }
             >
               <span>{menu.name}</span>
               {isActive && <Check className="h-3.5 w-3.5" />}
