@@ -11,12 +11,6 @@ import {
 import { loadActiveSpecialsForRestaurant } from "@/lib/data/specials";
 import { loadBranding } from "@/lib/data/branding";
 import { loadPublishedMenusForRestaurant } from "@/lib/data/menu-switcher-actions";
-import {
-  applicableItemDiscount,
-  currentScheduleContext,
-  filterActiveSpecials,
-} from "@/lib/utils/specials";
-import { formatZar } from "@/lib/utils/money";
 import { Header } from "@/components/menu/Header";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ImageCarousel } from "@/components/menu/ImageCarousel";
@@ -77,11 +71,6 @@ export default async function ItemDetailPage({
     id: c.id,
     name: c.name,
   }));
-
-  const discount = applicableItemDiscount(
-    { id: item.id, category_id: rawItem.category_id, price_cents: item.price_cents },
-    filterActiveSpecials(specials, currentScheduleContext())
-  );
 
   const itemDiscount = getItemDiscount(rawItem, specials, { menuId: menu.id });
 

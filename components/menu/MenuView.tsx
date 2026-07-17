@@ -252,7 +252,6 @@ export function MenuView({
             restaurantSlug={restaurant.slug}
             menuSlug={menu.slug}
             menuId={menu.id}
-            specials={specials}
           />
         ) : (
           <div className="text-center py-12 text-sm text-muted-foreground">

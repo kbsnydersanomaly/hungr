@@ -5,7 +5,6 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { formatZar } from "@/lib/utils/money";
 import { trackEvent } from "@/lib/analytics/track";
-import type { ItemDiscount } from "@/lib/utils/specials";
 
 interface ItemCardProps {
   item: {
@@ -24,10 +23,9 @@ interface ItemCardProps {
   menuSlug: string;
   menuId: string;
   compact?: boolean;
-  discount?: ItemDiscount | null;
 }
 
-export function ItemCard({ item, restaurantSlug, menuSlug, menuId, compact, discount }: ItemCardProps) {
+export function ItemCard({ item, restaurantSlug, menuSlug, menuId, compact }: ItemCardProps) {
   const image = item.image_url || item.image_urls?.[0];
 
   return (

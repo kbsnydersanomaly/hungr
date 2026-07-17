@@ -1,10 +1,9 @@
 /**
- * Schedule and discount logic for restaurant specials.
+ * Schedule logic for restaurant specials.
  *
  * Pure functions, safe to call on the server or client. Specials carry a
- * day/time/date schedule and either a percentage / fixed discount or a flat
- * combo price; this module decides whether a special is live right now and what
- * price an item should show.
+ * day/time/date schedule; this module decides whether a special is live right
+ * now. Price/discount computation lives in lib/specials/discounts.ts.
  */
 
 import { formatZar } from "@/lib/utils/money";
@@ -28,20 +27,6 @@ export interface SchedulableSpecial {
   time_from: string | null;
   time_to: string | null;
   selected_days: string[] | null;
-}
-
-interface SpecialTarget {
-  item_id: string | null;
-  category_id: string | null;
-}
-
-/** The discount-relevant fields of a special. */
-export interface DiscountableSpecial extends SchedulableSpecial {
-  kind: string;
-  discount_type: string | null;
-  discount_pct: number | null;
-  discount_amount_cents: number | null;
-  special_targets?: SpecialTarget[] | null;
 }
 
 /** Format a short label like "Combo · R 12.34", "25% off", or "R 5.00 off". */
@@ -152,72 +137,6 @@ export function filterActiveSpecials<T extends SchedulableSpecial>(
   ctx: ScheduleContext
 ): T[] {
   return specials.filter((s) => isSpecialActive(s, ctx));
-}
-
-export interface ItemForDiscount {
-  id: string;
-  category_id: string | null;
-  price_cents: number;
-}
-
-export interface ItemDiscount {
-  originalCents: number;
-  discountedCents: number;
-  special: DiscountableSpecial;
-}
-
-/** Apply a single special's discount to a price, or null if it doesn't reduce it. */
-function discountedPrice(
-  special: DiscountableSpecial,
-  priceCents: number
-): number | null {
-  if (special.discount_type === "percentage") {
-    if (!special.discount_pct) return null;
-    return Math.round(priceCents * (1 - special.discount_pct / 100));
-  }
-  if (special.discount_type === "fixed") {
-    if (!special.discount_amount_cents) return null;
-    return Math.max(0, priceCents - special.discount_amount_cents);
-  }
-  return null;
-}
-
-/**
- * Best (lowest-price) item- or category-discount that applies to the item,
- * drawn from a list of already schedule-active specials. Combos are bundles and
- * never produce a per-item discount, so they're ignored here.
- */
-export function applicableItemDiscount(
-  item: ItemForDiscount,
-  activeSpecials: DiscountableSpecial[]
-): ItemDiscount | null {
-  let best: ItemDiscount | null = null;
-
-  for (const special of activeSpecials) {
-    const targets = special.special_targets ?? [];
-
-    const matches =
-      (special.kind === "item_discount" &&
-        targets.some((t) => t.item_id === item.id)) ||
-      (special.kind === "category_discount" &&
-        item.category_id != null &&
-        targets.some((t) => t.category_id === item.category_id));
-
-    if (!matches) continue;
-
-    const discounted = discountedPrice(special, item.price_cents);
-    if (discounted === null || discounted >= item.price_cents) continue;
-
-    if (!best || discounted < best.discountedCents) {
-      best = {
-        originalCents: item.price_cents,
-        discountedCents: discounted,
-        special,
-      };
-    }
-  }
-
-  return best;
 }
 
 const DAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
