@@ -1,21 +1,47 @@
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { isLocalSupabaseUrl } from "../scripts/supabase-local";
 
+// dotenv does not overwrite variables already present in the environment, so a
+// caller such as `pnpm db:bootstrap` can pin the local target before we load.
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+/**
+ * Resolve the seed target. Seeding writes data, so it is local-only unless the
+ * operator explicitly opts in with SEED_ALLOW_REMOTE=1 (mirrors RLS_ALLOW_REMOTE).
+ */
+function seedClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(url, key, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+  if (!url || !key) {
+    throw new Error(
+      "db:seed requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+    );
+  }
+  if (!isLocalSupabaseUrl(url) && process.env.SEED_ALLOW_REMOTE !== "1") {
+    throw new Error(
+      `Refusing to seed "${url}": it is not a local Supabase URL. ` +
+        "Run `pnpm db:bootstrap` for the local stack, or set SEED_ALLOW_REMOTE=1 to seed a hosted project deliberately."
+    );
+  }
 
-async function seed() {
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+export async function seed() {
+  const supabase = seedClient();
+
   console.log("Seeding plans...");
 
-  const { error } = await supabase.from("plans").insert([
+  // Upsert on the unique slug so repeated bootstraps never duplicate plans.
+  const { error } = await supabase.from("plans").upsert(
+    [
     {
       slug: "starter",
       name: "Starter",
@@ -73,7 +99,9 @@ async function seed() {
         white_label: true,
       },
     },
-  ]);
+    ],
+    { onConflict: "slug" }
+  );
 
   if (error) {
     console.error("Failed to seed plans:", error);
@@ -166,4 +194,11 @@ Tip: Invite someone from your organisation Team page if they need access to ever
   }
 }
 
-seed();
+// Only self-execute when run directly (`pnpm db:seed`); `pnpm db:bootstrap`
+// imports seed() after pinning the local target.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seed().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

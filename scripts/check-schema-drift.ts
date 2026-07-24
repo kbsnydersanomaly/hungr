@@ -3,20 +3,31 @@
  * against the versions recorded in supabase_migrations.schema_migrations and
  * exits non-zero if any file is not recorded as applied.
  *
- * Note: the check is intentionally one-directional (files → table). The local
- * DB's schema_migrations also contains base-schema versions whose SQL files
- * are untracked in this repo, so table versions without files are expected
- * and must NOT be flagged.
+ * Note: the check is intentionally one-directional (files → table). Since the
+ * P0-E1a squash both ledgers hold exactly the tracked migrations, but the
+ * direction is kept: a database provisioned before the squash still carries
+ * the 14 superseded versions, and those must NOT be flagged.
+ *
+ * The ledger is read through the repository-pinned Supabase CLI rather than
+ * `psql`, so the check runs anywhere `pnpm install` has run — including this
+ * Windows workstation and CI (P0-E2b) — without PostgreSQL client tools.
  *
  * Usage: pnpm db:check
- * Connection: SUPABASE_DB_URL env var, else the local Supabase default.
+ * Connection: SUPABASE_DB_URL env var, else the local Supabase stack.
  */
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SUPABASE_CLI = path.join(
+  ROOT,
+  "node_modules",
+  "supabase",
+  "dist",
+  "supabase.js"
+);
 
 /** Extract the leading timestamp version from a migration filename. */
 export function migrationVersion(file: string): string | null {
@@ -40,61 +51,55 @@ export function findUnappliedMigrations(
   });
 }
 
+/**
+ * Pull the applied versions out of `supabase migration list` table output.
+ *
+ * The CLI prints a `Local | Remote | Time (UTC)` table wrapped in update
+ * notices and connection chatter. The Remote column is the ledger: a row with
+ * an empty Remote cell is a file that has not been applied, and a row with an
+ * empty Local cell is a ledger entry with no matching file (expected on a
+ * database provisioned before the squash).
+ */
+export function appliedVersionsFromMigrationList(output: string): string[] {
+  return output
+    .split("\n")
+    .filter((line) => line.includes("|"))
+    .map((line) => line.split("|")[1]?.trim() ?? "")
+    .filter((version) => /^\d+$/.test(version));
+}
+
 function main() {
-  const migrationsDir = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "supabase",
-    "migrations"
-  );
+  const migrationsDir = path.join(ROOT, "supabase", "migrations");
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort();
 
-  // Pass the password via PGPASSWORD instead of on the command line.
-  let dbUrl: URL;
-  try {
-    dbUrl = new URL(process.env.SUPABASE_DB_URL ?? DEFAULT_DB_URL);
-  } catch {
+  if (!existsSync(SUPABASE_CLI)) {
     console.error(
-      `db:check: invalid SUPABASE_DB_URL ("${process.env.SUPABASE_DB_URL}"). Expected a postgres connection string like ${DEFAULT_DB_URL}.`
+      `db:check: Supabase CLI not found at ${SUPABASE_CLI}. Run \`pnpm install\` first.`
     );
     process.exit(1);
   }
-  const password = decodeURIComponent(dbUrl.password);
-  dbUrl.password = "";
+
+  const dbUrl = process.env.SUPABASE_DB_URL;
+  const target = dbUrl ? ["--db-url", dbUrl] : ["--local"];
 
   let output: string;
   try {
     output = execFileSync(
-      "psql",
-      [
-        dbUrl.toString(),
-        "-t",
-        "-A",
-        "-c",
-        "SELECT version FROM supabase_migrations.schema_migrations;",
-      ],
-      { env: { ...process.env, PGPASSWORD: password }, encoding: "utf8" }
+      process.execPath,
+      [SUPABASE_CLI, "migration", "list", ...target],
+      { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }
     );
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      console.error(
-        "db:check: `psql` was not found on PATH. Install the PostgreSQL client tools first."
-      );
-    } else {
-      console.error(
-        "db:check: failed to query supabase_migrations.schema_migrations:",
-        (err as Error).message
-      );
-    }
+    console.error(
+      "db:check: failed to read supabase_migrations.schema_migrations:",
+      (err as Error).message
+    );
     process.exit(1);
   }
 
-  const appliedVersions = output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const appliedVersions = appliedVersionsFromMigrationList(output);
 
   const unapplied = findUnappliedMigrations(files, appliedVersions);
   if (unapplied.length > 0) {

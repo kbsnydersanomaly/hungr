@@ -14,8 +14,7 @@ Owners/staff build menus, publish public URLs, share QR codes, collect reviews, 
 - pnpm package manager
 
 ## Key directories
-- `app/(marketing)/` — landing, pricing, contact
-- `app/(auth)/` — sign-in/up, verify, forgot/reset, accept-invite
+- `app/(auth)/` — unified sign-in/sign-up, verify, forgot/reset, accept-invite
 - `app/(dashboard)/` — authenticated app shell + dashboard pages
 - `app/m/` — public branded menu viewer
 - `app/api/` — webhooks (PayFast, QR, cron, health)
@@ -72,9 +71,10 @@ Owners/staff build menus, publish public URLs, share QR codes, collect reviews, 
 ```bash
 pnpm install
 cp .env.example .env.local
-supabase start          # paste creds into .env.local
+export NEXT_PUBLIC_APP_URL=http://localhost:3000
+supabase start
 pnpm db:migrate
-pnpm db:seed
+pnpm db:seed           # only if plans is empty; inserts are not idempotent
 pnpm dev
 ```
 Confirm local emails with `pnpm db:confirm-user <email>`.
@@ -86,8 +86,8 @@ pnpm e2e                # Playwright
 ```
 
 ## Deployment
-- Supabase project + `supabase db push`
-- Seed plans remotely: `pnpm db:seed`
+- Link and run `supabase db push`; the single baseline migration initializes an empty project too
+- `pnpm db:seed` is idempotent but refuses a non-local target — set `SEED_ALLOW_REMOTE=1` to seed hosted deliberately
 - Configure Auth Site URL + Redirect URLs
 - Optional: `supabase functions deploy rollup_analytics`
 - Create first super admin: `UPDATE profiles SET is_super_admin = true WHERE email = '...'`
@@ -103,7 +103,8 @@ pnpm e2e                # Playwright
 
 ## Warnings / gotchas
 - Next.js 16 has breaking changes — check `node_modules/next/dist/docs/` before writing Next.js code
-- ~95% feature complete per `PROJECT_STATUS.md`; build passes
-- `/admin/audit` nav exists but page not implemented
+- `pnpm db:bootstrap [--fresh]` builds a complete database from empty; `pnpm db:smoke` proves the non-public Auth/Storage objects a schema diff cannot see
+- `docs/ROADMAP_STATE.md` is roadmap-progress truth; code, migrations, and tests are implementation truth
+- `docs/HISTORY.md` is archival and non-authoritative
 - Public menu is read-only (no ordering yet)
 - ZAR-only, PayFast-only, no free trial

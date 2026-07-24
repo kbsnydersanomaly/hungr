@@ -67,7 +67,7 @@ npx shadcn@latest add <component> --yes --overwrite
 ```
 
 **Available primitives:**
-`button`, `input`, `textarea`, `label`, `select`, `checkbox`, `switch`, `card`, `dialog`, `sheet`, `tabs`, `table`, `badge`, `avatar`, `separator`, `skeleton`, `dropdown-menu`, `sonner` (toast)
+`autocomplete`, `avatar`, `badge`, `button`, `card`, `checkbox`, `dialog`, `dropdown-menu`, `input`, `label`, `link-button`, `progress`, `select`, `separator`, `sheet`, `skeleton`, `sonner`, `switch`, `table`, `tabs`, `textarea`
 
 ### Button usage
 ```tsx
@@ -80,7 +80,7 @@ import { Button } from "@/components/ui/button";
 <Button variant="link">Learn more</Button>
 ```
 
-**Note:** The shadcn Button uses `@base-ui/react/button` and does **not** support `asChild`. For links that look like buttons, use an `<a>` tag with button classes or wrap in `next/link` with `passHref`.
+`Button` supports `asChild` through Radix `Slot`. Prefer `<Button asChild><Link href="...">...</Link></Button>` or the dedicated `LinkButton` helper for navigation styled as a button.
 
 ---
 
@@ -199,7 +199,7 @@ Tailwind defaults:
 - `xl:` 1280px
 - `2xl:` 1536px
 
-Dashboard is desktop-first (sidebar is always visible on desktop). Mobile sidebar will be a sheet/drawer in a future iteration.
+Dashboard uses a fixed desktop sidebar at `lg` and a Sheet-based navigation drawer below `lg`.
 
 ---
 
@@ -210,7 +210,7 @@ Dashboard is desktop-first (sidebar is always visible on desktop). Mobile sideba
 | Page | `page.tsx` |
 | Layout | `layout.tsx` |
 | Server action | `actions.ts` |
-| Client component | `my-component.tsx` |
+| Client component | Follow surrounding feature convention; current shared feature components generally use PascalCase |
 | Shared component | `components/ui/button.tsx` |
 | Feature component | `components/menu/MenuGrid.tsx` |
 
@@ -226,4 +226,4 @@ Dashboard is desktop-first (sidebar is always visible on desktop). Mobile sideba
 
 ---
 
-*Last updated: Phase 0.4*
+*Last verified: 2026-07-23.*

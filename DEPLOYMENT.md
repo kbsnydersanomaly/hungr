@@ -8,12 +8,12 @@ Step-by-step guide to go from local dev to a live production site.
 
 ## Part 1 — Supabase (database, auth, storage)
 
-### 1. Create the project
+### 1. Select or create the project
 
-1. Go to [supabase.com/dashboard](https://supabase.com/dashboard) → **New project**.
-2. Choose region (pick one close to South Africa if most users are ZA).
-3. Set a strong database password and save it in a password manager.
-4. Wait for the project to finish provisioning.
+1. Open an existing Hungr project, or create a new one, in [Supabase Dashboard](https://supabase.com/dashboard).
+2. Record the project reference and keep database credentials in the approved password manager.
+
+`supabase/migrations/20260717120001_baseline.sql` initializes an empty project completely, so a brand-new project is supported: step 3 applies it.
 
 ### 2. Note your credentials
 
@@ -25,34 +25,39 @@ In **Project Settings → API**, copy:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` key |
 | `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key (**server only — never expose to browser**) |
 
-### 3. Link the CLI and push migrations
+### 3. Link the project and push migrations
 
 From the repo root:
 
 ```bash
 pnpm install
 supabase login
+export NEXT_PUBLIC_APP_URL=https://your-domain.com
 supabase link --project-ref YOUR_PROJECT_REF   # ref is in Project Settings → General
-supabase db push                                 # applies all files in supabase/migrations/
+supabase db push                               # applies pending files in supabase/migrations/
 ```
 
-This creates tables, RLS policies, functions, and storage buckets (`menu-media`, `branding`, `invoices`, `private`).
+This works on both an empty project and one that already carries the baseline: the migration's non-public statements are guarded, so re-applying them is a no-op.
 
-**Verify:** Supabase Dashboard → **Table Editor** — you should see `profiles`, `organizations`, `restaurants`, `menus`, etc.
+`supabase/schemas/baseline.sql` is a documentation snapshot for reviewers, not an install script. Never apply it by hand.
+
+**Verify:**
+
+```bash
+supabase db diff --from migrations --to linked   # expect no differences
+```
+
+Use that explicit form, not bare `supabase db diff --linked`, which reported a spurious drop list against an identical schema on CLI v2.106.0. Then check Supabase Dashboard → **Table Editor** for `profiles`, `organizations`, `restaurants`, `menus`, and **Storage** for the `menu-media`, `branding`, `invoices`, `private`, and `help-media` buckets.
 
 ### 4. Seed pricing plans
 
-Point your local env at the **remote** project temporarily, or run seed with inline env:
+The seed is idempotent — it upserts plans on `slug` and skips help content that already exists — so it is safe to re-run. It refuses a non-local target by default. Put remote credentials in a gitignored environment preset or load them from the approved secret manager, switch `.env.local` to that preset, then run:
 
 ```bash
-# Option A: put remote credentials in .env.local, then:
-pnpm db:seed
-
-# Option B: one-off
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co \
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
-pnpm db:seed
+SEED_ALLOW_REMOTE=1 pnpm db:seed
 ```
+
+Never place `SUPABASE_SERVICE_ROLE_KEY` directly in a shell command or commit it to an environment template; it bypasses RLS and may remain in shell history.
 
 **Verify:** **Table Editor → `plans`** — Starter, Pro, Enterprise rows exist.
 
@@ -70,7 +75,7 @@ These values must match `NEXT_PUBLIC_APP_URL` exactly — otherwise verification
 | | `https://your-app.vercel.app/**` |
 | | `http://localhost:3000/**` (keep for local dev) |
 
-> **Local dev:** `supabase/config.toml` now uses `env(NEXT_PUBLIC_APP_URL)` for `site_url` and `additional_redirect_urls`. Restart `supabase start` after changing `NEXT_PUBLIC_APP_URL` in `.env.local`.
+> **Local dev:** `supabase/config.toml` uses shell variable `NEXT_PUBLIC_APP_URL` for `site_url` and `additional_redirect_urls`. Run `export NEXT_PUBLIC_APP_URL=http://localhost:3000` before Supabase CLI commands, then restart `supabase start` after changing it.
 
 **Authentication → Providers → Email**
 
@@ -88,6 +93,7 @@ Migrations create buckets automatically. Confirm under **Storage**:
 |--------|---------|---------|
 | `menu-media` | Yes | Menu item images |
 | `branding` | Yes | Logos |
+| `help-media` | Yes | Help-centre images |
 | `invoices` | No | PDF invoices |
 | `private` | No | User-private files |
 
@@ -246,7 +252,7 @@ curl -X POST https://your-domain.com/api/cron/grace-period \
 
 ## Part 6 — Post-deploy verification
 
-Run through `CHECKLIST.md` against production. Minimum:
+Run the release smoke checklist in `DEMO_AND_TEST_PLAN.md` against production. Minimum:
 
 1. Sign up + email confirm + sign in
 2. Create restaurant + PayFast payment
@@ -260,11 +266,13 @@ Run through `CHECKLIST.md` against production. Minimum:
 ## Quick reference — deploy commands
 
 ```bash
-# One-time Supabase setup
+# Works on an empty project as well as an existing one
 supabase login
+export NEXT_PUBLIC_APP_URL=https://your-domain.com
 supabase link --project-ref YOUR_REF
 supabase db push
-pnpm db:seed                    # with remote creds in env
+supabase db diff --from migrations --to linked   # expect no differences
+SEED_ALLOW_REMOTE=1 pnpm db:seed                 # with remote creds in env
 
 # Optional
 supabase functions deploy rollup_analytics
@@ -287,7 +295,7 @@ vercel --prod
 |---------|-----|
 | Auth redirect loop | Supabase Site URL + Redirect URLs must include exact production domain |
 | “Invalid API key” | Wrong anon/service key; redeploy after env fix |
-| Images 404 on public menu | Buckets missing → re-run `supabase db push`; check `menu-media` is public |
+| Images 404 on public menu | Confirm migrations ran; check `menu-media` is public |
 | PayFast webhook 400 | Passphrase mismatch; ITN URL must be HTTPS production URL |
 | Emails not sent | `MAIL_PROVIDER` still `console`; verify domain with Resend/Brevo |
 | Cron 401 | `CRON_SECRET` not set in Vercel env vars |
@@ -296,4 +304,4 @@ vercel --prod
 
 ---
 
-*See also: `.env.example`, `DEMO_AND_TEST_PLAN.md`, `CHECKLIST.md`*
+*See also: `.env.example`, `README.md`, and `DEMO_AND_TEST_PLAN.md`.*

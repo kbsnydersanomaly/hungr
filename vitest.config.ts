@@ -12,7 +12,7 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["tests/unit/**/*.test.ts", "tests/rls/**/*.spec.ts"],
+          include: ["tests/unit/**/*.test.ts"],
         },
       },
       {
@@ -22,6 +22,17 @@ export default defineConfig({
           environment: "jsdom",
           include: ["tests/components/**/*.test.{ts,tsx}"],
           setupFiles: ["tests/components/setup.ts"],
+        },
+      },
+      {
+        // Separate from "node" so `pnpm test:ci` can run without a database:
+        // tests/rls/helpers.ts refuses to load unless NEXT_PUBLIC_SUPABASE_URL
+        // points at a local Supabase stack (roadmap P0-E2a, design §5.6).
+        extends: true,
+        test: {
+          name: "rls",
+          environment: "node",
+          include: ["tests/rls/**/*.spec.ts"],
         },
       },
     ],
