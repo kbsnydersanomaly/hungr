@@ -1,13 +1,26 @@
--- DOCUMENTATION ONLY — never apply this file, and never use it as a migration.
+-- Hungr squashed baseline (P0-E1a).
 --
--- `supabase db dump --linked` of the `public` schema of project
--- bvkiqrgkommynhdvsdut, regenerated 2026-07-24 by P0-E1a. It exists so a
--- reviewer can read the current starting state at a glance.
+-- This single migration is the authoritative starting point for every Hungr
+-- database. It replaces the 14 migrations 20260615110000..20260717120000,
+-- which are preserved in Git history and were marked `reverted` on the hosted
+-- project's ledger; this version was marked `applied` without executing.
 --
--- The authoritative, executable starting point is the migration
--- supabase/migrations/20260717120001_baseline.sql, which contains this same
--- public DDL plus the non-public Auth/Storage objects that `db dump` omits.
--- Use `supabase db reset`, not this file.
+-- Design: docs/superpowers/specs/2026-07-24-database-bootstrap-design.md
+--
+-- Section 1 (public schema) is `supabase db dump --linked` output taken from
+-- project bvkiqrgkommynhdvsdut on 2026-07-24 and is not hand-edited. It only
+-- ever runs against an empty database, so it is not re-runnable.
+--
+-- Section 2 (non-public Auth/Storage objects) is carried over from
+-- 20260714150000_restore_non_public_schema_objects.sql and
+-- 20260624130001_help_media_storage.sql, verified against the hosted project's
+-- storage/auth dumps. Every statement there keeps its guard, so re-running this
+-- file against an already-provisioned database is a no-op.
+
+
+-- ===========================================================================
+-- Section 1: public schema
+-- ===========================================================================
 
 
 
@@ -2763,3 +2776,150 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
+
+
+-- ===========================================================================
+-- Section 2: non-public Auth/Storage objects
+--
+-- `supabase db dump` never emits these, and the Supabase-managed `auth` and
+-- `storage` schemas must not be dumped wholesale (their definitions differ
+-- across platform versions and would conflict with a fresh project's own
+-- managed objects). Only Hungr's objects inside them are carried here.
+--
+-- Section 1 leaves search_path empty, so everything below is schema-qualified.
+-- ===========================================================================
+
+-- 2.1 Profile-provisioning trigger on auth.users.
+--     Without it, new signups get no profiles row and every insert that
+--     references profiles (organizations.owner_id, etc.) fails.
+--     Guarded by function identity rather than trigger name so a remote
+--     trigger with a different name is never duplicated.
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_trigger t
+    where t.tgrelid = 'auth.users'::regclass
+      and not t.tgisinternal
+      and t.tgfoid = 'public.handle_new_user'::regproc
+  ) then
+    create trigger on_auth_user_created
+      after insert on auth.users
+      for each row execute function public.handle_new_user();
+  end if;
+end $$;
+
+-- 2.2 Section 1 creates review_stats WITH NO DATA, but the
+--     reviews_after_change trigger refreshes it CONCURRENTLY — which errors on
+--     an unpopulated matview, breaking every write (and cascading delete) that
+--     touches reviews. Populate it once; no-op when already populated.
+
+do $$
+begin
+  if not (select relispopulated from pg_class where oid = 'public.review_stats'::regclass) then
+    refresh materialized view public.review_stats;
+  end if;
+end $$;
+
+-- 2.3 Storage buckets (rows in storage.buckets are data, not schema).
+--     All five hosted buckets, including help-media — which was previously
+--     created only by 20260624130001 and would otherwise be lost by the squash,
+--     silently breaking help-article image upload on every fresh database.
+--     Hosted has no file_size_limit or allowed_mime_types on any bucket.
+
+insert into storage.buckets (id, name, public)
+values
+  ('menu-media', 'menu-media', true),
+  ('branding', 'branding', true),
+  ('invoices', 'invoices', false),
+  ('private', 'private', false),
+  ('help-media', 'help-media', true)
+on conflict (id) do nothing;
+
+-- 2.4 Storage policies for those buckets (17 total, matching hosted exactly).
+
+drop policy if exists "menu-media manager insert" on storage.objects;
+create policy "menu-media manager insert"
+  on storage.objects for insert
+  with check (bucket_id = 'menu-media' and public.has_restaurant_access((storage.foldername(name))[1]::uuid, 'manager'));
+
+drop policy if exists "menu-media manager update" on storage.objects;
+create policy "menu-media manager update"
+  on storage.objects for update
+  using (bucket_id = 'menu-media' and public.has_restaurant_access((storage.foldername(name))[1]::uuid, 'manager'));
+
+drop policy if exists "menu-media manager delete" on storage.objects;
+create policy "menu-media manager delete"
+  on storage.objects for delete
+  using (bucket_id = 'menu-media' and public.has_restaurant_access((storage.foldername(name))[1]::uuid, 'manager'));
+
+drop policy if exists "branding manager insert" on storage.objects;
+create policy "branding manager insert"
+  on storage.objects for insert
+  with check (bucket_id = 'branding' and public.has_restaurant_access((storage.foldername(name))[1]::uuid, 'manager'));
+
+drop policy if exists "branding manager update" on storage.objects;
+create policy "branding manager update"
+  on storage.objects for update
+  using (bucket_id = 'branding' and public.has_restaurant_access((storage.foldername(name))[1]::uuid, 'manager'));
+
+drop policy if exists "branding manager delete" on storage.objects;
+create policy "branding manager delete"
+  on storage.objects for delete
+  using (bucket_id = 'branding' and public.has_restaurant_access((storage.foldername(name))[1]::uuid, 'manager'));
+
+drop policy if exists "invoices org admin read" on storage.objects;
+create policy "invoices org admin read"
+  on storage.objects for select
+  using (bucket_id = 'invoices' and public.has_org_access((storage.foldername(name))[1]::uuid, 'admin'));
+
+drop policy if exists "invoices service insert" on storage.objects;
+create policy "invoices service insert"
+  on storage.objects for insert
+  with check (bucket_id = 'invoices');
+
+drop policy if exists "invoices service delete" on storage.objects;
+create policy "invoices service delete"
+  on storage.objects for delete
+  using (bucket_id = 'invoices');
+
+drop policy if exists "private owner read" on storage.objects;
+create policy "private owner read"
+  on storage.objects for select
+  using (bucket_id = 'private' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "private owner insert" on storage.objects;
+create policy "private owner insert"
+  on storage.objects for insert
+  with check (bucket_id = 'private' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "private owner update" on storage.objects;
+create policy "private owner update"
+  on storage.objects for update
+  using (bucket_id = 'private' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "private owner delete" on storage.objects;
+create policy "private owner delete"
+  on storage.objects for delete
+  using (bucket_id = 'private' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "help-media public read" on storage.objects;
+create policy "help-media public read"
+  on storage.objects for select
+  using (bucket_id = 'help-media');
+
+drop policy if exists "help-media super admin insert" on storage.objects;
+create policy "help-media super admin insert"
+  on storage.objects for insert
+  with check (bucket_id = 'help-media' and public.is_super_admin());
+
+drop policy if exists "help-media super admin update" on storage.objects;
+create policy "help-media super admin update"
+  on storage.objects for update
+  using (bucket_id = 'help-media' and public.is_super_admin());
+
+drop policy if exists "help-media super admin delete" on storage.objects;
+create policy "help-media super admin delete"
+  on storage.objects for delete
+  using (bucket_id = 'help-media' and public.is_super_admin());

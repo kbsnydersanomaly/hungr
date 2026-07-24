@@ -1,0 +1,91 @@
+# CI foundation — roadmap P0-E2.
+# Design: docs/superpowers/specs/2026-07-24-ci-foundation-design.md
+#
+# This workflow uses NO repository secrets. Database-free jobs run against the
+# committed placeholder values below; the database jobs added by P0-E2b/P0-E2c
+# start a local Supabase stack and derive their environment from it. That is
+# what lets fork pull requests get full CI.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Superseded pull-request runs are cancelled; pushes to main never are, so the
+  # history of main stays complete.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm exec tsc --noEmit
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # Deliberately no database and no .env file: the "node" and "components"
+      # Vitest projects must stay runnable without either. The "rls" project is
+      # excluded here and runs in the database job (P0-E2b).
+      - run: pnpm test:ci
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Placeholders, not secrets. Verified 2026-07-24: `next build` completes
+      # with nothing listening on the Supabase URL — every application route is
+      # server-rendered on demand, and no statically prerendered page evaluates
+      # the server env proxy at build time.
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      # PayFast sandbox values, already committed in .env.example and defaulted
+      # in lib/env.ts. Supplied so that adding a prerendered page that touches
+      # server env does not turn into a mystery CI failure.
+      PAYFAST_MERCHANT_ID: "10013557"
+      PAYFAST_MERCHANT_KEY: nn7rftlml9ki3
+      PAYFAST_SANDBOX: "true"
+      MAIL_PROVIDER: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Restore Next build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('app/**', 'components/**', 'lib/**') }}
+          restore-keys: |
+            ${{ runner.os }}-next-${{ hashFiles('pnpm-lock.yaml') }}-
+
+      - run: pnpm build

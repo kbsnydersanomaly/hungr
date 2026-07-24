@@ -13,7 +13,7 @@ Use this document to **demo the product** to stakeholders and to **manually test
 5. [Full test plan by area](#5-full-test-plan-by-area)
 6. [Automated tests](#6-automated-tests)
 7. [API & background jobs](#7-api--background-jobs)
-8. [Known gaps & out-of-scope items](#8-known-gaps--out-of-scope-items)
+8. [Release smoke checklist and current limitations](#8-release-smoke-checklist-and-current-limitations)
 9. [Troubleshooting](#9-troubleshooting)
 
 ---
@@ -59,11 +59,13 @@ cp .env.example .env.local
 Start local Supabase and paste credentials from `supabase status` into `.env.local`:
 
 ```bash
-supabase start
-pnpm db:migrate
-pnpm db:seed          # seeds Starter / Pro / Enterprise plans
+export NEXT_PUBLIC_APP_URL=http://localhost:3000
+pnpm db:bootstrap     # start, migrate, seed, regenerate types — works from empty
+pnpm db:smoke         # Auth trigger, review_stats, and all five storage buckets
 pnpm dev              # http://localhost:3000
 ```
+
+`pnpm db:bootstrap` works on a machine with no existing Supabase volume; add `--fresh` to discard one. Still rehearse the sequence before a stakeholder demo rather than running it for the first time in front of an audience.
 
 ### 2.2 Recommended `.env.local` for demos
 
@@ -253,7 +255,7 @@ Use the checklists below for QA. Mark each row: ✅ pass / ❌ fail / ⏭ skip.
 |---|-------|----------|
 | D1 | Sidebar: Overview, Insights | Pages load |
 | D2 | Restaurant breadcrumb switcher | Switches active restaurant; sidebar links update |
-| D3 | Notification bell | Opens dropdown; links to notification settings |
+| D3 | Notification bell | Opens inbox preview; current entries route to their target or notification preferences |
 | D4 | Avatar → Settings / Sign out | Works |
 | D5 | Settings sub-nav | Active tab highlighted (Profile, Org, Team, Billing, Security, Notifications) |
 | D6 | Empty dashboard (no restaurants) | CTA to add first restaurant |
@@ -417,9 +419,7 @@ Requires `is_super_admin = true`.
 | AD7 | `/admin/transactions` | Payment history |
 | AD8 | `/admin/health` | System health metrics |
 | AD9 | `/admin/impersonate` | Impersonate user; banner; stop impersonating |
-| AD10 | Admin sub-nav | Active tab highlighted |
-
-> **Note:** `/admin/audit` is linked in the admin nav but the page is not implemented yet — expect 404 until built.
+| AD10 | Admin sub-nav, restaurant and help tools | Active tab highlighted; pages load |
 
 ### 5.18 Impersonation
 
@@ -477,17 +477,29 @@ curl -X POST http://localhost:3000/api/cron/grace-period \
 
 ---
 
-## 8. Known gaps & out-of-scope items
+## 8. Release smoke checklist and current limitations
+
+### 8.1 Release smoke checklist
+
+- [ ] Setup: plans seeded, test email confirmed, optional super admin set, `NEXT_PUBLIC_APP_URL` correct.
+- [ ] Auth: unified sign-up, confirmation, sign-in, sign-out, forgot/reset, and logged-out dashboard redirect.
+- [ ] Restaurant/billing: create restaurant, complete PayFast sandbox checkout, verify billing banner and restaurant slug.
+- [ ] Menu: create menu/category/item, upload image, edit/reorder, and publish.
+- [ ] Content: publish branding, save About page, upload media, and download QR.
+- [ ] Public mobile: open menu incognito, view item/About, submit review, and open mobile navigation.
+- [ ] Dashboard: approve review, publish an active special, and load Insights.
+- [ ] Team/settings: accept invite, change/remove member, save profile/organisation/password/notification settings.
+- [ ] Admin: load organisations, users, subscription detail, health, help, and impersonation flow.
+- [ ] Post-deploy: health endpoint, PayFast ITN, transaction record, real email delivery, and authorised cron.
+
+### 8.2 Current limitations
 
 Do **not** expect these to work in v1 — note if stakeholders ask:
 
 | Item | Status |
 |------|--------|
 | Customer ordering / cart | Not built — bottom nav shows “Soon” |
-| `/admin/audit` page | Nav link exists; page not implemented |
-| `/admin/orgs/[id]` detail page | “Details” link may 404 |
-| In-app notifications UI | Schema exists; bell shows basic list only |
-| Realtime specials on public menu | Branding realtime exists; specials may not live-update |
+| Notification timeline | Bell preview exists; full `/notifications` timeline is planned in P1-2 |
 | Edge function `rollup_analytics` | Code exists; deploy with `pnpm deploy:edge-functions` |
 | POS integration | Future |
 
@@ -530,4 +542,4 @@ Do **not** expect these to work in v1 — note if stakeholders ask:
 
 ---
 
-*Last updated: 2026-06-11 — aligned with Next.js 16 app router routes and local Supabase dev workflow.*
+*Last verified: 2026-07-23 against current routes and local Supabase workflow.*

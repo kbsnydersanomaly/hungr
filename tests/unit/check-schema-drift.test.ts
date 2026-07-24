@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  appliedVersionsFromMigrationList,
   findUnappliedMigrations,
   migrationVersion,
 } from "../../scripts/check-schema-drift";
@@ -49,5 +50,46 @@ describe("findUnappliedMigrations", () => {
 
   it("flags everything when nothing is applied", () => {
     expect(findUnappliedMigrations(files, [])).toEqual(files);
+  });
+});
+
+describe("appliedVersionsFromMigrationList", () => {
+  it("reads the Remote column out of real CLI output", () => {
+    const output = [
+      "Connecting to local database...",
+      "",
+      "  ",
+      "   Local          | Remote         | Time (UTC)          ",
+      "  ----------------|----------------|---------------------",
+      "   20260717120001 | 20260717120001 | 2026-07-17 12:00:01 ",
+      "",
+      "A new version of Supabase CLI is available: v2.109.1",
+    ].join("\n");
+    expect(appliedVersionsFromMigrationList(output)).toEqual(["20260717120001"]);
+  });
+
+  it("omits files that have no ledger row", () => {
+    const output = [
+      "   Local          | Remote         | Time (UTC)          ",
+      "  ----------------|----------------|---------------------",
+      "   20260717120001 | 20260717120001 | 2026-07-17 12:00:01 ",
+      "   20260718090000 |                | 2026-07-18 09:00:00 ",
+    ].join("\n");
+    expect(appliedVersionsFromMigrationList(output)).toEqual(["20260717120001"]);
+  });
+
+  it("keeps ledger rows that have no matching file", () => {
+    const output = [
+      "   Local          | Remote         | Time (UTC)          ",
+      "  ----------------|----------------|---------------------",
+      "                  | 20260615110000 | 2026-06-15 11:00:00 ",
+    ].join("\n");
+    expect(appliedVersionsFromMigrationList(output)).toEqual(["20260615110000"]);
+  });
+
+  it("returns nothing when the CLI printed no table", () => {
+    expect(appliedVersionsFromMigrationList("Cannot connect to the database")).toEqual(
+      []
+    );
   });
 });
